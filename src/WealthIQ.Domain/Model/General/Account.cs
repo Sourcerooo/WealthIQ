@@ -4,9 +4,6 @@ public readonly record struct AccountId(Guid Value)
 {
     public override string ToString() => Value.ToString();
     public static AccountId NewId() => new AccountId(Guid.NewGuid());
-
-    public static implicit operator Guid(AccountId accountId) => accountId.Value;
-
     public static explicit operator AccountId(Guid value) => new AccountId(value);
 }
 

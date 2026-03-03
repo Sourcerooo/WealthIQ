@@ -6,7 +6,7 @@ namespace WealthIQ.Domain.Model.Event;
 public sealed record ExecutedTradeEvent(
     AccountEventId EventId,
     Account Account,
-    DateTimeOffset OccuredAt,
+    DateTimeOffset OccurredAt,
     string SourceBroker,
     string SourceReference,
     Instrument Instrument,
@@ -17,7 +17,7 @@ public sealed record ExecutedTradeEvent(
     Money Taxes)
     : AccountEvent(EventId,
     Account,
-    OccuredAt,
+    OccurredAt,
     EventType.ExecutedTrade,
     SourceBroker,
     SourceReference);

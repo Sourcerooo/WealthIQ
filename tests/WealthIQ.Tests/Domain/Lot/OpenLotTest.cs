@@ -18,7 +18,7 @@ public class OpenLotTests
     private ExecutedTradeEvent GetTradeEvent() => new ExecutedTradeEvent(
             EventId: AccountEventId.NewId(),
             Account: GetAccount(),
-            OccuredAt: DateTime.UtcNow,
+            OccurredAt: DateTime.UtcNow,
             SourceBroker: "Source Broker",
             SourceReference: "Source Broker Reference",
             Instrument: GetInstrument(),

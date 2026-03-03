@@ -4,8 +4,7 @@ public readonly record struct InstrumentId(Guid Value)
 {
     public override string ToString() => Value.ToString();
     public static InstrumentId NewId() => new InstrumentId(Guid.NewGuid());
-    public static implicit operator Guid(InstrumentId instrumentId) => instrumentId.Value;
-    public static implicit operator InstrumentId(Guid value) => new InstrumentId(value);
+    public static explicit operator InstrumentId(Guid value) => new InstrumentId(value);
 };
 
 public sealed record Instrument(

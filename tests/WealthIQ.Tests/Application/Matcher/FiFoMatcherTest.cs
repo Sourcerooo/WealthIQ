@@ -386,7 +386,7 @@ public class FiFoMatcherTest
     private static ExecutedTradeEvent GetTradeEvent() => new ExecutedTradeEvent(
            EventId: AccountEventId.NewId(),
            Account: GetAccount(),
-           OccuredAt: DateTime.UtcNow,
+           OccurredAt: DateTime.UtcNow,
            SourceBroker: "Source Broker",
            SourceReference: "Source Broker Reference",
            Instrument: GetInstrument(),
@@ -436,14 +436,14 @@ public class FiFoMatcherTest
         Instrument? instrument = null,
         string sourceBroker = "BrokerX",
         string sourceReference = "REF-123",
-        DateTime? occuredAt = null)
+        DateTime? occurredAt = null)
     {
         account = account ?? GetAccount();
         instrument = instrument ?? GetInstrument();
         return new ExecutedTradeEvent(
             EventId: AccountEventId.NewId(),
             Account: account,
-            OccuredAt: occuredAt ?? DateTime.UtcNow,
+            OccurredAt: occurredAt ?? DateTime.UtcNow,
             SourceBroker: sourceBroker,
             SourceReference: sourceReference,
             Instrument: instrument,
