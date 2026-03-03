@@ -11,38 +11,14 @@ public class FiFoMatcherTest
     [Fact]
     public void Match_FullCloseLong_CreatesOneConsumptionAndNoRemainderLot()
     {
-
+        var account = GetAccount();
+        var instrument = GetInstrument();
         // Arrange
-        var openLots = new List<OpenLot>();
-        openLots.Add(
-            new OpenLot
-            {
-                LotId = new LotId(Guid.NewGuid()),
-                AccountId = new AccountId("ACC-1"),
-                InstrumentId = new InstrumentId("AAPL"),
-                OpenEventId = Guid.NewGuid(),
-                OpenTradeDate = new DateOnly(2025, 1, 10),
-                Direction = PositionDirection.Long,
-                OriginalQuantity = new Quantity(100m),
-                RemainingQuantity = new Quantity(100m),
-                OpenUnitPrice = new Money(100m, Currency.EUR),
-                RemainingOpenFees = new Money(10m, Currency.EUR),
-                RemainingOpenTaxes = new Money(4m, Currency.EUR)
-            }
-         );
-        var tradeEvent = new ExecutedTradeEvent(
-            EventId: Guid.NewGuid(),
-            AccountId: new AccountId("ACC-1"),
-            OccuredAt: DateTime.UtcNow,
-            SourceBroker: "BrokerX",
-            SourceReference: "REF-123",
-            InstrumentId: new InstrumentId("AAPL"),
-            Side: TradeSide.Sell,
-            Quantity: new Quantity(100m),
-            UnitPrice: new Money(150m, Currency.EUR),
-            Fees: new Money(12m, Currency.EUR),
-            Taxes: new Money(4.8m, Currency.EUR)
-        );
+        var openLots = new List<OpenLot> { CreateOpenLot(account: account,
+                instrument: instrument) };
+        var tradeEvent = CreateTradeEvent(
+            account: account,
+            instrument: instrument);
 
         // Act
         var fifoMatcher = new FiFoMatcher();
@@ -64,36 +40,18 @@ public class FiFoMatcherTest
     {
         // Arrange
         // Setup: 1 Open Long Lot (100), Sell Event (40), Fees/Taxes auf Open und Close gesetzt
-        var openLots = new List<OpenLot>();
-        openLots.Add(
-            new OpenLot
-            {
-                LotId = new LotId(Guid.NewGuid()),
-                AccountId = new AccountId("ACC-1"),
-                InstrumentId = new InstrumentId("AAPL"),
-                OpenEventId = Guid.NewGuid(),
-                OpenTradeDate = new DateOnly(2025, 1, 10),
-                Direction = PositionDirection.Long,
-                OriginalQuantity = new Quantity(100m),
-                RemainingQuantity = new Quantity(100m),
-                OpenUnitPrice = new Money(100m, Currency.EUR),
-                RemainingOpenFees = new Money(10m, Currency.EUR),
-                RemainingOpenTaxes = new Money(4m, Currency.EUR)
-            }
-         );
+        var account = GetAccount();
+        var instrument = GetInstrument();
+        var openLots = new List<OpenLot> { CreateOpenLot(account: account,
+                instrument: instrument) };
 
-        var tradeEvent = new ExecutedTradeEvent(
-            EventId: Guid.NewGuid(),
-            AccountId: new AccountId("ACC-1"),
-            OccuredAt: DateTime.UtcNow,
-            SourceBroker: "BrokerX",
-            SourceReference: "REF-123",
-            InstrumentId: new InstrumentId("AAPL"),
-            Side: TradeSide.Sell,
-            Quantity: new Quantity(40m),
-            UnitPrice: new Money(200m, Currency.EUR),
-            Fees: new Money(20m, Currency.EUR),
-            Taxes: new Money(8m, Currency.EUR)
+        var tradeEvent = CreateTradeEvent(
+            account: account,
+            instrument: instrument,
+            quantity: 40m,
+            unitPrice: 200m,
+            fees: 20m,
+            taxes: 8m
         );
 
         // Act
@@ -121,53 +79,31 @@ public class FiFoMatcherTest
         // Arrange
         // Setup: zwei Open Long Lots gleicher Instrument/Account, älteres Lot zuerst,
         // Sell Event über Gesamtmenge > Lot1 und < Lot1+Lot2
-        var openLots = new List<OpenLot>();
-        openLots.Add(
-            new OpenLot
-            {
-                LotId = new LotId(Guid.NewGuid()),
-                AccountId = new AccountId("ACC-1"),
-                InstrumentId = new InstrumentId("AAPL"),
-                OpenEventId = Guid.NewGuid(),
-                OpenTradeDate = new DateOnly(2025, 1, 10),
-                Direction = PositionDirection.Long,
-                OriginalQuantity = new Quantity(200m),
-                RemainingQuantity = new Quantity(200m),
-                OpenUnitPrice = new Money(100m, Currency.EUR),
-                RemainingOpenFees = new Money(10m, Currency.EUR),
-                RemainingOpenTaxes = new Money(4m, Currency.EUR)
-            }
-         );
-        openLots.Add(
-            new OpenLot
-            {
-                LotId = new LotId(Guid.NewGuid()),
-                AccountId = new AccountId("ACC-1"),
-                InstrumentId = new InstrumentId("AAPL"),
-                OpenEventId = Guid.NewGuid(),
-                OpenTradeDate = new DateOnly(2025, 1, 9),
-                Direction = PositionDirection.Long,
-                OriginalQuantity = new Quantity(100m),
-                RemainingQuantity = new Quantity(100m),
-                OpenUnitPrice = new Money(50m, Currency.EUR),
-                RemainingOpenFees = new Money(8m, Currency.EUR),
-                RemainingOpenTaxes = new Money(3m, Currency.EUR)
-            }
-         );
+        var account = GetAccount();
+        var instrument = GetInstrument();
+        var openLots = new List<OpenLot>
+        {
+            CreateOpenLot(originalQuantity: 200m,
+            account: account,
+            instrument: instrument,
+            openTradeDate: new DateOnly(2025, 1, 10)),
+            CreateOpenLot(
+                openTradeDate: new DateOnly(2025, 1, 9),
+                account: account,
+                instrument: instrument,
+                openUnitPrice: 50m,
+                remainingOpenFees: 8m,
+                remainingOpenTaxes: 3m
+            )
+        };
 
-        var tradeEvent = new ExecutedTradeEvent(
-            EventId: Guid.NewGuid(),
-            AccountId: new AccountId("ACC-1"),
-            OccuredAt: DateTime.UtcNow,
-            SourceBroker: "BrokerX",
-            SourceReference: "REF-123",
-            InstrumentId: new InstrumentId("AAPL"),
-            Side: TradeSide.Sell,
-            Quantity: new Quantity(150m),
-            UnitPrice: new Money(200m, Currency.EUR),
-            Fees: new Money(21m, Currency.EUR),
-            Taxes: new Money(9m, Currency.EUR)
-        );
+        var tradeEvent = CreateTradeEvent(
+            account: account,
+            instrument: instrument,
+            quantity: 150m,
+            unitPrice: 200m,
+            fees: 21m,
+            taxes: 9m);
 
         // Act
         var fifoMatcher = new FiFoMatcher();
@@ -206,19 +142,7 @@ public class FiFoMatcherTest
         // Setup: keine passenden Open Long Lots, Sell Event
         var openLots = new List<OpenLot>();
 
-        var tradeEvent = new ExecutedTradeEvent(
-            EventId: Guid.NewGuid(),
-            AccountId: new AccountId("ACC-1"),
-            OccuredAt: DateTime.UtcNow,
-            SourceBroker: "BrokerX",
-            SourceReference: "REF-123",
-            InstrumentId: new InstrumentId("AAPL"),
-            Side: TradeSide.Sell,
-            Quantity: new Quantity(100m),
-            UnitPrice: new Money(200m, Currency.EUR),
-            Fees: new Money(10m, Currency.EUR),
-            Taxes: new Money(4m, Currency.EUR)
-        );
+        var tradeEvent = CreateTradeEvent(unitPrice: 200m, fees: 10m, taxes: 4m);
 
         // Act
         var fifoMatcher = new FiFoMatcher();
@@ -240,19 +164,7 @@ public class FiFoMatcherTest
         // Setup: keine passenden Open Short Lots, Buy Event
         var openLots = new List<OpenLot>();
 
-        var tradeEvent = new ExecutedTradeEvent(
-            EventId: Guid.NewGuid(),
-            AccountId: new AccountId("ACC-1"),
-            OccuredAt: DateTime.UtcNow,
-            SourceBroker: "BrokerX",
-            SourceReference: "REF-123",
-            InstrumentId: new InstrumentId("AAPL"),
-            Side: TradeSide.Buy,
-            Quantity: new Quantity(100m),
-            UnitPrice: new Money(200m, Currency.EUR),
-            Fees: new Money(10m, Currency.EUR),
-            Taxes: new Money(4m, Currency.EUR)
-        );
+        var tradeEvent = CreateTradeEvent(side: TradeSide.Buy, unitPrice: 200m, fees: 10m, taxes: 4m);
 
         // Act
         var fifoMatcher = new FiFoMatcher();
@@ -273,11 +185,45 @@ public class FiFoMatcherTest
 
         // Arrange
         // Setup: Open Long 50, Sell 80
+        var account = GetAccount();
+        var instrument = GetInstrument();
+        var openLots = new List<OpenLot>
+        {
+            CreateOpenLot(originalQuantity: 50m,
+            account: account,
+            instrument: instrument)
+        };
+
+        var tradeEvent = CreateTradeEvent(
+            side: TradeSide.Sell,
+            account: account,
+            instrument: instrument,
+            quantity: 80m,
+            unitPrice: 200m,
+            fees: 8m,
+            taxes: 4m
+        );
 
         // Act
+        var fifoMatcher = new FiFoMatcher();
+        var result = fifoMatcher.Match(tradeEvent, openLots, LotMatchingPolicy.FIFO);
 
         // Assert
         // Erwartung: 50 werden geschlossen, Rest 30 als neues Short-Lot
+        Assert.Single(result.Consumptions);
+        var consumption = result.Consumptions[0];
+        Assert.Equal(50m, consumption.MatchedQuantity.Value);
+
+        var updatedOpenLot = result.UpdatedOpenLots.Single();
+        Assert.Equal(0m, updatedOpenLot.RemainingQuantity.Value);
+
+        Assert.NotNull(result.NewlyOpenedRemainderLot);
+        var remainderLot = result.NewlyOpenedRemainderLot;
+        Assert.Equal(PositionDirection.Short, remainderLot.Direction);
+        Assert.Equal(30m, remainderLot.OriginalQuantity.Value);
+        Assert.Equal(30m, remainderLot.RemainingQuantity.Value);
+        Assert.Equal(3m, remainderLot.RemainingOpenFees.Amount);
+        Assert.Equal(1.5m, remainderLot.RemainingOpenTaxes.Amount);
     }
 
     [Fact]
@@ -286,11 +232,42 @@ public class FiFoMatcherTest
 
         // Arrange
         // Setup: Lots mit anderem AccountId oder InstrumentId
+        var account = GetAccount();
+        var instrument = GetInstrument();
+        var account2 = GetAccount();
+        var instrument2 = GetInstrument();
+        var differentAccountLot = CreateOpenLot(account: account, originalQuantity: 70m);
+        var differentInstrumentLot = CreateOpenLot(instrument: instrument, originalQuantity: 80m);
+        var matchingLot = CreateOpenLot(account: account2,
+                instrument: instrument2,
+                originalQuantity: 60m);
+        var openLots = new List<OpenLot> { differentAccountLot, differentInstrumentLot, matchingLot };
+
+        var tradeEvent = CreateTradeEvent(account: account2,
+                instrument: instrument2,
+                quantity: 50m);
 
         // Act
+        var fifoMatcher = new FiFoMatcher();
+        var result = fifoMatcher.Match(tradeEvent, openLots, LotMatchingPolicy.FIFO);
 
         // Assert
         // Erwartung: diese Lots werden nicht gematcht.
+        Assert.Single(result.Consumptions);
+        var consumption = result.Consumptions[0];
+        Assert.Equal(matchingLot.LotId, consumption.OpenLot.LotId);
+        Assert.Equal(50m, consumption.MatchedQuantity.Value);
+
+        var updatedDifferentAccountLot = result.UpdatedOpenLots.Single(x => x.LotId == differentAccountLot.LotId);
+        Assert.Equal(70m, updatedDifferentAccountLot.RemainingQuantity.Value);
+
+        var updatedDifferentInstrumentLot = result.UpdatedOpenLots.Single(x => x.LotId == differentInstrumentLot.LotId);
+        Assert.Equal(80m, updatedDifferentInstrumentLot.RemainingQuantity.Value);
+
+        var updatedMatchingLot = result.UpdatedOpenLots.Single(x => x.LotId == matchingLot.LotId);
+        Assert.Equal(10m, updatedMatchingLot.RemainingQuantity.Value);
+
+        Assert.Null(result.NewlyOpenedRemainderLot);
     }
 
     [Fact]
@@ -298,11 +275,52 @@ public class FiFoMatcherTest
     {
         // Arrange
         // Setup: Long Open 100 @ 100, Close @ 150, definierte Fees/ Taxes
+        var instrument = GetInstrument();
+        var account = GetAccount();
+        var openLots = new List<OpenLot>
+        {
+            CreateOpenLot(
+                direction: PositionDirection.Long,
+                account: account,
+                instrument: instrument,
+                originalQuantity: 100m,
+                openUnitPrice: 100m,
+                remainingOpenFees: 10m,
+                remainingOpenTaxes: 4m)
+        };
+
+        var tradeEvent = CreateTradeEvent(
+            side: TradeSide.Sell,
+            account: account,
+            instrument: instrument,
+            quantity: 100m,
+            unitPrice: 150m,
+            fees: 12m,
+            taxes: 4.8m
+        );
 
         // Act
+        var fifoMatcher = new FiFoMatcher();
+        var result = fifoMatcher.Match(tradeEvent, openLots, LotMatchingPolicy.FIFO);
 
         // Assert
         // Erwartung: Gross, Net, CostBasis, Proceeds gemäß Formel korrekt.
+        Assert.Single(result.Consumptions);
+        var consumption = result.Consumptions[0];
+
+        var grossPnL = (consumption.CloseUnitPrice.Amount
+            - consumption.OpenUnitPrice.Amount) * consumption.MatchedQuantity.Value;
+        var netPnL = grossPnL
+            - consumption.AllocatedOpenFees.Amount
+            - consumption.AllocatedOpenTaxes.Amount
+            - consumption.AllocatedCloseFees.Amount
+            - consumption.AllocatedCloseTaxes.Amount;
+
+        Assert.Equal(5000m, grossPnL);
+        Assert.Equal(4969.2m, netPnL);
+        Assert.Equal(10014m, consumption.CostBasis.Amount);
+        Assert.Equal(14983.2m, consumption.Proceeds.Amount);
+        Assert.Equal(4969.2m, consumption.RealizedPnL.Amount);
     }
 
     [Fact]
@@ -310,11 +328,130 @@ public class FiFoMatcherTest
     {
         // Arrange
         //  Setup: Short Open (durch vorherigen Sell), später Buy-to-cover
+        var account = GetAccount();
+        var instrument = GetInstrument();
+        var openLots = new List<OpenLot>
+        {
+            CreateOpenLot(
+                direction: PositionDirection.Short,
+                originalQuantity: 100m,
+                account: account,
+                instrument: instrument,
+                openUnitPrice: 200m,
+                remainingOpenFees: 10m,
+                remainingOpenTaxes: 4m)
+        };
+
+        var tradeEvent = CreateTradeEvent(
+            side: TradeSide.Buy,
+            account: account,
+            instrument: instrument,
+            quantity: 100m,
+            unitPrice: 150m,
+            fees: 12m,
+            taxes: 4.8m
+        );
 
         // Act
+        var fifoMatcher = new FiFoMatcher();
+        var result = fifoMatcher.Match(tradeEvent, openLots, LotMatchingPolicy.FIFO);
 
         // Assert
         //Erwartung: Short-Formel korrekt (Gewinn bei niedrigerem Rückkaufpreis).
+        Assert.Single(result.Consumptions);
+        var consumption = result.Consumptions[0];
 
+        var grossPnL = (consumption.OpenUnitPrice.Amount
+            - consumption.CloseUnitPrice.Amount) * consumption.MatchedQuantity.Value;
+        var netPnL = grossPnL
+            - consumption.AllocatedOpenFees.Amount
+            - consumption.AllocatedOpenTaxes.Amount
+            - consumption.AllocatedCloseFees.Amount
+            - consumption.AllocatedCloseTaxes.Amount;
+
+        Assert.Equal(5000m, grossPnL);
+        Assert.Equal(4969.2m, netPnL);
+        Assert.Equal(4969.2m, consumption.RealizedPnL.Amount);
+
+    }
+
+    private static Account GetAccount() => new Account(AccountId: AccountId.NewId(), AccountNumber: "12345");
+    private static Instrument GetInstrument() => new Instrument(
+        InstrumentId: InstrumentId.NewId(),
+        ISIN: "US0378331005",
+        Symbol: "AAPL",
+        Name: "Apple Inc.",
+        Teilfreistellungsquote: 0m);
+
+    private static ExecutedTradeEvent GetTradeEvent() => new ExecutedTradeEvent(
+           EventId: AccountEventId.NewId(),
+           Account: GetAccount(),
+           OccuredAt: DateTime.UtcNow,
+           SourceBroker: "Source Broker",
+           SourceReference: "Source Broker Reference",
+           Instrument: GetInstrument(),
+           Side: TradeSide.Buy,
+           Quantity: new Quantity(100m),
+           UnitPrice: new Money(100m, Currency.EUR),
+           Fees: new Money(10m, Currency.EUR),
+           Taxes: new Money(4m, Currency.EUR)
+       );
+
+    private static OpenLot CreateOpenLot(
+        Account? account = null,
+        Instrument? instrument = null,
+        PositionDirection direction = PositionDirection.Long,
+        decimal originalQuantity = 100m,
+        decimal? remainingQuantity = null,
+        decimal openUnitPrice = 100m,
+        decimal remainingOpenFees = 10m,
+        decimal remainingOpenTaxes = 4m,
+        DateOnly? openTradeDate = null)
+    {
+        account = account ?? GetAccount();
+        instrument = instrument ?? GetInstrument();
+        return new OpenLot
+        {
+            LotId = new LotId(Guid.NewGuid()),
+            Account = account,
+            Instrument = instrument,
+            OpenEvent = GetTradeEvent(),
+            OpenTradeDate = openTradeDate ?? new DateOnly(2025, 1, 10),
+            Direction = direction,
+            OriginalQuantity = new Quantity(originalQuantity),
+            RemainingQuantity = new Quantity(remainingQuantity ?? originalQuantity),
+            OpenUnitPrice = new Money(openUnitPrice, Currency.EUR),
+            RemainingOpenFees = new Money(remainingOpenFees, Currency.EUR),
+            RemainingOpenTaxes = new Money(remainingOpenTaxes, Currency.EUR)
+        };
+    }
+
+    private static ExecutedTradeEvent CreateTradeEvent(
+        TradeSide side = TradeSide.Sell,
+        decimal quantity = 100m,
+        decimal unitPrice = 150m,
+        decimal fees = 12m,
+        decimal taxes = 4.8m,
+        Account? account = null,
+        Instrument? instrument = null,
+        string sourceBroker = "BrokerX",
+        string sourceReference = "REF-123",
+        DateTime? occuredAt = null)
+    {
+        account = account ?? GetAccount();
+        instrument = instrument ?? GetInstrument();
+        return new ExecutedTradeEvent(
+            EventId: AccountEventId.NewId(),
+            Account: account,
+            OccuredAt: occuredAt ?? DateTime.UtcNow,
+            SourceBroker: sourceBroker,
+            SourceReference: sourceReference,
+            Instrument: instrument,
+            Side: side,
+            Quantity: new Quantity(quantity),
+            UnitPrice: new Money(unitPrice, Currency.EUR),
+            Fees: new Money(fees, Currency.EUR),
+            Taxes: new Money(taxes, Currency.EUR)
+        );
     }
 }

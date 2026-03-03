@@ -25,8 +25,8 @@ public sealed record FiFoMatcher : ILotMatcher
         while (remainingQuantityToMatch > 0m)
         {
             var lotIndex = updateOpenLots.FindIndex(openLot =>
-            openLot.AccountId == tradeEvent.AccountId
-                && openLot.InstrumentId == tradeEvent.InstrumentId
+            openLot.Account.AccountId == tradeEvent.Account.AccountId
+                && openLot.Instrument.InstrumentId == tradeEvent.Instrument.InstrumentId
                 && openLot.Direction == oppositeDirection
                 && openLot.RemainingQuantity.Value > 0);
             if (lotIndex < 0)
@@ -41,11 +41,12 @@ public sealed record FiFoMatcher : ILotMatcher
             consumptionList.Add(
                  new LotConsumption
                  {
-                     LotId = openLot.LotId,
-                     OpenEventId = openLot.OpenEventId,
+                     OpenLot = openLot,
+                     OpenEvent = openLot.OpenEvent,
                      OpenTradeDate = openLot.OpenTradeDate,
                      CloseTradeDate = DateOnly.FromDateTime(tradeEvent.OccuredAt.DateTime),
-                     InstrumentId = openLot.InstrumentId,
+                     Instrument = openLot.Instrument,
+                     Account = openLot.Account,
                      Direction = openLot.Direction,
                      MatchedQuantity = quantityToMatch,
                      OpenUnitPrice = openLot.OpenUnitPrice,
@@ -64,10 +65,10 @@ public sealed record FiFoMatcher : ILotMatcher
             var ratio = remainingQuantityToMatch / tradeEvent.Quantity.Value;
             newOpenLot = new OpenLot
             {
-                LotId = new LotId(Guid.NewGuid()),
-                AccountId = tradeEvent.AccountId,
-                InstrumentId = tradeEvent.InstrumentId,
-                OpenEventId = tradeEvent.EventId,
+                LotId = LotId.NewId(),
+                Account = tradeEvent.Account,
+                Instrument = tradeEvent.Instrument,
+                OpenEvent = tradeEvent,
                 OpenTradeDate = DateOnly.FromDateTime(tradeEvent.OccuredAt.DateTime),
                 Direction = tradeEvent.Side == TradeSide.Buy ? PositionDirection.Long : PositionDirection.Short,
                 OriginalQuantity = new Quantity(remainingQuantityToMatch),

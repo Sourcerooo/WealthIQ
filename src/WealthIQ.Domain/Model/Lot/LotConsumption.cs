@@ -1,20 +1,18 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using WealthIQ.Domain.Enumeration;
+﻿using WealthIQ.Domain.Enumeration;
+using WealthIQ.Domain.Model.Event;
 using WealthIQ.Domain.Model.General;
 
 namespace WealthIQ.Domain.Model.Lot;
 
 public sealed record LotConsumption
 {
-    public LotId LotId { get; init; }
-    public Guid OpenEventId { get; init; }
+    public required OpenLot OpenLot { get; init; }
+    public required AccountEvent OpenEvent { get; init; }
     // Provenance
     public DateOnly OpenTradeDate { get; init; }
     public DateOnly CloseTradeDate { get; init; }
-    public InstrumentId InstrumentId { get; init; }
-    public AccountId AccountId { get; init; }
+    public required Instrument Instrument { get; init; }
+    public required Account Account { get; init; }
     public PositionDirection Direction { get; init; } // direction of the OPEN lot
     // Quantity slice closed in this match
     public Quantity MatchedQuantity { get; init; } // > 0
@@ -26,10 +24,24 @@ public sealed record LotConsumption
     public Money AllocatedCloseTaxes { get; init; }
     // Derived metrics
     public Money CostBasis =>
-        (OpenUnitPrice * MatchedQuantity.Value)
-        + AllocatedOpenFees + AllocatedOpenTaxes;
+        Direction switch
+        {
+            PositionDirection.Long => (OpenUnitPrice * MatchedQuantity.Value)
+                + AllocatedOpenFees + AllocatedOpenTaxes,
+            PositionDirection.Short => (CloseUnitPrice * MatchedQuantity.Value)
+                + AllocatedCloseFees + AllocatedCloseTaxes,
+            _ => throw new InvalidOperationException("Invalid position direction.")
+        };
+
     public Money Proceeds =>
-        (CloseUnitPrice * MatchedQuantity.Value)
-        - AllocatedCloseFees - AllocatedCloseTaxes;
+        Direction switch
+        {
+            PositionDirection.Long => (CloseUnitPrice * MatchedQuantity.Value)
+                 - AllocatedCloseFees - AllocatedCloseTaxes,
+            PositionDirection.Short => (OpenUnitPrice * MatchedQuantity.Value)
+                 - AllocatedOpenFees - AllocatedOpenTaxes,
+            _ => throw new InvalidOperationException("Invalid position direction.")
+        };
+
     public Money RealizedPnL => Proceeds - CostBasis;
 }

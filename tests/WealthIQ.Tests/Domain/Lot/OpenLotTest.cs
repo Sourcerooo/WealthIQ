@@ -1,4 +1,5 @@
 using WealthIQ.Domain.Enumeration;
+using WealthIQ.Domain.Model.Event;
 using WealthIQ.Domain.Model.General;
 using WealthIQ.Domain.Model.Lot;
 
@@ -6,16 +7,38 @@ namespace WealthIQ.Tests.Domain.Lot;
 
 public class OpenLotTests
 {
+    private Account GetAccount() => new Account(AccountId: AccountId.NewId(), AccountNumber: "12345");
+    private Instrument GetInstrument() => new Instrument(
+        InstrumentId: InstrumentId.NewId(),
+        ISIN: "US0378331005",
+        Symbol: "AAPL",
+        Name: "Apple Inc.",
+        Teilfreistellungsquote: 0m);
+
+    private ExecutedTradeEvent GetTradeEvent() => new ExecutedTradeEvent(
+            EventId: AccountEventId.NewId(),
+            Account: GetAccount(),
+            OccuredAt: DateTime.UtcNow,
+            SourceBroker: "Source Broker",
+            SourceReference: "Source Broker Reference",
+            Instrument: GetInstrument(),
+            Side: TradeSide.Buy,
+            Quantity: new Quantity(100m),
+            UnitPrice: new Money(100m, Currency.EUR),
+            Fees: new Money(10m, Currency.EUR),
+            Taxes: new Money(4m, Currency.EUR)
+        );
+
     [Fact]
     public void Consume_PartialClose_UpdatesRemainingQuantityAndAllocatedCosts()
     {
         // Arrange
         var lot = new OpenLot
         {
-            LotId = new LotId(Guid.NewGuid()),
-            AccountId = new AccountId("ACC-1"),
-            InstrumentId = new InstrumentId("AAPL"),
-            OpenEventId = Guid.NewGuid(),
+            LotId = LotId.NewId(),
+            Account = GetAccount(),
+            Instrument = GetInstrument(),
+            OpenEvent = GetTradeEvent(),
             OpenTradeDate = new DateOnly(2025, 1, 10),
             Direction = PositionDirection.Long,
             OriginalQuantity = new Quantity(100m),
@@ -42,9 +65,9 @@ public class OpenLotTests
         var lot = new OpenLot
         {
             LotId = new LotId(Guid.NewGuid()),
-            AccountId = new AccountId("ACC-1"),
-            InstrumentId = new InstrumentId("AAPL"),
-            OpenEventId = Guid.NewGuid(),
+            Account = GetAccount(),
+            Instrument = GetInstrument(),
+            OpenEvent = GetTradeEvent(),
             OpenTradeDate = new DateOnly(2025, 1, 10),
             Direction = PositionDirection.Long,
             OriginalQuantity = new Quantity(100m),

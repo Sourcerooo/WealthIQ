@@ -4,8 +4,8 @@ using WealthIQ.Domain.Model.General;
 namespace WealthIQ.Domain.Model.Lot;
 
 public sealed record CashRealizationEntry(
-    Guid EntryId,
-    AccountId AccountId,
+    RealizationEntryId EntryId,
+    Account AccountId,
     DateOnly RealizedOn,
     IReadOnlyList<EventSliceRef> SourceSlices,
     CashIncomeType IncomeType,

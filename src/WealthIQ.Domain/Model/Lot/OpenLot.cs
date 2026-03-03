@@ -1,7 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using WealthIQ.Domain.Enumeration;
+﻿using WealthIQ.Domain.Enumeration;
+using WealthIQ.Domain.Model.Event;
 using WealthIQ.Domain.Model.General;
 
 namespace WealthIQ.Domain.Model.Lot;
@@ -9,11 +7,11 @@ namespace WealthIQ.Domain.Model.Lot;
 public sealed record OpenLot
 {
     public LotId LotId { get; init; }
-    public AccountId AccountId { get; init; }
-    public InstrumentId InstrumentId { get; init; }
+    public required Account Account { get; init; }
+    public required Instrument Instrument { get; init; }
 
     //Lot Identity / provenance
-    public Guid OpenEventId {  get; init; }
+    public required AccountEvent OpenEvent { get; init; }
     public DateOnly OpenTradeDate { get; init; }
 
     public PositionDirection Direction { get; init; }
