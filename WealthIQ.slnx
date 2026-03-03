@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/WealthIQ.Application/WealthIQ.Application.csproj" />
+    <Project Path="src/WealthIQ.Cli/WealthIQ.Cli.csproj" />
+    <Project Path="src/WealthIQ.Domain/WealthIQ.Domain.csproj" />
+    <Project Path="src/WealthIQ.Infrastructure.IBKR/WealthIQ.Infrastructure.IBKR.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/WealthIQ.Tests/WealthIQ.Tests.csproj" />
+  </Folder>
+</Solution>
