@@ -12,7 +12,7 @@ public readonly record struct AccountEventId(Guid Value)
 
 public abstract record AccountEvent(
     AccountEventId EventId,
-    Account Account,
+    AccountId AccountId,
     DateTimeOffset OccurredAt,
     EventType Kind,
     string SourceBroker,

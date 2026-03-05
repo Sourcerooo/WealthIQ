@@ -6,13 +6,13 @@ namespace WealthIQ.Domain.Model.Lot;
 
 public sealed record LotConsumption
 {
-    public required OpenLot OpenLot { get; init; }
-    public required AccountEvent OpenEvent { get; init; }
+    public required LotId OpenLotId { get; init; }
+    public required AccountEventId OpenEventId { get; init; }
     // Provenance
     public DateOnly OpenTradeDate { get; init; }
     public DateOnly CloseTradeDate { get; init; }
-    public required Instrument Instrument { get; init; }
-    public required Account Account { get; init; }
+    public required InstrumentId InstrumentId { get; init; }
+    public required AccountId AccountId { get; init; }
     public PositionDirection Direction { get; init; } // direction of the OPEN lot
     // Quantity slice closed in this match
     public Quantity MatchedQuantity { get; init; } // > 0

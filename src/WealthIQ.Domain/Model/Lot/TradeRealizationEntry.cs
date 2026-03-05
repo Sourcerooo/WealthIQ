@@ -4,10 +4,10 @@ namespace WealthIQ.Domain.Model.Lot;
 
 public sealed record TradeRealizationEntry(
     RealizationEntryId EntryId,
-    Account AccountId,
+    AccountId AccountId,
     DateOnly RealizedOn,
     IReadOnlyList<EventSliceRef> SourceSlices,
-    Instrument Instrument,
+    InstrumentId InstrumentId,
     Quantity ClosedQuantity,
     DateOnly OpenedOn,
     DateOnly ClosedOn,

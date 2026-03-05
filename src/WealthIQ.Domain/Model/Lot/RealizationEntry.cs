@@ -11,7 +11,7 @@ public readonly record struct RealizationEntryId(Guid Value)
 
 public abstract record RealizationEntry(
     RealizationEntryId EntryId,
-    Account Account,
+    AccountId AccountId,
     DateOnly RealizedOn,
     IReadOnlyList<EventSliceRef> SourceSlices
     );

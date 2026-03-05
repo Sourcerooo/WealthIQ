@@ -5,7 +5,7 @@ using WealthIQ.Domain.Model.General;
 namespace WealthIQ.Domain.Model.Event;
 
 public sealed record CashIncomeEvent(AccountEventId EventId,
-    Account Account,
+    AccountId AccountId,
     DateTimeOffset OccurredAt,
     EventType Kind,
     string SourceBroker,
@@ -15,7 +15,7 @@ public sealed record CashIncomeEvent(AccountEventId EventId,
     Money WithholdingTax,
     Money Fees)
     : AccountEvent(EventId,
-    Account,
+    AccountId,
     OccurredAt,
     Kind,
     SourceBroker,

@@ -5,7 +5,7 @@ namespace WealthIQ.Domain.Model.Lot;
 
 public sealed record CashRealizationEntry(
     RealizationEntryId EntryId,
-    Account AccountId,
+    AccountId AccountId,
     DateOnly RealizedOn,
     IReadOnlyList<EventSliceRef> SourceSlices,
     CashIncomeType IncomeType,

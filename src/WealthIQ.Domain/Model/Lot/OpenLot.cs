@@ -7,11 +7,11 @@ namespace WealthIQ.Domain.Model.Lot;
 public sealed record OpenLot
 {
     public LotId LotId { get; init; }
-    public required Account Account { get; init; }
-    public required Instrument Instrument { get; init; }
+    public required AccountId AccountId { get; init; }
+    public required InstrumentId InstrumentId { get; init; }
 
     //Lot Identity / provenance
-    public required AccountEvent OpenEvent { get; init; }
+    public required AccountEventId OpenEventId { get; init; }
     public DateOnly OpenTradeDate { get; init; }
 
     public PositionDirection Direction { get; init; }
