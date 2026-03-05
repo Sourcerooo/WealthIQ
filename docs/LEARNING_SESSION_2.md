@@ -146,7 +146,7 @@ Use this as your execution checklist. Each step should build and keep tests gree
 - Output at minimum:
   - total imported events
   - count by event type
-  - diagnostics count
+  - diagnostics count 
 
 7) **Write tests (unit + integration)**
 - Mapper tests for key conversions and edge cases.
