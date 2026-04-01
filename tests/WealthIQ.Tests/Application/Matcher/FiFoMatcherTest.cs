@@ -324,7 +324,8 @@ public class FiFoMatcherTest
         decimal openUnitPrice = 100m,
         decimal remainingOpenFees = 10m,
         decimal remainingOpenTaxes = 4m,
-        DateOnly? openTradeDate = null)
+        DateOnly? openTradeDate = null,
+        DateTimeOffset? openOccurredAt = null)
     {
         var effectiveAccountId = accountId ?? AccountId.NewId();
         var effectiveInstrumentId = instrumentId ?? InstrumentId.NewId();
@@ -335,6 +336,7 @@ public class FiFoMatcherTest
             AccountId = effectiveAccountId,
             InstrumentId = effectiveInstrumentId,
             OpenEventId = AccountEventId.NewId(),
+            OpenOccurredAt = openOccurredAt ?? new DateTimeOffset((openTradeDate ?? new DateOnly(2025, 1, 10)).ToDateTime(new TimeOnly(0, 0)), TimeSpan.Zero),
             OpenTradeDate = openTradeDate ?? new DateOnly(2025, 1, 10),
             Direction = direction,
             OriginalQuantity = new Quantity(originalQuantity),

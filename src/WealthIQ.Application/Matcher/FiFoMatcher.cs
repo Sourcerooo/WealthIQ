@@ -19,7 +19,7 @@ public sealed record FiFoMatcher : ILotMatcher
         var oppositeDirection = tradeEvent.Side == TradeSide.Buy ? PositionDirection.Short : PositionDirection.Long;
         var remainingQuantityToMatch = tradeEvent.Quantity.Value;
         var updateOpenLots = currentOpenLots.ToList();
-        updateOpenLots.Sort((x, y) => x.OpenTradeDate.CompareTo(y.OpenTradeDate));
+        updateOpenLots.Sort((x, y) => x.OpenOccurredAt.CompareTo(y.OpenOccurredAt));
         var consumptionList = new List<LotConsumption>();
         var newOpenLot = default(OpenLot?);
         while (remainingQuantityToMatch > 0m)
@@ -69,6 +69,7 @@ public sealed record FiFoMatcher : ILotMatcher
                 AccountId = tradeEvent.AccountId,
                 InstrumentId = tradeEvent.InstrumentId,
                 OpenEventId = tradeEvent.EventId,
+                OpenOccurredAt = tradeEvent.OccurredAt,
                 OpenTradeDate = DateOnly.FromDateTime(tradeEvent.OccurredAt.DateTime),
                 Direction = tradeEvent.Side == TradeSide.Buy ? PositionDirection.Long : PositionDirection.Short,
                 OriginalQuantity = new Quantity(remainingQuantityToMatch),

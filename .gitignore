@@ -44,3 +44,8 @@
 *.so
 .coverage
 .pytest_cache/
+
+/ConsoleApp1/
+/QueueImplementation/
+/data/design_template/
+/data/old_project/

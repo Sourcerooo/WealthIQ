@@ -12,6 +12,7 @@ public sealed record OpenLot
 
     //Lot Identity / provenance
     public required AccountEventId OpenEventId { get; init; }
+    public DateTimeOffset OpenOccurredAt { get; init; }
     public DateOnly OpenTradeDate { get; init; }
 
     public PositionDirection Direction { get; init; }
@@ -20,6 +21,7 @@ public sealed record OpenLot
     public Money OpenUnitPrice { get; init; }
     public Money RemainingOpenFees { get; init; }
     public Money RemainingOpenTaxes { get; init; }
+    public Money AccumulatedVorabpauschale { get; init; } = new(0m, Currency.EUR);
     public bool IsClosed => RemainingQuantity.Value == 0;
     public OpenLot Consume(Quantity quantityToClose)
     {
@@ -36,7 +38,8 @@ public sealed record OpenLot
         {
             RemainingQuantity = new Quantity(RemainingQuantity.Value - quantityToClose.Value),
             RemainingOpenFees = new Money(RemainingOpenFees.Amount * (1m - ratio), RemainingOpenFees.Currency),
-            RemainingOpenTaxes = new Money(RemainingOpenTaxes.Amount * (1m - ratio), RemainingOpenTaxes.Currency)
+            RemainingOpenTaxes = new Money(RemainingOpenTaxes.Amount * (1m - ratio), RemainingOpenTaxes.Currency),
+            AccumulatedVorabpauschale = new Money(AccumulatedVorabpauschale.Amount * (1m - ratio), AccumulatedVorabpauschale.Currency)
         };
     }
 }
