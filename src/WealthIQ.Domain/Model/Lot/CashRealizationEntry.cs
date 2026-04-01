@@ -8,7 +8,7 @@ public sealed record CashRealizationEntry(
     AccountId AccountId,
     DateOnly RealizedOn,
     IReadOnlyList<EventSliceRef> SourceSlices,
-    CashIncomeType IncomeType,
+    CashFlowType IncomeType,
     Money GrossAmount,
     Money NetAmount
     )

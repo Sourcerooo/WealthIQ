@@ -1,8 +1,8 @@
 using WealthIQ.Application.Matcher;
 using WealthIQ.Application.Tax.Interface;
 using WealthIQ.Domain.Enumeration;
-using WealthIQ.Domain.Model.Event;
 using WealthIQ.Domain.Model.General;
+using WealthIQ.Domain.Model.Ledger;
 using WealthIQ.Domain.Model.Lot;
 using WealthIQ.Domain.Model.Tax;
 
@@ -15,10 +15,10 @@ public sealed class GermanTaxCalculator(
     private readonly FiFoMatcher _matcher = new();
 
     public GermanTaxCalculationResult Calculate(
-        IReadOnlyList<AccountEvent> accountEvents,
+        PortfolioLedger portfolioLedger,
         IReadOnlyList<Instrument> instruments)
     {
-        ArgumentNullException.ThrowIfNull(accountEvents);
+        ArgumentNullException.ThrowIfNull(portfolioLedger);
         ArgumentNullException.ThrowIfNull(instruments);
 
         var instrumentById = instruments.ToDictionary(x => x.InstrumentId);
@@ -26,65 +26,53 @@ public sealed class GermanTaxCalculator(
         var ledger = new List<GermanTaxEntry>();
         var distributions = new Dictionary<(int Year, InstrumentId InstrumentId), decimal>();
 
-        foreach (var yearlyEvents in accountEvents
+        foreach (var yearlyEntries in portfolioLedger.Entries
                      .OrderBy(x => x.OccurredAt)
                      .GroupBy(x => x.OccurredAt.Year)
                      .OrderBy(x => x.Key))
         {
-            foreach (var accountEvent in yearlyEvents)
+            foreach (var portfolioEntry in yearlyEntries)
             {
-                switch (accountEvent)
+                switch (portfolioEntry)
                 {
-                    case ExecutedTradeEvent tradeEvent:
-                        ProcessTrade(tradeEvent, openLots, ledger, instrumentById);
+                    case TradeEntry tradeEntry:
+                        ProcessTrade(tradeEntry, openLots, ledger, instrumentById);
                         break;
-                    case CashIncomeEvent cashIncomeEvent:
-                        ProcessCashIncome(cashIncomeEvent, openLots, ledger, distributions, instrumentById);
-                        break;
-                    case WithholdingTaxEvent withholdingTaxEvent:
-                        var withholdingInstrument = GetInstrument(instrumentById, withholdingTaxEvent.InstrumentId);
-                        ledger.Add(new GermanTaxEntry(
-                            withholdingTaxEvent.OccurredAt.Year,
-                            DateOnly.FromDateTime(withholdingTaxEvent.OccurredAt.UtcDateTime),
-                            GermanTaxEntryType.WithholdingTax,
-                            withholdingInstrument.Symbol,
-                            withholdingInstrument.ISIN,
-                            withholdingTaxEvent.Amount.Amount,
-                            0m,
-                            ForeignWithholdingTax: Math.Abs(withholdingTaxEvent.Amount.Amount)));
+                    case CashEntry cashEntry:
+                        ProcessCash(cashEntry, openLots, ledger, distributions, instrumentById);
                         break;
                 }
             }
 
-            PerformYearEndClosing(yearlyEvents.Key, openLots, ledger, distributions, instrumentById);
+            PerformYearEndClosing(yearlyEntries.Key, openLots, ledger, distributions, instrumentById);
         }
 
         return new GermanTaxCalculationResult(ledger, openLots);
     }
 
     private void ProcessTrade(
-        ExecutedTradeEvent tradeEvent,
+        TradeEntry tradeEntry,
         List<OpenLot> openLots,
         List<GermanTaxEntry> ledger,
         IReadOnlyDictionary<InstrumentId, Instrument> instrumentById)
     {
-        if (tradeEvent.Side == TradeSide.Buy)
+        if (tradeEntry.Side == TradeSide.Buy)
         {
             var matchingShortLots = openLots.Any(x =>
-                x.AccountId == tradeEvent.AccountId
-                && x.InstrumentId == tradeEvent.InstrumentId
+                x.AccountId == tradeEntry.AccountId
+                && x.InstrumentId == tradeEntry.InstrumentId
                 && x.Direction == PositionDirection.Short
                 && x.RemainingQuantity.Value > 0m);
 
             if (!matchingShortLots)
             {
-                openLots.Add(CreateLongLot(tradeEvent));
+                openLots.Add(CreateLongLot(tradeEntry));
                 return;
             }
         }
 
-        var matchResult = _matcher.Match(tradeEvent, openLots, LotMatchingPolicy.FIFO);
-        var instrument = GetInstrument(instrumentById, tradeEvent.InstrumentId);
+        var matchResult = _matcher.Match(tradeEntry, openLots, LotMatchingPolicy.FIFO);
+        var instrument = GetInstrument(instrumentById, tradeEntry.InstrumentId);
 
         foreach (var consumption in matchResult.Consumptions)
         {
@@ -95,8 +83,8 @@ public sealed class GermanTaxCalculator(
             var taxableProfit = rawProfit * (1m - instrument.Teilfreistellungsquote);
 
             ledger.Add(new GermanTaxEntry(
-                tradeEvent.OccurredAt.Year,
-                DateOnly.FromDateTime(tradeEvent.OccurredAt.UtcDateTime),
+                tradeEntry.OccurredAt.Year,
+                DateOnly.FromDateTime(tradeEntry.OccurredAt.UtcDateTime),
                 GermanTaxEntryType.Sell,
                 instrument.Symbol,
                 instrument.ISIN,
@@ -117,51 +105,65 @@ public sealed class GermanTaxCalculator(
         }
     }
 
-    private static void ProcessCashIncome(
-        CashIncomeEvent cashIncomeEvent,
+    private static void ProcessCash(
+        CashEntry cashEntry,
         List<OpenLot> openLots,
         List<GermanTaxEntry> ledger,
         Dictionary<(int Year, InstrumentId InstrumentId), decimal> distributions,
         IReadOnlyDictionary<InstrumentId, Instrument> instrumentById)
     {
-        var instrument = GetInstrument(instrumentById, cashIncomeEvent.InstrumentId);
-        var date = DateOnly.FromDateTime(cashIncomeEvent.OccurredAt.UtcDateTime);
+        var date = DateOnly.FromDateTime(cashEntry.OccurredAt.UtcDateTime);
 
-        switch (cashIncomeEvent.IncomeType)
+        switch (cashEntry.CashFlowType)
         {
-            case CashIncomeType.Dividend:
-                var rawDividend = cashIncomeEvent.GrossAmount.Amount;
+            case CashFlowType.Dividend:
+                var dividendInstrument = GetInstrument(instrumentById, GetRelatedInstrumentId(cashEntry, CashFlowType.Dividend));
+                var rawDividend = cashEntry.GrossAmount.Amount;
                 ledger.Add(new GermanTaxEntry(
-                    cashIncomeEvent.OccurredAt.Year,
+                    cashEntry.OccurredAt.Year,
                     date,
                     GermanTaxEntryType.Dividend,
-                    instrument.Symbol,
-                    instrument.ISIN,
+                    dividendInstrument.Symbol,
+                    dividendInstrument.ISIN,
                     rawDividend,
-                    rawDividend * (1m - instrument.Teilfreistellungsquote)));
+                    rawDividend * (1m - dividendInstrument.Teilfreistellungsquote)));
 
                 var heldLots = openLots
-                    .Where(x => x.InstrumentId == cashIncomeEvent.InstrumentId && x.RemainingQuantity.Value > 0m)
+                    .Where(x => x.InstrumentId == dividendInstrument.InstrumentId && x.RemainingQuantity.Value > 0m)
                     .ToList();
 
                 var totalHeldQuantity = heldLots.Sum(x => x.RemainingQuantity.Value);
                 if (totalHeldQuantity > 0m)
                 {
                     var dividendPerShare = rawDividend / totalHeldQuantity;
-                    var key = (cashIncomeEvent.OccurredAt.Year, cashIncomeEvent.InstrumentId);
+                    var key = (cashEntry.OccurredAt.Year, dividendInstrument.InstrumentId);
                     distributions[key] = distributions.GetValueOrDefault(key) + dividendPerShare;
                 }
                 break;
 
-            case CashIncomeType.Interest:
+            case CashFlowType.Interest:
+                var interestInstrument = GetInstrument(instrumentById, cashEntry.CashInstrumentId);
                 ledger.Add(new GermanTaxEntry(
-                    cashIncomeEvent.OccurredAt.Year,
+                    cashEntry.OccurredAt.Year,
                     date,
                     GermanTaxEntryType.Interest,
-                    instrument.Symbol,
-                    instrument.ISIN,
-                    cashIncomeEvent.GrossAmount.Amount,
-                    cashIncomeEvent.GrossAmount.Amount));
+                    interestInstrument.Symbol,
+                    interestInstrument.ISIN,
+                    cashEntry.GrossAmount.Amount,
+                    cashEntry.GrossAmount.Amount));
+                break;
+
+            case CashFlowType.WithholdingTax:
+                var withholdingInstrument = GetInstrument(instrumentById, GetRelatedInstrumentId(cashEntry, CashFlowType.WithholdingTax));
+                ledger.Add(new GermanTaxEntry(
+                    cashEntry.OccurredAt.Year,
+                    date,
+                    GermanTaxEntryType.WithholdingTax,
+                    withholdingInstrument.Symbol,
+                    withholdingInstrument.ISIN,
+                    cashEntry.GrossAmount.Amount,
+                    0m,
+                    ForeignWithholdingTax: Math.Abs(cashEntry.GrossAmount.Amount)));
                 break;
         }
     }
@@ -259,20 +261,30 @@ public sealed class GermanTaxCalculator(
         }
     }
 
-    private static OpenLot CreateLongLot(ExecutedTradeEvent tradeEvent) => new()
+    private static OpenLot CreateLongLot(TradeEntry tradeEntry) => new()
     {
         LotId = LotId.NewId(),
-        AccountId = tradeEvent.AccountId,
-        InstrumentId = tradeEvent.InstrumentId,
-        OpenEventId = tradeEvent.EventId,
-        OpenOccurredAt = tradeEvent.OccurredAt,
-        OpenTradeDate = DateOnly.FromDateTime(tradeEvent.OccurredAt.UtcDateTime),
+        AccountId = tradeEntry.AccountId,
+        InstrumentId = tradeEntry.InstrumentId,
+        OpenEntryId = tradeEntry.EntryId,
+        OpenOccurredAt = tradeEntry.OccurredAt,
+        OpenTradeDate = DateOnly.FromDateTime(tradeEntry.OccurredAt.UtcDateTime),
         Direction = PositionDirection.Long,
-        OriginalQuantity = tradeEvent.Quantity,
-        RemainingQuantity = tradeEvent.Quantity,
-        OpenUnitPrice = tradeEvent.UnitPrice,
-        RemainingOpenFees = tradeEvent.Fees,
-        RemainingOpenTaxes = tradeEvent.Taxes,
+        OriginalQuantity = tradeEntry.Quantity,
+        RemainingQuantity = tradeEntry.Quantity,
+        OpenUnitPrice = tradeEntry.UnitPrice,
+        RemainingOpenFees = tradeEntry.Fees,
+        RemainingOpenTaxes = tradeEntry.Taxes,
         AccumulatedVorabpauschale = new Money(0m, Currency.EUR)
     };
+
+    private static InstrumentId GetRelatedInstrumentId(CashEntry cashEntry, CashFlowType expectedType)
+    {
+        if (cashEntry.RelatedInstrumentId.HasValue)
+        {
+            return cashEntry.RelatedInstrumentId.Value;
+        }
+
+        throw new InvalidOperationException($"Cash entry of type '{expectedType}' requires RelatedInstrumentId.");
+    }
 }

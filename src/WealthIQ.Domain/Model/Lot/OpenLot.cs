@@ -1,6 +1,6 @@
-﻿using WealthIQ.Domain.Enumeration;
-using WealthIQ.Domain.Model.Event;
+using WealthIQ.Domain.Enumeration;
 using WealthIQ.Domain.Model.General;
+using WealthIQ.Domain.Model.Ledger;
 
 namespace WealthIQ.Domain.Model.Lot;
 
@@ -11,7 +11,7 @@ public sealed record OpenLot
     public required InstrumentId InstrumentId { get; init; }
 
     //Lot Identity / provenance
-    public required AccountEventId OpenEventId { get; init; }
+    public required PortfolioEntryId OpenEntryId { get; init; }
     public DateTimeOffset OpenOccurredAt { get; init; }
     public DateOnly OpenTradeDate { get; init; }
 

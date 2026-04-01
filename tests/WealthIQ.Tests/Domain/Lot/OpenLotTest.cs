@@ -1,6 +1,6 @@
 using WealthIQ.Domain.Enumeration;
-using WealthIQ.Domain.Model.Event;
 using WealthIQ.Domain.Model.General;
+using WealthIQ.Domain.Model.Ledger;
 using WealthIQ.Domain.Model.Lot;
 
 namespace WealthIQ.Tests.Domain.Lot;
@@ -15,7 +15,7 @@ public class OpenLotTests
             LotId = LotId.NewId(),
             AccountId = AccountId.NewId(),
             InstrumentId = InstrumentId.NewId(),
-            OpenEventId = AccountEventId.NewId(),
+            OpenEntryId = PortfolioEntryId.NewId(),
             OpenOccurredAt = DateTimeOffset.UtcNow,
             OpenTradeDate = new DateOnly(2025, 1, 10),
             Direction = PositionDirection.Long,
@@ -42,7 +42,7 @@ public class OpenLotTests
             LotId = LotId.NewId(),
             AccountId = AccountId.NewId(),
             InstrumentId = InstrumentId.NewId(),
-            OpenEventId = AccountEventId.NewId(),
+            OpenEntryId = PortfolioEntryId.NewId(),
             OpenOccurredAt = DateTimeOffset.UtcNow,
             OpenTradeDate = new DateOnly(2025, 1, 10),
             Direction = PositionDirection.Long,
@@ -66,7 +66,7 @@ public class OpenLotTests
             LotId = LotId.NewId(),
             AccountId = AccountId.NewId(),
             InstrumentId = InstrumentId.NewId(),
-            OpenEventId = AccountEventId.NewId(),
+            OpenEntryId = PortfolioEntryId.NewId(),
             OpenOccurredAt = DateTimeOffset.UtcNow,
             OpenTradeDate = new DateOnly(2025, 1, 10),
             Direction = PositionDirection.Long,

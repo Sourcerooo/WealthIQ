@@ -45,7 +45,7 @@ internal static class Program
                 new CsvBasisInterestRateProvider(Path.Combine(configurationPath, "basiszins.csv")),
                 new CsvYearEndPriceProvider(Path.Combine(configurationPath, "prices.csv")));
 
-            var calculationResult = taxCalculator.Calculate(importResult.AccountEvents, instrumentCatalog);
+            var calculationResult = taxCalculator.Calculate(importResult.PortfolioLedger, instrumentCatalog);
             TaxReportConsoleWriter.PrintDiagnostics(importResult.Diagnostics);
 
             foreach (var year in calculationResult.Entries.Select(x => x.Year).Distinct().OrderBy(x => x))

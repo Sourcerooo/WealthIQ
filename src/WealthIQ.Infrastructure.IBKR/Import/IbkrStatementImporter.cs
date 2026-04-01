@@ -7,8 +7,8 @@ using WealthIQ.Application.Import.Diagnostic;
 using WealthIQ.Application.Import.Enumeration;
 using WealthIQ.Application.Import.Interface;
 using WealthIQ.Domain.Enumeration;
-using WealthIQ.Domain.Model.Event;
 using WealthIQ.Domain.Model.General;
+using WealthIQ.Domain.Model.Ledger;
 
 namespace WealthIQ.Infrastructure.IBKR.Import;
 
@@ -51,7 +51,7 @@ public sealed class IbkrStatementImporter : IStatementImporter
             return result;
         }
 
-        var importedEvents = new List<AccountEvent>();
+        var importedEntries = new List<PortfolioEntry>();
         foreach (var file in files)
         {
             ct.ThrowIfCancellationRequested();
@@ -59,7 +59,7 @@ public sealed class IbkrStatementImporter : IStatementImporter
             {
                 var xml = await File.ReadAllTextAsync(file, ct);
                 var document = XDocument.Parse(xml);
-                importedEvents.AddRange(ParseDocument(document, file, request.AccountId, instrumentCatalog, result.Diagnostics));
+                importedEntries.AddRange(ParseDocument(document, file, request.AccountId, instrumentCatalog, result.Diagnostics));
             }
             catch (Exception ex)
             {
@@ -72,8 +72,8 @@ public sealed class IbkrStatementImporter : IStatementImporter
         }
 
         result.Instruments = instrumentCatalog.Values.OrderBy(x => x.Symbol).ThenBy(x => x.ISIN).ToList();
-        var orderedEvents = importedEvents.OrderBy(x => x.OccurredAt).ToList();
-        result.AccountEvents = CleanCancellations(orderedEvents, result.Diagnostics);
+        var orderedEntries = importedEntries.OrderBy(x => x.OccurredAt).ToList();
+        result.PortfolioLedger = new PortfolioLedger(CleanCancellations(orderedEntries, result.Diagnostics), result.Instruments);
         return result;
     }
 
@@ -94,35 +94,35 @@ public sealed class IbkrStatementImporter : IStatementImporter
         return [];
     }
 
-    private static List<AccountEvent> ParseDocument(
+    private static List<PortfolioEntry> ParseDocument(
         XDocument document,
         string filePath,
         AccountId accountId,
         Dictionary<InstrumentId, Instrument> instrumentCatalog,
         List<ImportDiagnostic> diagnostics)
     {
-        var result = new List<AccountEvent>();
+        var result = new List<PortfolioEntry>();
 
         foreach (var trade in document.Descendants("Trade"))
         {
-            if (ParseElement(trade, false, filePath, accountId, instrumentCatalog, diagnostics) is { } accountEvent)
+            if (ParseElement(trade, false, filePath, accountId, instrumentCatalog, diagnostics) is { } portfolioEntry)
             {
-                result.Add(accountEvent);
+                result.Add(portfolioEntry);
             }
         }
 
         foreach (var cashTransaction in document.Descendants("CashTransaction"))
         {
-            if (ParseElement(cashTransaction, true, filePath, accountId, instrumentCatalog, diagnostics) is { } accountEvent)
+            if (ParseElement(cashTransaction, true, filePath, accountId, instrumentCatalog, diagnostics) is { } portfolioEntry)
             {
-                result.Add(accountEvent);
+                result.Add(portfolioEntry);
             }
         }
 
         return result;
     }
 
-    private static AccountEvent? ParseElement(
+    private static PortfolioEntry? ParseElement(
         XElement element,
         bool isCash,
         string filePath,
@@ -155,61 +155,76 @@ public sealed class IbkrStatementImporter : IStatementImporter
             return null;
         }
 
-        var instrument = EnsureInstrument(instrumentCatalog, isCash, symbol, isin, currency, description);
         var occurredAt = ParseDateTimeOffset(element.Attribute("dateTime")?.Value
             ?? element.Attribute("tradeDate")?.Value
             ?? element.Attribute("reportDate")?.Value);
+        var effectiveDate = DateOnly.FromDateTime(occurredAt.UtcDateTime);
 
         var quantity = ParseDecimal(element.Attribute("quantity")?.Value);
         var price = ParseDecimal(element.Attribute("tradePrice")?.Value ?? element.Attribute("amount")?.Value);
-        var fxRate = ParseDecimal(element.Attribute("fxRateToBase")?.Value ?? "1.0");
         var commission = ParseDecimal(element.Attribute("ibCommission")?.Value);
-        var fees = new Money(Math.Abs(commission) * fxRate, Currency.EUR);
+        var currencyCode = ParseCurrency(currency);
+        var fees = new Money(Math.Abs(commission), currencyCode);
+        var sourceProvenance = new SourceProvenance
+        {
+            SourceSystem = "IBKR",
+            ImportFormat = "XML",
+            SourceLocation = filePath,
+            SourceRecordReference = transactionId,
+            SourceSection = isCash ? "CashTransaction" : "Trade"
+        };
 
         if (isCash)
         {
-            var grossAmount = new Money(price * fxRate, Currency.EUR);
+            var cashInstrument = EnsureCashInstrument(instrumentCatalog, currencyCode);
+            var relatedInstrument = EnsureRelatedInstrument(instrumentCatalog, symbol, isin, currency, description);
+            var grossAmount = new Money(price, currencyCode);
             if (type.Contains("Dividends", StringComparison.OrdinalIgnoreCase))
             {
-                return new CashIncomeEvent(
-                    AccountEventId.NewId(),
+                return new CashEntry(
+                    PortfolioEntryId.NewId(),
                     accountId,
                     occurredAt,
-                    EventType.Dividend,
-                    "IBKR",
-                    transactionId,
-                    instrument.InstrumentId,
-                    CashIncomeType.Dividend,
+                    effectiveDate,
+                    sourceProvenance,
+                    cashInstrument.InstrumentId,
+                    CashFlowType.Dividend,
                     grossAmount,
-                    new Money(0m, Currency.EUR),
-                    fees);
+                    fees,
+                    new Money(0m, currencyCode),
+                    relatedInstrument?.InstrumentId);
             }
 
             if (type.Contains("Withholding Tax", StringComparison.OrdinalIgnoreCase))
             {
-                return new WithholdingTaxEvent(
-                    AccountEventId.NewId(),
+                return new CashEntry(
+                    PortfolioEntryId.NewId(),
                     accountId,
                     occurredAt,
-                    "IBKR",
-                    transactionId,
-                    instrument.InstrumentId,
-                    grossAmount);
+                    effectiveDate,
+                    sourceProvenance,
+                    cashInstrument.InstrumentId,
+                    CashFlowType.WithholdingTax,
+                    grossAmount,
+                    new Money(0m, currencyCode),
+                    new Money(0m, currencyCode),
+                    relatedInstrument?.InstrumentId);
             }
 
-            return new CashIncomeEvent(
-                AccountEventId.NewId(),
+            return new CashEntry(
+                PortfolioEntryId.NewId(),
                 accountId,
                 occurredAt,
-                EventType.Interest,
-                "IBKR",
-                transactionId,
-                instrument.InstrumentId,
-                CashIncomeType.Interest,
+                effectiveDate,
+                sourceProvenance,
+                cashInstrument.InstrumentId,
+                CashFlowType.Interest,
                 grossAmount,
-                new Money(0m, Currency.EUR),
-                fees);
+                fees,
+                new Money(0m, currencyCode));
         }
+
+        var instrument = EnsureTradeInstrument(instrumentCatalog, symbol, isin, currency, description);
 
         var buySell = element.Attribute("buySell")?.Value;
         if (description.Contains("(Ca.)", StringComparison.OrdinalIgnoreCase)
@@ -236,23 +251,22 @@ public sealed class IbkrStatementImporter : IStatementImporter
             return null;
         }
 
-        return new ExecutedTradeEvent(
-            AccountEventId.NewId(),
+        return new TradeEntry(
+            PortfolioEntryId.NewId(),
             accountId,
             occurredAt,
-            "IBKR",
-            transactionId,
+            effectiveDate,
+            sourceProvenance with { SourceRecordReference = transactionId },
             instrument.InstrumentId,
             side.Value,
             new Quantity(Math.Abs(quantity)),
-            new Money(price * fxRate, Currency.EUR),
+            new Money(price, currencyCode),
             fees,
-            new Money(0m, Currency.EUR));
+            new Money(0m, currencyCode));
     }
 
-    private static Instrument EnsureInstrument(
+    private static Instrument EnsureTradeInstrument(
         Dictionary<InstrumentId, Instrument> instrumentCatalog,
-        bool isCash,
         string symbol,
         string isin,
         string currency,
@@ -261,7 +275,7 @@ public sealed class IbkrStatementImporter : IStatementImporter
         var normalizedIsin = isin.Trim();
         var normalizedSymbol = symbol.Trim();
         var effectiveSymbol = string.IsNullOrWhiteSpace(normalizedSymbol) ? currency.Trim().ToUpperInvariant() : normalizedSymbol;
-        var identity = string.IsNullOrWhiteSpace(normalizedIsin) ? $"CASH:{effectiveSymbol}:{description}" : normalizedIsin;
+        var identity = string.IsNullOrWhiteSpace(normalizedIsin) ? $"ASSET:{effectiveSymbol}:{description}" : normalizedIsin;
         var instrumentId = CreateStableInstrumentId(identity);
 
         if (!instrumentCatalog.ContainsKey(instrumentId))
@@ -271,7 +285,41 @@ public sealed class IbkrStatementImporter : IStatementImporter
                 normalizedIsin,
                 effectiveSymbol,
                 string.IsNullOrWhiteSpace(description) ? effectiveSymbol : description,
-                isCash && string.IsNullOrWhiteSpace(normalizedIsin) ? 0m : 0.30m);
+                string.IsNullOrWhiteSpace(normalizedIsin) ? 0m : 0.30m);
+        }
+
+        return instrumentCatalog[instrumentId];
+    }
+
+    private static Instrument? EnsureRelatedInstrument(
+        Dictionary<InstrumentId, Instrument> instrumentCatalog,
+        string symbol,
+        string isin,
+        string currency,
+        string description)
+    {
+        if (string.IsNullOrWhiteSpace(symbol) && string.IsNullOrWhiteSpace(isin))
+        {
+            return null;
+        }
+
+        return EnsureTradeInstrument(instrumentCatalog, symbol, isin, currency, description);
+    }
+
+    private static Instrument EnsureCashInstrument(
+        Dictionary<InstrumentId, Instrument> instrumentCatalog,
+        Currency currency)
+    {
+        var symbol = currency.ToString();
+        var instrumentId = CreateStableInstrumentId($"CASH:{symbol}");
+        if (!instrumentCatalog.ContainsKey(instrumentId))
+        {
+            instrumentCatalog[instrumentId] = new Instrument(
+                instrumentId,
+                string.Empty,
+                symbol,
+                $"{symbol} cash",
+                0m);
         }
 
         return instrumentCatalog[instrumentId];
@@ -356,13 +404,13 @@ public sealed class IbkrStatementImporter : IStatementImporter
         return currencies.Any(symbol.Contains);
     }
 
-    private static List<AccountEvent> CleanCancellations(List<AccountEvent> accountEvents, List<ImportDiagnostic> diagnostics)
+    private static List<PortfolioEntry> CleanCancellations(List<PortfolioEntry> portfolioEntries, List<ImportDiagnostic> diagnostics)
     {
         var indicesToRemove = new HashSet<int>();
-        for (var index = 0; index < accountEvents.Count; index++)
+        for (var index = 0; index < portfolioEntries.Count; index++)
         {
-            if (accountEvents[index] is not ExecutedTradeEvent tradeEvent
-                || !tradeEvent.SourceReference.EndsWith("|CANCEL", StringComparison.Ordinal))
+            if (portfolioEntries[index] is not TradeEntry tradeEntry
+                || !tradeEntry.SourceProvenance.SourceRecordReference.EndsWith("|CANCEL", StringComparison.Ordinal))
             {
                 continue;
             }
@@ -372,15 +420,15 @@ public sealed class IbkrStatementImporter : IStatementImporter
             for (var candidateIndex = index - 1; candidateIndex >= 0; candidateIndex--)
             {
                 if (indicesToRemove.Contains(candidateIndex)
-                    || accountEvents[candidateIndex] is not ExecutedTradeEvent candidate)
+                    || portfolioEntries[candidateIndex] is not TradeEntry candidate)
                 {
                     continue;
                 }
 
-                var sameSide = candidate.Side == tradeEvent.Side;
-                var sameQuantity = candidate.Quantity.Value == tradeEvent.Quantity.Value;
-                var sameAmount = Math.Abs(candidate.UnitPrice.Amount * candidate.Quantity.Value - tradeEvent.UnitPrice.Amount * tradeEvent.Quantity.Value) < 0.05m;
-                if (candidate.InstrumentId == tradeEvent.InstrumentId && sameSide && sameQuantity && sameAmount)
+                var sameSide = candidate.Side == tradeEntry.Side;
+                var sameQuantity = candidate.Quantity.Value == tradeEntry.Quantity.Value;
+                var sameAmount = Math.Abs(candidate.UnitPrice.Amount * candidate.Quantity.Value - tradeEntry.UnitPrice.Amount * tradeEntry.Quantity.Value) < 0.05m;
+                if (candidate.InstrumentId == tradeEntry.InstrumentId && sameSide && sameQuantity && sameAmount)
                 {
                     matchedOriginalIndex = candidateIndex;
                     break;
@@ -394,11 +442,11 @@ public sealed class IbkrStatementImporter : IStatementImporter
                     ImportDiagnosticSeverity.Info,
                     ImportDiagnosticCode.CancellationRemoved,
                     "Removed cancellation pair.",
-                    SourceReference: tradeEvent.SourceReference));
+                    SourceReference: tradeEntry.SourceProvenance.SourceRecordReference));
             }
         }
 
-        return accountEvents.Where((_, index) => !indicesToRemove.Contains(index)).ToList();
+        return portfolioEntries.Where((_, index) => !indicesToRemove.Contains(index)).ToList();
     }
 
     private static decimal ParseDecimal(string? value)
@@ -428,5 +476,15 @@ public sealed class IbkrStatementImporter : IStatementImporter
     {
         var bytes = MD5.HashData(Encoding.UTF8.GetBytes(key.ToUpperInvariant()));
         return (InstrumentId)new Guid(bytes);
+    }
+
+    private static Currency ParseCurrency(string currency)
+    {
+        if (Enum.TryParse<Currency>(currency, true, out var parsedCurrency))
+        {
+            return parsedCurrency;
+        }
+
+        throw new InvalidOperationException($"Unsupported currency '{currency}'.");
     }
 }
