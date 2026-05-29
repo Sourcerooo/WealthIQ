@@ -32,6 +32,7 @@
 *.app
 
 #Folders
+/.superpowers/
 /**/obj/
 /**/bin/
 /.vs/
