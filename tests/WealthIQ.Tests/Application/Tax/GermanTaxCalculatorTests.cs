@@ -1,3 +1,4 @@
+using WealthIQ.Application.Currency.Interface;
 using WealthIQ.Application.Tax;
 using WealthIQ.Application.Tax.Interface;
 using WealthIQ.Domain.Enumeration;
@@ -20,7 +21,8 @@ public sealed class GermanTaxCalculatorTests
 
         var calculator = new GermanTaxCalculator(
             new StubInterestRateProvider((2024, 0.025m)),
-            new StubYearEndPriceProvider(("IE00B6R52259", 2024, 120m)));
+            new StubYearEndPriceProvider(("IE00B6R52259", 2024, 120m)),
+            new StubFxRateLookup());
 
         var result = calculator.Calculate(new PortfolioLedger([
             new TradeEntry(
@@ -93,7 +95,8 @@ public sealed class GermanTaxCalculatorTests
 
         var calculator = new GermanTaxCalculator(
             new StubInterestRateProvider(),
-            new StubYearEndPriceProvider());
+            new StubYearEndPriceProvider(),
+            new StubFxRateLookup());
 
         var result = calculator.Calculate(new PortfolioLedger([
             new CashEntry(
@@ -142,6 +145,12 @@ public sealed class GermanTaxCalculatorTests
         private readonly Dictionary<(string Isin, int Year), decimal> _prices = prices.ToDictionary(x => (x.Isin, x.Year), x => x.Price);
 
         public decimal? GetPrice(string isin, int year) => _prices.TryGetValue((isin, year), out var price) ? price : null;
+    }
+
+    private sealed class StubFxRateLookup : IFxRateLookup
+    {
+        public decimal GetRate(DateOnly conversionDate, Currency sourceCurrency, Currency targetCurrency, FxRateLookupDateHandling dateHandling = FxRateLookupDateHandling.ExactDate)
+            => sourceCurrency == targetCurrency && targetCurrency == Currency.EUR ? 1m : throw new InvalidOperationException("Unexpected FX lookup in unit test.");
     }
 
     private static SourceProvenance CreateSourceProvenance(string sourceReference)

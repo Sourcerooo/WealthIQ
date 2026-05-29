@@ -50,9 +50,11 @@ docs/
       application-contracts.md
       canonical-portfolio-ledger.md
       cli-tax-reporting.md
+      fx-conversion-layer.md
       german-tax-calculation.md
       import-pipeline.md
       lot-matching.md
+      portfolio-valuation.md
       tax-reference-data.md
     examples/
       end-to-end-tax-report-flow.md

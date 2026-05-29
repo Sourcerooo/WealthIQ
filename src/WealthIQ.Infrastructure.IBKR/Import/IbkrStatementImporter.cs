@@ -10,6 +10,8 @@ using WealthIQ.Domain.Enumeration;
 using WealthIQ.Domain.Model.General;
 using WealthIQ.Domain.Model.Ledger;
 
+using CurrencyCode = WealthIQ.Domain.Enumeration.Currency;
+
 namespace WealthIQ.Infrastructure.IBKR.Import;
 
 public sealed class IbkrStatementImporter : IStatementImporter
@@ -308,7 +310,7 @@ public sealed class IbkrStatementImporter : IStatementImporter
 
     private static Instrument EnsureCashInstrument(
         Dictionary<InstrumentId, Instrument> instrumentCatalog,
-        Currency currency)
+        CurrencyCode currency)
     {
         var symbol = currency.ToString();
         var instrumentId = CreateStableInstrumentId($"CASH:{symbol}");
@@ -478,9 +480,9 @@ public sealed class IbkrStatementImporter : IStatementImporter
         return (InstrumentId)new Guid(bytes);
     }
 
-    private static Currency ParseCurrency(string currency)
+    private static CurrencyCode ParseCurrency(string currency)
     {
-        if (Enum.TryParse<Currency>(currency, true, out var parsedCurrency))
+        if (Enum.TryParse<CurrencyCode>(currency, true, out var parsedCurrency))
         {
             return parsedCurrency;
         }

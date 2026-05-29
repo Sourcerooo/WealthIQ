@@ -1,3 +1,5 @@
+using WealthIQ.Application.Currency;
+using WealthIQ.Application.Currency.Interface;
 using WealthIQ.Application.Matcher;
 using WealthIQ.Application.Tax.Interface;
 using WealthIQ.Domain.Enumeration;
@@ -10,9 +12,11 @@ namespace WealthIQ.Application.Tax;
 
 public sealed class GermanTaxCalculator(
     IBasisInterestRateProvider interestRateProvider,
-    IYearEndPriceProvider yearEndPriceProvider)
+    IYearEndPriceProvider yearEndPriceProvider,
+    IFxRateLookup fxRateLookup)
 {
     private readonly FiFoMatcher _matcher = new();
+    private readonly FxConverter _fxConverter = new(fxRateLookup, WealthIQ.Domain.Enumeration.Currency.EUR);
 
     public GermanTaxCalculationResult Calculate(
         PortfolioLedger portfolioLedger,
@@ -79,7 +83,9 @@ public sealed class GermanTaxCalculator(
             var originalLot = openLots.Single(x => x.LotId == consumption.OpenLotId);
             var updatedLot = matchResult.UpdatedOpenLots.Single(x => x.LotId == consumption.OpenLotId);
             var usedVorabpauschale = originalLot.AccumulatedVorabpauschale.Amount - updatedLot.AccumulatedVorabpauschale.Amount;
-            var rawProfit = consumption.RealizedPnL.Amount - usedVorabpauschale;
+            var saleProceeds = ConvertProceedsToEur(consumption);
+            var acquisitionCosts = ConvertCostBasisToEur(consumption);
+            var rawProfit = saleProceeds.Amount - acquisitionCosts.Amount - usedVorabpauschale;
             var taxableProfit = rawProfit * (1m - instrument.Teilfreistellungsquote);
 
             ledger.Add(new GermanTaxEntry(
@@ -92,8 +98,8 @@ public sealed class GermanTaxCalculator(
                 taxableProfit,
                 usedVorabpauschale,
                 QuantitySold: consumption.MatchedQuantity.Value,
-                SaleProceeds: consumption.Proceeds.Amount,
-                AcquisitionCosts: consumption.CostBasis.Amount));
+                SaleProceeds: saleProceeds.Amount,
+                AcquisitionCosts: acquisitionCosts.Amount));
         }
 
         openLots.Clear();
@@ -105,7 +111,7 @@ public sealed class GermanTaxCalculator(
         }
     }
 
-    private static void ProcessCash(
+    private void ProcessCash(
         CashEntry cashEntry,
         List<OpenLot> openLots,
         List<GermanTaxEntry> ledger,
@@ -118,7 +124,7 @@ public sealed class GermanTaxCalculator(
         {
             case CashFlowType.Dividend:
                 var dividendInstrument = GetInstrument(instrumentById, GetRelatedInstrumentId(cashEntry, CashFlowType.Dividend));
-                var rawDividend = cashEntry.GrossAmount.Amount;
+                var rawDividend = _fxConverter.Convert(cashEntry.GrossAmount, date).Amount;
                 ledger.Add(new GermanTaxEntry(
                     cashEntry.OccurredAt.Year,
                     date,
@@ -149,21 +155,23 @@ public sealed class GermanTaxCalculator(
                     GermanTaxEntryType.Interest,
                     interestInstrument.Symbol,
                     interestInstrument.ISIN,
-                    cashEntry.GrossAmount.Amount,
-                    cashEntry.GrossAmount.Amount));
+                    _fxConverter.Convert(cashEntry.GrossAmount, date).Amount,
+                    _fxConverter.Convert(cashEntry.GrossAmount, date).Amount));
                 break;
 
             case CashFlowType.WithholdingTax:
-                var withholdingInstrument = GetInstrument(instrumentById, GetRelatedInstrumentId(cashEntry, CashFlowType.WithholdingTax));
+                var withholdingInstrumentId = cashEntry.RelatedInstrumentId ?? cashEntry.CashInstrumentId;
+                var withholdingInstrument = GetInstrument(instrumentById, withholdingInstrumentId);
+                var withholdingTaxAmount = _fxConverter.Convert(cashEntry.GrossAmount, date).Amount;
                 ledger.Add(new GermanTaxEntry(
                     cashEntry.OccurredAt.Year,
                     date,
                     GermanTaxEntryType.WithholdingTax,
                     withholdingInstrument.Symbol,
                     withholdingInstrument.ISIN,
-                    cashEntry.GrossAmount.Amount,
+                    withholdingTaxAmount,
                     0m,
-                    ForeignWithholdingTax: Math.Abs(cashEntry.GrossAmount.Amount)));
+                    ForeignWithholdingTax: Math.Abs(withholdingTaxAmount)));
                 break;
         }
     }
@@ -202,11 +210,7 @@ public sealed class GermanTaxCalculator(
             var distributionPerShare = distributions.GetValueOrDefault((year, instrument.InstrumentId));
             foreach (var lot in instrumentGroup.ToList())
             {
-                var acquisitionPrice = lot.OpenUnitPrice.Amount;
-                if (lot.RemainingQuantity.Value > 0m)
-                {
-                    acquisitionPrice += (lot.RemainingOpenFees.Amount + lot.RemainingOpenTaxes.Amount) / lot.RemainingQuantity.Value;
-                }
+                var acquisitionPrice = CalculateRemainingAcquisitionPriceInEur(lot);
                 var months = 12m;
                 if (lot.OpenTradeDate.Year == year)
                 {
@@ -225,7 +229,7 @@ public sealed class GermanTaxCalculator(
                 var totalVorabpauschale = actualVorabpauschalePerShare * lot.RemainingQuantity.Value;
                 ReplaceLot(openLots, lot with
                 {
-                    AccumulatedVorabpauschale = new Money(lot.AccumulatedVorabpauschale.Amount + totalVorabpauschale, Currency.EUR)
+                    AccumulatedVorabpauschale = new Money(lot.AccumulatedVorabpauschale.Amount + totalVorabpauschale, WealthIQ.Domain.Enumeration.Currency.EUR)
                 });
 
                 ledger.Add(new GermanTaxEntry(
@@ -275,7 +279,7 @@ public sealed class GermanTaxCalculator(
         OpenUnitPrice = tradeEntry.UnitPrice,
         RemainingOpenFees = tradeEntry.Fees,
         RemainingOpenTaxes = tradeEntry.Taxes,
-        AccumulatedVorabpauschale = new Money(0m, Currency.EUR)
+        AccumulatedVorabpauschale = new Money(0m, WealthIQ.Domain.Enumeration.Currency.EUR)
     };
 
     private static InstrumentId GetRelatedInstrumentId(CashEntry cashEntry, CashFlowType expectedType)
@@ -286,5 +290,56 @@ public sealed class GermanTaxCalculator(
         }
 
         throw new InvalidOperationException($"Cash entry of type '{expectedType}' requires RelatedInstrumentId.");
+    }
+
+    private Money ConvertCostBasisToEur(LotConsumption consumption)
+    {
+        var sourceMoney = consumption.Direction switch
+        {
+            PositionDirection.Long => (consumption.OpenUnitPrice * consumption.MatchedQuantity.Value)
+                + consumption.AllocatedOpenFees + consumption.AllocatedOpenTaxes,
+            PositionDirection.Short => (consumption.CloseUnitPrice * consumption.MatchedQuantity.Value)
+                + consumption.AllocatedCloseFees + consumption.AllocatedCloseTaxes,
+            _ => throw new InvalidOperationException("Invalid position direction.")
+        };
+
+        var conversionDate = consumption.Direction switch
+        {
+            PositionDirection.Long => consumption.OpenTradeDate,
+            PositionDirection.Short => consumption.CloseTradeDate,
+            _ => throw new InvalidOperationException("Invalid position direction.")
+        };
+
+        return _fxConverter.Convert(sourceMoney, conversionDate);
+    }
+
+    private Money ConvertProceedsToEur(LotConsumption consumption)
+    {
+        var sourceMoney = consumption.Direction switch
+        {
+            PositionDirection.Long => (consumption.CloseUnitPrice * consumption.MatchedQuantity.Value)
+                - consumption.AllocatedCloseFees - consumption.AllocatedCloseTaxes,
+            PositionDirection.Short => (consumption.OpenUnitPrice * consumption.MatchedQuantity.Value)
+                - consumption.AllocatedOpenFees - consumption.AllocatedOpenTaxes,
+            _ => throw new InvalidOperationException("Invalid position direction.")
+        };
+
+        var conversionDate = consumption.Direction switch
+        {
+            PositionDirection.Long => consumption.CloseTradeDate,
+            PositionDirection.Short => consumption.OpenTradeDate,
+            _ => throw new InvalidOperationException("Invalid position direction.")
+        };
+
+        return _fxConverter.Convert(sourceMoney, conversionDate);
+    }
+
+    private decimal CalculateRemainingAcquisitionPriceInEur(OpenLot lot)
+    {
+        var sourceAcquisitionTotal = (lot.OpenUnitPrice * lot.RemainingQuantity.Value)
+            + lot.RemainingOpenFees + lot.RemainingOpenTaxes;
+
+        var acquisitionTotalInEur = _fxConverter.Convert(sourceAcquisitionTotal, lot.OpenTradeDate);
+        return acquisitionTotalInEur.Amount / lot.RemainingQuantity.Value;
     }
 }

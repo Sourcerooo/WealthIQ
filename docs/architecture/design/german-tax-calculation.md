@@ -8,6 +8,7 @@ This document describes the currently implemented behavior of `GermanTaxCalculat
 - enriched instrument catalog
 - basis-interest-rate provider
 - year-end-price provider
+- FX rate lookup via the dedicated conversion layer
 
 ## High-Level Flow
 
@@ -28,6 +29,7 @@ sort portfolio entries by time
 - For each realized consumption, the calculator emits a `GermanTaxEntry` of type `Sell`.
 - Previously accumulated `Vorabpauschale` consumed from the lot is deducted from the raw sell profit.
 - `Teilfreistellungsquote` is applied to derive taxable sell profit.
+- Trade proceeds and acquisition costs are converted into EUR using the FX lookup at the appropriate open or close date.
 
 ### Cash Income
 
@@ -35,11 +37,13 @@ sort portfolio entries by time
 - Dividend taxable amount is reduced by `Teilfreistellungsquote`.
 - Dividend processing also tracks per-share distributions for later year-end `Vorabpauschale` calculation.
 - Interest creates `GermanTaxEntry` values of type `Interest` without `Teilfreistellungsquote` reduction.
+- Cash amounts are converted into EUR at booking date.
 
 ### Withholding Tax
 
 - Withholding tax creates `GermanTaxEntry` values of type `WithholdingTax`.
 - The foreign withholding amount is stored as a positive `ForeignWithholdingTax` value.
+- The source-currency withholding amount is converted into EUR at booking date.
 
 ## Year-End Closing
 
@@ -63,4 +67,4 @@ For each year and each open long lot group with a known ISIN and available year-
 
 - The current calculator processes the ledger entry types it knows about; unsupported source rows must already be filtered at import time.
 - The implementation is intentionally driven by local reference data rather than external services.
-- Multi-currency conversion is not implemented yet, so trustworthy tax replay still requires a future FX conversion layer.
+- Multi-currency conversion now happens through the dedicated FX conversion layer and no longer depends on broker-preconverted amounts.

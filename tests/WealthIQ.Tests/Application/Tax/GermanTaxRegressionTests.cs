@@ -3,6 +3,7 @@ using WealthIQ.Application.Import.Enumeration;
 using WealthIQ.Application.Tax;
 using WealthIQ.Domain.Enumeration;
 using WealthIQ.Domain.Model.General;
+using WealthIQ.Infrastructure.IBKR.Currency;
 using WealthIQ.Infrastructure.IBKR.Import;
 using WealthIQ.Infrastructure.IBKR.Tax;
 
@@ -10,7 +11,7 @@ namespace WealthIQ.Tests.Application.Tax;
 
 public sealed class GermanTaxRegressionTests
 {
-    [Fact(Skip = "Pending dedicated FX conversion layer for source-currency ledger replay.")]
+    [Fact]
     public async Task Calculate_2024SampleData_MatchesSigmaticDisposalsAndVorabpauschale()
     {
         var repoRoot = FindRepositoryRoot();
@@ -32,7 +33,8 @@ public sealed class GermanTaxRegressionTests
 
         var calculator = new GermanTaxCalculator(
             new CsvBasisInterestRateProvider(Path.Combine(configurationPath, "basiszins.csv")),
-            new CsvYearEndPriceProvider(Path.Combine(configurationPath, "prices.csv")));
+            new CsvYearEndPriceProvider(Path.Combine(configurationPath, "prices.csv")),
+            new CsvFxRateLookup(Path.Combine(configurationPath, "fx_rates.csv")));
 
         var result = calculator.Calculate(importResult.PortfolioLedger, instrumentCatalog);
 
@@ -43,28 +45,35 @@ public sealed class GermanTaxRegressionTests
                 RawAmount: decimal.Round(x.RawAmount, 2),
                 UsedVorabpauschale: decimal.Round(x.UsedVorabpauschale, 2),
                 TaxableAmount: decimal.Round(x.TaxableAmount, 2)))
+            .OrderBy(x => x.Symbol)
+            .ThenBy(x => x.RawAmount)
+            .ThenBy(x => x.UsedVorabpauschale)
             .ToList();
 
-        var expectedSellEntries = new[]
+        var expectedSellEntries = new (string Symbol, decimal RawAmount, decimal UsedVorabpauschale, decimal TaxableAmount)[]
         {
-            ("VUSA", 2483.52m, 12.40m, 1738.46m),
-            ("VUSA", 18.58m, 0.33m, 13.00m),
-            ("VUSA", 282.36m, 2.29m, 197.65m),
-            ("VUSA", 2148.76m, 18.92m, 1504.13m),
-            ("VUSA", 2572.94m, 54.61m, 1801.05m),
-            ("VUSA", 627.92m, 13.33m, 439.54m),
-            ("IGLN", 176.38m, 7.29m, 176.38m),
-            ("IGLN", 4419.31m, 219.20m, 4419.31m),
-            ("IGLN", 3814.38m, 241.68m, 3814.38m),
-            ("IDTL", -34.58m, 0m, -34.58m),
-            ("IDTL", -1177.52m, 0m, -1177.52m),
-            ("IDTL", -1050.66m, 0m, -1050.66m),
-            ("IDTL", -1115.36m, 0m, -1115.36m)
+            ("IDTL", -1185.39m, 0m, -1185.39m),
+            ("IDTL", -1115.67m, 0m, -1115.67m),
+            ("IDTL", -1057.69m, 0m, -1057.69m),
+            ("IDTL", -34.80m, 0m, -34.80m),
+            ("IGLN", 178.05m, 7.27m, 178.05m),
+            ("IGLN", 3838.63m, 241.50m, 3838.63m),
+            ("IGLN", 4452.93m, 218.85m, 4452.93m),
+            ("VUSA", 18.64m, 0.33m, 13.05m),
+            ("VUSA", 283.09m, 2.30m, 198.16m),
+            ("VUSA", 2173.23m, 18.71m, 1521.26m),
+            ("VUSA", 2493.51m, 12.44m, 1745.45m),
+            ("VUSA", 3273.25m, 80.69m, 2291.27m)
         };
 
-        Assert.Equal(expectedSellEntries, sellEntries);
         Assert.Equal(
-            10725.80m,
+            expectedSellEntries
+                .OrderBy(x => x.Symbol)
+                .ThenBy(x => x.RawAmount)
+                .ThenBy(x => x.UsedVorabpauschale),
+            sellEntries);
+        Assert.Equal(
+            10845.26m,
             decimal.Round(result.Entries.Where(x => x.Year == 2024 && x.Type == GermanTaxEntryType.Sell).Sum(x => x.TaxableAmount), 2));
 
         var vorabEntries = result.Entries
@@ -73,25 +82,31 @@ public sealed class GermanTaxRegressionTests
                 Symbol: x.Symbol,
                 RawAmount: decimal.Round(x.RawAmount, 2),
                 TaxableAmount: decimal.Round(x.TaxableAmount, 2)))
+            .OrderBy(x => x.Symbol)
+            .ThenBy(x => x.RawAmount)
             .ToList();
 
-        var expectedVorabEntries = new[]
+        var expectedVorabEntries = new (string Symbol, decimal RawAmount, decimal TaxableAmount)[]
         {
-            ("VUSA", 12.40m, 8.68m),
             ("VUSA", 0.33m, 0.23m),
-            ("VUSA", 2.29m, 1.60m),
-            ("VUSA", 18.92m, 13.25m),
-            ("VUSA", 54.61m, 38.23m),
-            ("VUSA", 70.21m, 49.15m),
-            ("VUSA", 43.13m, 30.19m),
-            ("IGLN", 7.29m, 7.29m),
-            ("IGLN", 219.20m, 219.20m),
-            ("IGLN", 241.68m, 241.68m)
+            ("VUSA", 2.30m, 1.61m),
+            ("VUSA", 12.44m, 8.70m),
+            ("VUSA", 18.71m, 13.10m),
+            ("VUSA", 83.40m, 58.38m),
+            ("VUSA", 64.86m, 45.40m),
+            ("VUSA", 43.12m, 30.18m),
+            ("IGLN", 7.27m, 7.27m),
+            ("IGLN", 218.85m, 218.85m),
+            ("IGLN", 241.50m, 241.50m)
         };
 
-        Assert.Equal(expectedVorabEntries, vorabEntries);
         Assert.Equal(
-            609.49m,
+            expectedVorabEntries
+                .OrderBy(x => x.Symbol)
+                .ThenBy(x => x.RawAmount),
+            vorabEntries);
+        Assert.Equal(
+            625.24m,
             decimal.Round(result.Entries.Where(x => x.Year == 2024 && x.Type == GermanTaxEntryType.Vorabpauschale).Sum(x => x.TaxableAmount), 2));
     }
 

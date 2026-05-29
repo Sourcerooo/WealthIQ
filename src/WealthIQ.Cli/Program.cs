@@ -3,6 +3,7 @@ using WealthIQ.Application.Import.Diagnostic;
 using WealthIQ.Application.Import.Enumeration;
 using WealthIQ.Application.Tax;
 using WealthIQ.Domain.Model.General;
+using WealthIQ.Infrastructure.IBKR.Currency;
 using WealthIQ.Infrastructure.IBKR.Import;
 using WealthIQ.Infrastructure.IBKR.Tax;
 
@@ -43,7 +44,8 @@ internal static class Program
 
             var taxCalculator = new GermanTaxCalculator(
                 new CsvBasisInterestRateProvider(Path.Combine(configurationPath, "basiszins.csv")),
-                new CsvYearEndPriceProvider(Path.Combine(configurationPath, "prices.csv")));
+                new CsvYearEndPriceProvider(Path.Combine(configurationPath, "prices.csv")),
+                new CsvFxRateLookup(Path.Combine(configurationPath, "fx_rates.csv")));
 
             var calculationResult = taxCalculator.Calculate(importResult.PortfolioLedger, instrumentCatalog);
             TaxReportConsoleWriter.PrintDiagnostics(importResult.Diagnostics);
