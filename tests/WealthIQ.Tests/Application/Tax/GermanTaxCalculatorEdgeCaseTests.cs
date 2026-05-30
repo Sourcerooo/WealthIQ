@@ -1,0 +1,101 @@
+using WealthIQ.Application.Tax;
+using WealthIQ.Domain.Enumeration;
+using WealthIQ.Domain.Model.General;
+using WealthIQ.Domain.Model.Ledger;
+using WealthIQ.Domain.Model.Tax;
+using Xunit;
+
+namespace WealthIQ.Tests.Application.Tax;
+
+public sealed class GermanTaxCalculatorEdgeCaseTests
+{
+    private static readonly AccountId Account = AccountId.NewId();
+    private const string Isin = "IE00B3XXRP09";
+
+    private static GermanTaxCalculator Calculator(
+        FakeBasisInterestRateProvider? rates = null,
+        FakeYearEndPriceProvider? prices = null)
+        => new(rates ?? new FakeBasisInterestRateProvider(), prices ?? new FakeYearEndPriceProvider(), new FakeFxRateLookup());
+
+    [Fact]
+    public void Calculate_EmptyLedger_ProducesNoEntriesOrLots()
+    {
+        var result = Calculator().Calculate(new PortfolioLedger([]), []);
+
+        Assert.Empty(result.Entries);
+        Assert.Empty(result.OpenLots);
+    }
+
+    [Fact]
+    public void Calculate_SellConsumesInstrumentMissingFromCatalog_Throws()
+    {
+        var unknown = InstrumentId.NewId();
+        var ledger = new PortfolioLedger([
+            TaxEntries.Trade(Account, unknown, TradeSide.Buy, 10m, 100m,
+                new DateTimeOffset(2024, 1, 10, 10, 0, 0, TimeSpan.Zero), "BUY-1"),
+            TaxEntries.Trade(Account, unknown, TradeSide.Sell, 10m, 120m,
+                new DateTimeOffset(2024, 2, 10, 10, 0, 0, TimeSpan.Zero), "SELL-1")
+        ]);
+
+        Assert.Throws<InvalidOperationException>(() => Calculator().Calculate(ledger, []));
+    }
+
+    [Fact]
+    public void Calculate_DividendWithoutRelatedInstrument_Throws()
+    {
+        var cashInstrument = InstrumentId.NewId();
+        var ledger = new PortfolioLedger([
+            new CashEntry(
+                PortfolioEntryId.NewId(),
+                Account,
+                new DateTimeOffset(2024, 6, 10, 12, 0, 0, TimeSpan.Zero),
+                new DateOnly(2024, 6, 10),
+                TaxEntries.Provenance("DIV-1"),
+                cashInstrument,
+                CashFlowType.Dividend,
+                new Money(50m, Currency.EUR),
+                new Money(0m, Currency.EUR),
+                new Money(0m, Currency.EUR),
+                relatedInstrumentId: null)
+        ]);
+
+        var instruments = new[] { new Instrument(cashInstrument, "", "EUR", "Euro cash", 0m) };
+
+        Assert.Throws<InvalidOperationException>(() => Calculator().Calculate(ledger, instruments));
+    }
+
+    [Fact]
+    public void Calculate_MissingYearEndPrice_SkipsVorabpauschale()
+    {
+        var instrumentId = InstrumentId.NewId();
+        var instruments = new[] { new Instrument(instrumentId, Isin, "VUSA", "Vanguard", 0.30m) };
+        var ledger = new PortfolioLedger([
+            TaxEntries.Trade(Account, instrumentId, TradeSide.Buy, 100m, 100m,
+                new DateTimeOffset(2024, 1, 10, 10, 0, 0, TimeSpan.Zero), "BUY-1")
+        ]);
+
+        // Basiszins is positive but no year-end price is configured → Vorabpauschale cannot be computed.
+        var result = Calculator(new FakeBasisInterestRateProvider((2024, 0.05m)), new FakeYearEndPriceProvider())
+            .Calculate(ledger, instruments);
+
+        Assert.Empty(result.Entries.Where(x => x.Type == GermanTaxEntryType.Vorabpauschale));
+    }
+
+    [Fact]
+    public void Calculate_SellWithoutOpenLong_OpensShortAndProducesNoDisposal()
+    {
+        var instrumentId = InstrumentId.NewId();
+        var instruments = new[] { new Instrument(instrumentId, Isin, "VUSA", "Vanguard", 0.30m) };
+        var ledger = new PortfolioLedger([
+            TaxEntries.Trade(Account, instrumentId, TradeSide.Sell, 10m, 100m,
+                new DateTimeOffset(2024, 2, 10, 10, 0, 0, TimeSpan.Zero), "SELL-1")
+        ]);
+
+        var result = Calculator().Calculate(ledger, instruments);
+
+        Assert.Empty(result.Entries.Where(x => x.Type == GermanTaxEntryType.Sell));
+        var openLot = Assert.Single(result.OpenLots);
+        Assert.Equal(PositionDirection.Short, openLot.Direction);
+        Assert.Equal(10m, openLot.RemainingQuantity.Value);
+    }
+}
