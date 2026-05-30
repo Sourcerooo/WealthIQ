@@ -36,20 +36,61 @@ else
     @if (Current is not null)
     {
         <MudGrid Class="mb-4">
-            @SummaryCard("Verkäufe (steuerpflichtig)", Current.Summary.NetRealizedGainsTaxable)
-            @SummaryCard("Dividenden (steuerpflichtig)", Current.Summary.DividendsTaxable)
-            @SummaryCard("Zinsen (steuerpflichtig)", Current.Summary.InterestTaxable)
-            @SummaryCard("Vorabpauschale (steuerpflichtig)", Current.Summary.VorabpauschaleTaxable)
-            @SummaryCard("Anrechenbare Quellensteuer", Current.Summary.ForeignWithholdingTax)
-            @SummaryCard("Geschätzte Steuer", Current.Summary.EstimatedTax)
+            <MudItem xs="12" sm="6" md="4">
+                <MudPaper Class="pa-4" Elevation="2">
+                    <MudText Typo="Typo.caption">Verkäufe (steuerpflichtig)</MudText>
+                    <MudText Typo="Typo.h6">@Eur(Current.Summary.NetRealizedGainsTaxable)</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudPaper Class="pa-4" Elevation="2">
+                    <MudText Typo="Typo.caption">Dividenden (steuerpflichtig)</MudText>
+                    <MudText Typo="Typo.h6">@Eur(Current.Summary.DividendsTaxable)</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudPaper Class="pa-4" Elevation="2">
+                    <MudText Typo="Typo.caption">Zinsen (steuerpflichtig)</MudText>
+                    <MudText Typo="Typo.h6">@Eur(Current.Summary.InterestTaxable)</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudPaper Class="pa-4" Elevation="2">
+                    <MudText Typo="Typo.caption">Vorabpauschale (steuerpflichtig)</MudText>
+                    <MudText Typo="Typo.h6">@Eur(Current.Summary.VorabpauschaleTaxable)</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudPaper Class="pa-4" Elevation="2">
+                    <MudText Typo="Typo.caption">Anrechenbare Quellensteuer</MudText>
+                    <MudText Typo="Typo.h6">@Eur(Current.Summary.ForeignWithholdingTax)</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudPaper Class="pa-4" Elevation="2">
+                    <MudText Typo="Typo.caption">Geschätzte Steuer</MudText>
+                    <MudText Typo="Typo.h6">@Eur(Current.Summary.EstimatedTax)</MudText>
+                </MudPaper>
+            </MudItem>
         </MudGrid>
 
+        @* MudExpansionPanel must be a direct child of MudExpansionPanels for cascade registration to work *@
         <MudExpansionPanels MultiExpansion="true">
-            @Section("Verkäufe (realisierter PnL)", Current.Sells)
-            @Section("Vorabpauschale", Current.Vorabpauschale)
-            @Section("Dividenden", Current.Dividends)
-            @Section("Zinsen", Current.Interest)
-            @Section("Quellensteuer", Current.WithholdingTaxes)
+            <MudExpansionPanel Text="@($"Verkäufe (realisierter PnL) ({Current.Sells.Count})")">
+                @EntryTable(Current.Sells)
+            </MudExpansionPanel>
+            <MudExpansionPanel Text="@($"Vorabpauschale ({Current.Vorabpauschale.Count})")">
+                @EntryTable(Current.Vorabpauschale)
+            </MudExpansionPanel>
+            <MudExpansionPanel Text="@($"Dividenden ({Current.Dividends.Count})")">
+                @EntryTable(Current.Dividends)
+            </MudExpansionPanel>
+            <MudExpansionPanel Text="@($"Zinsen ({Current.Interest.Count})")">
+                @EntryTable(Current.Interest)
+            </MudExpansionPanel>
+            <MudExpansionPanel Text="@($"Quellensteuer ({Current.WithholdingTaxes.Count})")">
+                @EntryTable(Current.WithholdingTaxes)
+            </MudExpansionPanel>
         </MudExpansionPanels>
     }
 }
@@ -83,15 +124,9 @@ else
 
     private static string Eur(decimal amount) => amount.ToString("N2") + " €";
 
-    private RenderFragment SummaryCard(string label, decimal amount) => @<MudItem xs="12" sm="6" md="4">
-        <MudPaper Class="pa-4" Elevation="2">
-            <MudText Typo="Typo.caption">@label</MudText>
-            <MudText Typo="Typo.h6">@Eur(amount)</MudText>
-        </MudPaper>
-    </MudItem>;
-
-    private RenderFragment Section(string title, IReadOnlyList<GermanTaxEntry> entries) => @<MudExpansionPanel Text="@($"{title} ({entries.Count})")">
-        @if (entries.Count == 0)
+    private RenderFragment EntryTable(IReadOnlyList<GermanTaxEntry> entries) => __builder =>
+    {
+        if (entries.Count == 0)
         {
             <MudText Typo="Typo.body2">Keine Einträge.</MudText>
         }
@@ -121,7 +156,7 @@ else
                 </RowTemplate>
             </MudTable>
         }
-    </MudExpansionPanel>;
+    };
 
     private void DrillToSource(string isin)
         => Navigation.NavigateTo($"/audit?isin={Uri.EscapeDataString(isin)}");
