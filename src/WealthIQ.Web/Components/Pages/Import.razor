@@ -1,0 +1,144 @@
+@page "/import"
+@rendermode InteractiveServer
+@using WealthIQ.Application.Import
+@using WealthIQ.Application.Import.Diagnostic
+@using WealthIQ.Application.Import.Enumeration
+@using WealthIQ.Domain.Model.General
+@inject StatementImportPipeline Pipeline
+
+<PageTitle>WealthIQ — Import</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Import</MudText>
+
+<MudPaper Class="pa-4 mb-4" Style="max-width: 640px;">
+    <MudText Typo="Typo.subtitle2" GutterBottom="true">Interactive Brokers (FlexQuery XML)</MudText>
+
+    <MudTextField @bind-Value="_accountNumber" Label="Account-Nummer" Variant="Variant.Outlined" Class="mb-4" />
+
+    <MudText Typo="Typo.body2" Class="mb-2">Statement-Datei (.xml):</MudText>
+    <InputFile OnChange="OnFileSelected" accept=".xml" />
+
+    @if (_selectedFileName is not null)
+    {
+        <MudText Typo="Typo.caption" Class="mt-2">Ausgewählt: @_selectedFileName</MudText>
+    }
+
+    <div class="mt-4">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_busy || _tempPath is null || string.IsNullOrWhiteSpace(_accountNumber))"
+                   OnClick="RunImport">
+            @(_busy ? "Importiere…" : "Import starten")
+        </MudButton>
+    </div>
+</MudPaper>
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+
+@if (_result is not null)
+{
+    var committed = _result.Status == ImportStatus.Committed;
+    <MudAlert Severity="@(committed ? Severity.Success : Severity.Warning)" Class="mb-4">
+        @(committed
+            ? $"Import committed. Neu: {_result.InsertedEntries}, übersprungen (Duplikate): {_result.SkippedDuplicateEntries}."
+            : "Import abgebrochen — blockierende Diagnostics, nichts wurde gespeichert.")
+    </MudAlert>
+
+    <MudText Typo="Typo.h6" GutterBottom="true">Diagnostics (@_result.Diagnostics.Count)</MudText>
+    @if (_result.Diagnostics.Count == 0)
+    {
+        <MudText Typo="Typo.body2">Keine Diagnostics.</MudText>
+    }
+    else
+    {
+        <MudTable Items="_result.Diagnostics" Dense="true" Hover="true">
+            <HeaderContent>
+                <MudTh>Severity</MudTh>
+                <MudTh>Code</MudTh>
+                <MudTh>Meldung</MudTh>
+                <MudTh>Sektion</MudTh>
+                <MudTh>Referenz</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Severity">@context.Severity</MudTd>
+                <MudTd DataLabel="Code">@context.Code</MudTd>
+                <MudTd DataLabel="Meldung">@context.Message</MudTd>
+                <MudTd DataLabel="Sektion">@context.Section</MudTd>
+                <MudTd DataLabel="Referenz">@context.SourceReference</MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+}
+
+@code {
+    private string _accountNumber = "";
+    private string? _selectedFileName;
+    private string? _tempPath;
+    private bool _busy;
+    private string? _error;
+    private ImportPipelineResult? _result;
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        _error = null;
+        _result = null;
+        try
+        {
+            var file = e.File;
+            _selectedFileName = file.Name;
+            var temp = Path.Combine(Path.GetTempPath(), $"wealthiq-upload-{Guid.NewGuid():N}-{file.Name}");
+            await using (var fs = File.Create(temp))
+            await using (var stream = file.OpenReadStream(maxAllowedSize: 64 * 1024 * 1024))
+            {
+                await stream.CopyToAsync(fs);
+            }
+            _tempPath = temp;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Datei konnte nicht gelesen werden: {ex.Message}";
+            _tempPath = null;
+        }
+    }
+
+    private async Task RunImport()
+    {
+        if (_tempPath is null || string.IsNullOrWhiteSpace(_accountNumber))
+        {
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+        _result = null;
+        try
+        {
+            var accountId = DeterministicAccount.IdFor("InteractiveBrokers", _accountNumber.Trim());
+            var account = new Account(accountId, _accountNumber.Trim());
+            var command = new ImportStatementCommand(
+                new ImportRequest
+                {
+                    Source = new ImportSource(Broker.InteractiveBrokers, Format.XML, _tempPath),
+                    AccountId = accountId
+                },
+                account);
+
+            _result = await Pipeline.RunAsync(command);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Import fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+            if (_tempPath is not null && File.Exists(_tempPath))
+            {
+                File.Delete(_tempPath);
+            }
+            _tempPath = null;
+            _selectedFileName = null;
+        }
+    }
+}
