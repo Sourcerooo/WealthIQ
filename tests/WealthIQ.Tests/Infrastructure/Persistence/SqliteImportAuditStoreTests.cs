@@ -63,4 +63,37 @@ public sealed class SqliteImportAuditStoreTests
             Assert.Equal("Trades", diagView.Section);
         }
     }
+
+    [Fact]
+    public async Task GetBatchesAsync_ReturnsBatchesNewestFirst()
+    {
+        using var db = new InMemorySqlite();
+        var account = new Account(AccountId.NewId(), "U123");
+        var instrument = new Instrument(InstrumentId.NewId(), "US0001", "SPY", "S&P 500", 0.3m);
+
+        var olderBatchId = Guid.NewGuid();
+        var newerBatchId = Guid.NewGuid();
+
+        async Task PersistBatch(Guid batchId, DateTimeOffset importedAt, string tradeRef)
+        {
+            var ledger = new PortfolioLedger(
+                new PortfolioEntry[] { Trade(account.AccountId, instrument.InstrumentId, tradeRef) },
+                new[] { instrument }, new[] { account });
+            var batch = new ImportBatch(batchId, Broker.InteractiveBrokers, Format.XML, account.AccountId,
+                "audit/file.xml", importedAt);
+            await using var ctx = db.NewContext();
+            await new SqliteImportStore(ctx, new SqliteLedgerStore(ctx))
+                .PersistImportAsync(batch, ledger, Array.Empty<ImportDiagnostic>());
+        }
+
+        await PersistBatch(olderBatchId, new DateTimeOffset(2026, 5, 1, 9, 0, 0, TimeSpan.Zero), "T-old");
+        await PersistBatch(newerBatchId, new DateTimeOffset(2026, 5, 30, 9, 0, 0, TimeSpan.Zero), "T-new");
+
+        await using var ctx2 = db.NewContext();
+        var batches = await new SqliteImportAuditStore(ctx2).GetBatchesAsync();
+
+        Assert.Equal(2, batches.Count);
+        Assert.Equal(newerBatchId, batches[0].BatchId);  // newest first
+        Assert.Equal(olderBatchId, batches[1].BatchId);
+    }
 }

@@ -10,11 +10,12 @@ public sealed class SqliteImportAuditStore(WealthIqDbContext db) : IImportAuditS
     public async Task<IReadOnlyList<ImportBatchView>> GetBatchesAsync(CancellationToken ct = default)
     {
         var rows = await db.ImportBatches.AsNoTracking().ToListAsync(ct);
-        var ordered = rows.OrderByDescending(x => x.ImportedAt).ToList();
-
-        return ordered.Select(x => new ImportBatchView(
-            x.BatchId, x.Broker, x.Format, x.AccountId, x.RawFilePath, x.ImportedAt,
-            x.InsertedEntries, x.SkippedDuplicateEntries)).ToList();
+        return rows
+            .OrderByDescending(x => x.ImportedAt)
+            .Select(x => new ImportBatchView(
+                x.BatchId, x.Broker, x.Format, x.AccountId, x.RawFilePath, x.ImportedAt,
+                x.InsertedEntries, x.SkippedDuplicateEntries))
+            .ToList();
     }
 
     public async Task<IReadOnlyList<ImportDiagnosticView>> GetDiagnosticsAsync(CancellationToken ct = default)
