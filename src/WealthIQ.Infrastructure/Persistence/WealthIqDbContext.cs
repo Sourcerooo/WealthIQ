@@ -8,6 +8,8 @@ public sealed class WealthIqDbContext(DbContextOptions<WealthIqDbContext> option
     public DbSet<PortfolioEntryRow> PortfolioEntries => Set<PortfolioEntryRow>();
     public DbSet<InstrumentRow> Instruments => Set<InstrumentRow>();
     public DbSet<AccountRow> Accounts => Set<AccountRow>();
+    public DbSet<ImportBatchRow> ImportBatches => Set<ImportBatchRow>();
+    public DbSet<ImportDiagnosticRow> ImportDiagnostics => Set<ImportDiagnosticRow>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -27,6 +29,21 @@ public sealed class WealthIqDbContext(DbContextOptions<WealthIqDbContext> option
         modelBuilder.Entity<AccountRow>(e =>
         {
             e.HasKey(x => x.AccountId);
+        });
+
+        modelBuilder.Entity<ImportBatchRow>(e =>
+        {
+            e.HasKey(x => x.BatchId);
+            e.HasIndex(x => x.AccountId);
+        });
+
+        modelBuilder.Entity<ImportDiagnosticRow>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.BatchId);
+            e.Property(x => x.Severity).IsRequired();
+            e.Property(x => x.Code).IsRequired();
+            e.Property(x => x.Message).IsRequired();
         });
     }
 }
