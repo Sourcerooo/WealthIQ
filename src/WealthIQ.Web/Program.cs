@@ -33,7 +33,10 @@ builder.Services.AddMudServices();
 
 // --- Persistence ---
 builder.Services.AddDbContext<WealthIqDbContext>(options => options.UseSqlite($"Data Source={dbPath}"));
-builder.Services.AddScoped<ILedgerStore, SqliteLedgerStore>();
+// SqliteLedgerStore registered as both concrete and interface so SqliteImportStore (which takes the
+// concrete type to share the same EF transaction) and ILedgerStore consumers both resolve the same instance.
+builder.Services.AddScoped<SqliteLedgerStore>();
+builder.Services.AddScoped<ILedgerStore>(sp => sp.GetRequiredService<SqliteLedgerStore>());
 builder.Services.AddScoped<IImportStore, SqliteImportStore>();
 builder.Services.AddScoped<IImportAuditStore, SqliteImportAuditStore>();
 builder.Services.AddSingleton<IRawFileStore>(_ => new FileSystemRawFileStore(auditDir));
