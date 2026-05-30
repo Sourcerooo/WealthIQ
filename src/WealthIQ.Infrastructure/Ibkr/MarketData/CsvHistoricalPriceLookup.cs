@@ -2,7 +2,7 @@ using System.Globalization;
 using WealthIQ.Application.MarketData;
 using WealthIQ.Application.MarketData.Interface;
 
-namespace WealthIQ.Infrastructure.IBKR.MarketData;
+namespace WealthIQ.Infrastructure.Ibkr.MarketData;
 
 public sealed class CsvHistoricalPriceLookup : IHistoricalPriceLookup
 {

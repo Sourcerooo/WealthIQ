@@ -1,7 +1,7 @@
 using System.Globalization;
 using WealthIQ.Application.Tax.Interface;
 
-namespace WealthIQ.Infrastructure.IBKR.Tax;
+namespace WealthIQ.Infrastructure.Ibkr.Tax;
 
 public sealed class CsvYearEndPriceProvider : IYearEndPriceProvider
 {

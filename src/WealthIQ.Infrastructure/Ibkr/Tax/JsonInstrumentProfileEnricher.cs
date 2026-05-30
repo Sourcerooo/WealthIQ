@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 using WealthIQ.Application.Tax.Interface;
 using WealthIQ.Domain.Model.General;
 
-namespace WealthIQ.Infrastructure.IBKR.Tax;
+namespace WealthIQ.Infrastructure.Ibkr.Tax;
 
 public sealed class JsonInstrumentProfileEnricher : IInstrumentProfileEnricher
 {

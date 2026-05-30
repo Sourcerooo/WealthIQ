@@ -17,7 +17,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\WealthIQ.Application\WealthIQ.Application.csproj" />
     <ProjectReference Include="..\..\src\WealthIQ.Domain\WealthIQ.Domain.csproj" />
-    <ProjectReference Include="..\..\src\WealthIQ.Infrastructure.IBKR\WealthIQ.Infrastructure.IBKR.csproj" />
+    <ProjectReference Include="..\..\src\WealthIQ.Infrastructure\WealthIQ.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

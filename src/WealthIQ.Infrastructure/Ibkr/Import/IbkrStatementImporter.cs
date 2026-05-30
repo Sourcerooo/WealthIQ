@@ -12,7 +12,7 @@ using WealthIQ.Domain.Model.Ledger;
 
 using CurrencyCode = WealthIQ.Domain.Enumeration.Currency;
 
-namespace WealthIQ.Infrastructure.IBKR.Import;
+namespace WealthIQ.Infrastructure.Ibkr.Import;
 
 public sealed class IbkrStatementImporter : IStatementImporter
 {

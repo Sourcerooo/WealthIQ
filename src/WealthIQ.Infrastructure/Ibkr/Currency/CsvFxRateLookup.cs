@@ -4,7 +4,7 @@ using WealthIQ.Domain.Enumeration;
 
 using CurrencyCode = WealthIQ.Domain.Enumeration.Currency;
 
-namespace WealthIQ.Infrastructure.IBKR.Currency;
+namespace WealthIQ.Infrastructure.Ibkr.Currency;
 
 public sealed class CsvFxRateLookup : IFxRateLookup
 {

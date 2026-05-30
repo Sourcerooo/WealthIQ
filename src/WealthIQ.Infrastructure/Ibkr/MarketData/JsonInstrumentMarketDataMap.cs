@@ -4,7 +4,7 @@ using WealthIQ.Application.MarketData;
 using WealthIQ.Application.MarketData.Interface;
 using WealthIQ.Domain.Model.General;
 
-namespace WealthIQ.Infrastructure.IBKR.MarketData;
+namespace WealthIQ.Infrastructure.Ibkr.MarketData;
 
 public sealed class JsonInstrumentMarketDataMap : IInstrumentMarketDataMap
 {

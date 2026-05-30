@@ -3,9 +3,9 @@ using WealthIQ.Application.Import.Enumeration;
 using WealthIQ.Application.Tax;
 using WealthIQ.Domain.Enumeration;
 using WealthIQ.Domain.Model.General;
-using WealthIQ.Infrastructure.IBKR.Currency;
-using WealthIQ.Infrastructure.IBKR.Import;
-using WealthIQ.Infrastructure.IBKR.Tax;
+using WealthIQ.Infrastructure.Ibkr.Currency;
+using WealthIQ.Infrastructure.Ibkr.Import;
+using WealthIQ.Infrastructure.Ibkr.Tax;
 
 namespace WealthIQ.Tests.Application.Tax;
 
