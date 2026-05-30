@@ -61,9 +61,10 @@ public sealed class GermanTaxRegressionTests
             ("IGLN", 4452.93m, 218.85m, 4452.93m),
             ("VUSA", 18.64m, 0.33m, 13.05m),
             ("VUSA", 283.09m, 2.30m, 198.16m),
+            ("VUSA", 642.12m, 15.83m, 449.48m),
             ("VUSA", 2173.23m, 18.71m, 1521.26m),
             ("VUSA", 2493.51m, 12.44m, 1745.45m),
-            ("VUSA", 3273.25m, 80.69m, 2291.27m)
+            ("VUSA", 2631.13m, 64.86m, 1841.79m)
         };
 
         Assert.Equal(

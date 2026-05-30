@@ -11,8 +11,14 @@ public sealed record PortfolioLedger
     {
         ArgumentNullException.ThrowIfNull(entries);
 
-        Entries = entries.OrderBy(x => x.OccurredAt)
-            .ThenBy(x => x.EntryId.Value)
+        // Deterministic order: chronological, then by the source's record reference
+        // (e.g. the broker transaction id, issued in booking order). This keeps FIFO lot
+        // matching reproducible for entries that share a timestamp — a random tie-break
+        // would otherwise change disposal results from run to run. EntryId is NOT used as a
+        // tie-break because it is a random GUID.
+        Entries = entries
+            .OrderBy(x => x.OccurredAt)
+            .ThenBy(x => x.SourceProvenance.SourceRecordReference, StringComparer.Ordinal)
             .ToList();
         Instruments = instruments ?? [];
         Accounts = accounts ?? [];
