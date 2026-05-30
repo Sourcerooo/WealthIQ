@@ -1,0 +1,13 @@
+<FlexQueryResponse queryName="TaxAlpha_Raw_Data" type="AF">
+<FlexStatements count="1">
+<FlexStatement accountId="U5658230" fromDate="20210104" toDate="20211231" period="" whenGenerated="20251127;082531">
+<Trades>
+<Trade accountId="U5658230" currency="EUR" fxRateToBase="1" assetCategory="STK" symbol="VUSA" description="VANG S&amp;P500 USDD" isin="IE00B3XXRP09" dateTime="20210409;103001" tradeDate="20210409" settleDateTarget="20210413" quantity="320" tradePrice="65.39" tradeMoney="20924.8" taxes="0" ibCommission="-10.4624" ibCommissionCurrency="EUR" cost="20935.2624" fifoPnlRealized="0" buySell="BUY" transactionID="176477128" />
+<Trade accountId="U5658230" currency="USD" fxRateToBase="0.82006" assetCategory="STK" symbol="IDTM" description="ISHARES USD TREASURY 7-10" isin="IE00B1FZS798" dateTime="20210510;120000" tradeDate="20210510" settleDateTarget="20210512" quantity="10" tradePrice="5.10" tradeMoney="51.0" taxes="0" ibCommission="-1.0" ibCommissionCurrency="USD" cost="52.0" fifoPnlRealized="0" buySell="BUY" transactionID="200000001" />
+</Trades>
+<CashTransactions>
+<CashTransaction accountId="U5658230" currency="USD" fxRateToBase="0.82006" assetCategory="STK" symbol="IDTM" description="IDTM(IE00B1FZS798) CASH DIVIDEND USD 1.192 PER SHARE (Mixed Income)" isin="IE00B1FZS798" dateTime="20210526;202000" amount="11.92" type="Dividends" transactionID="279268408" />
+</CashTransactions>
+</FlexStatement>
+</FlexStatements>
+</FlexQueryResponse>
