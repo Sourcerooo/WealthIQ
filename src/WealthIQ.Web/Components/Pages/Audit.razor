@@ -1,0 +1,154 @@
+@page "/audit"
+@rendermode InteractiveServer
+@using WealthIQ.Application.Audit
+@using WealthIQ.Application.Audit.Interface
+@using WealthIQ.Application.Persistence.Interface
+@using WealthIQ.Domain.Model.General
+@using WealthIQ.Domain.Model.Ledger
+@inject IImportAuditStore AuditStore
+@inject ILedgerStore LedgerStore
+
+<PageTitle>WealthIQ — Diagnostics / Audit</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Diagnostics / Audit</MudText>
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+
+<MudTextField @bind-Value="_filterIsin" Label="Filter nach ISIN (Quell-Drill-down)" Variant="Variant.Outlined"
+              Immediate="true" Clearable="true" Class="mb-4" Style="max-width: 360px;" />
+
+<MudText Typo="Typo.h6" GutterBottom="true">Quell-Einträge (Provenance)</MudText>
+@if (FilteredEntries.Count == 0)
+{
+    <MudText Typo="Typo.body2" Class="mb-6">Keine passenden Einträge.</MudText>
+}
+else
+{
+    <MudTable Items="FilteredEntries" Dense="true" Hover="true" Class="mb-6">
+        <HeaderContent>
+            <MudTh>OccurredAt</MudTh>
+            <MudTh>Kategorie</MudTh>
+            <MudTh>Symbol</MudTh>
+            <MudTh>ISIN</MudTh>
+            <MudTh>Quelle</MudTh>
+            <MudTh>Datei</MudTh>
+            <MudTh>Referenz</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="OccurredAt">@context.OccurredAt.ToString("u")</MudTd>
+            <MudTd DataLabel="Kategorie">@context.Category</MudTd>
+            <MudTd DataLabel="Symbol">@context.Symbol</MudTd>
+            <MudTd DataLabel="ISIN">@context.Isin</MudTd>
+            <MudTd DataLabel="Quelle">@context.Provenance.SourceSystem (@context.Provenance.ImportFormat)</MudTd>
+            <MudTd DataLabel="Datei">@context.Provenance.SourceLocation</MudTd>
+            <MudTd DataLabel="Referenz">@context.Provenance.SourceRecordReference</MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+<MudText Typo="Typo.h6" GutterBottom="true">Import-Batches</MudText>
+<MudTable Items="_batches" Dense="true" Hover="true" Class="mb-6">
+    <HeaderContent>
+        <MudTh>Importiert</MudTh>
+        <MudTh>Broker</MudTh>
+        <MudTh>Format</MudTh>
+        <MudTh>Datei</MudTh>
+        <MudTh Style="text-align:right">Neu</MudTh>
+        <MudTh Style="text-align:right">Übersprungen</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Importiert">@context.ImportedAt.ToString("u")</MudTd>
+        <MudTd DataLabel="Broker">@context.Broker</MudTd>
+        <MudTd DataLabel="Format">@context.Format</MudTd>
+        <MudTd DataLabel="Datei">@context.RawFilePath</MudTd>
+        <MudTd DataLabel="Neu" Style="text-align:right">@context.InsertedEntries</MudTd>
+        <MudTd DataLabel="Übersprungen" Style="text-align:right">@context.SkippedDuplicateEntries</MudTd>
+    </RowTemplate>
+</MudTable>
+
+<MudText Typo="Typo.h6" GutterBottom="true">Diagnostics</MudText>
+<MudSelect T="string" @bind-Value="_severityFilter" Label="Severity" Dense="true" Variant="Variant.Outlined" Style="max-width: 200px;" Class="mb-2">
+    <MudSelectItem T="string" Value="@AllSeverities">Alle</MudSelectItem>
+    <MudSelectItem T="string" Value="@("Info")">Info</MudSelectItem>
+    <MudSelectItem T="string" Value="@("Warning")">Warning</MudSelectItem>
+    <MudSelectItem T="string" Value="@("Error")">Error</MudSelectItem>
+    <MudSelectItem T="string" Value="@("Fatal")">Fatal</MudSelectItem>
+</MudSelect>
+<MudTable Items="FilteredDiagnostics" Dense="true" Hover="true">
+    <HeaderContent>
+        <MudTh>Severity</MudTh>
+        <MudTh>Code</MudTh>
+        <MudTh>Meldung</MudTh>
+        <MudTh>Sektion</MudTh>
+        <MudTh>Referenz</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Severity">@context.Severity</MudTd>
+        <MudTd DataLabel="Code">@context.Code</MudTd>
+        <MudTd DataLabel="Meldung">@context.Message</MudTd>
+        <MudTd DataLabel="Sektion">@context.Section</MudTd>
+        <MudTd DataLabel="Referenz">@context.SourceReference</MudTd>
+    </RowTemplate>
+</MudTable>
+
+@code {
+    private const string AllSeverities = "Alle";
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "isin")]
+    public string? IsinQuery { get; set; }
+
+    private sealed record EntryView(DateTimeOffset OccurredAt, string Category, string Symbol, string Isin, SourceProvenance Provenance);
+
+    private string? _error;
+    private string? _filterIsin;
+    private string _severityFilter = AllSeverities;
+    private IReadOnlyList<ImportBatchView> _batches = Array.Empty<ImportBatchView>();
+    private IReadOnlyList<ImportDiagnosticView> _diagnostics = Array.Empty<ImportDiagnosticView>();
+    private List<EntryView> _entries = new();
+
+    private IReadOnlyList<EntryView> FilteredEntries =>
+        string.IsNullOrWhiteSpace(_filterIsin)
+            ? _entries
+            : _entries.Where(e => e.Isin.Contains(_filterIsin.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
+
+    private IReadOnlyList<ImportDiagnosticView> FilteredDiagnostics =>
+        _severityFilter == AllSeverities
+            ? _diagnostics
+            : _diagnostics.Where(d => d.Severity == _severityFilter).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _filterIsin = IsinQuery;
+            _batches = await AuditStore.GetBatchesAsync();
+            _diagnostics = await AuditStore.GetDiagnosticsAsync();
+
+            var ledger = await LedgerStore.LoadLedgerAsync();
+            var instrumentById = ledger.Instruments.ToDictionary(i => i.InstrumentId);
+            _entries = ledger.Entries.Select(e => ToView(e, instrumentById)).ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Audit-Daten konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private static EntryView ToView(PortfolioEntry entry, IReadOnlyDictionary<InstrumentId, Instrument> instrumentById)
+    {
+        var (symbol, isin) = entry switch
+        {
+            TradeEntry t => Resolve(t.InstrumentId, instrumentById),
+            CashEntry c => Resolve(c.RelatedInstrumentId.HasValue ? c.RelatedInstrumentId.Value : c.CashInstrumentId, instrumentById),
+            _ => ("", "")
+        };
+        return new EntryView(entry.OccurredAt, entry.Category.ToString(), symbol, isin, entry.SourceProvenance);
+    }
+
+    private static (string Symbol, string Isin) Resolve(InstrumentId id, IReadOnlyDictionary<InstrumentId, Instrument> instrumentById)
+        => instrumentById.TryGetValue(id, out var instrument) ? (instrument.Symbol, instrument.ISIN) : ("", "");
+}
