@@ -12,7 +12,7 @@ namespace WealthIQ.Infrastructure.Persistence;
 /// <see cref="WealthIqDbContext"/> so all writes share one transaction and the idempotent
 /// entry dedup / instrument-account upsert are defined in exactly one place.
 /// </summary>
-public sealed class SqliteImportStore(WealthIqDbContext db, ILedgerStore ledgerStore) : IImportStore
+public sealed class SqliteImportStore(WealthIqDbContext db, SqliteLedgerStore ledgerStore) : IImportStore
 {
     public async Task<ImportPersistCounts> PersistImportAsync(
         ImportBatch batch,
@@ -27,6 +27,7 @@ public sealed class SqliteImportStore(WealthIqDbContext db, ILedgerStore ledgerS
 
         var saveResult = await ledgerStore.SaveLedgerAsync(ledger, ct);
         batchRow.InsertedEntries = saveResult.InsertedEntries;
+        // batchRow remains tracked by EF Core; the outer SaveChangesAsync persists these counts.
         batchRow.SkippedDuplicateEntries = saveResult.SkippedDuplicateEntries;
 
         foreach (var diagnostic in diagnostics)

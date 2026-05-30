@@ -17,6 +17,8 @@ public sealed class ReferenceDataSeeder(WealthIqDbContext db) : IReferenceDataSe
 {
     public async Task<ReferenceDataSeedResult> SeedIfEmptyAsync(ReferenceDataSources sources, CancellationToken ct = default)
     {
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+
         if (!await db.BasisInterestRates.AnyAsync(ct))
         {
             db.BasisInterestRates.AddRange(ReadBasisInterestRates(sources.BasisInterestRateCsvPath));
@@ -38,6 +40,7 @@ public sealed class ReferenceDataSeeder(WealthIqDbContext db) : IReferenceDataSe
         }
 
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         return new ReferenceDataSeedResult(
             await db.BasisInterestRates.CountAsync(ct),

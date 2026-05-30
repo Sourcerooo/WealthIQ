@@ -21,7 +21,20 @@ public sealed class StatementImportPipeline(
         var batchId = Guid.NewGuid();
         var importedAt = timeProvider.GetUtcNow();
 
-        var storedPath = rawFileStore.Ingest(command.Request.Source.FilePath);
+        string storedPath;
+        try
+        {
+            storedPath = rawFileStore.Ingest(command.Request.Source.FilePath);
+        }
+        catch (FileNotFoundException ex)
+        {
+            var diagnostic = new ImportDiagnostic(
+                ImportDiagnosticSeverity.Fatal,
+                ImportDiagnosticCode.InputPathNotFound,
+                ex.Message);
+            return new ImportPipelineResult(ImportStatus.Aborted, batchId, 0, 0, new[] { diagnostic });
+        }
+
         var ingestedRequest = command.Request with
         {
             Source = command.Request.Source with { FilePath = storedPath }
@@ -37,7 +50,7 @@ public sealed class StatementImportPipeline(
 
         var ledger = new PortfolioLedger(
             importResult.PortfolioLedger.Entries,
-            importResult.Instruments,
+            importResult.PortfolioLedger.Instruments,
             new[] { command.Account });
 
         var batch = new ImportBatch(
