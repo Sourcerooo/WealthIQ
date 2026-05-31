@@ -19,9 +19,15 @@ using WealthIQ.Web.Components;
 var builder = WebApplication.CreateBuilder(args);
 
 // --- Local data layout ---
-// ContentRootPath = src/WealthIQ.Web → repo root is two levels up.
-var repoData = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "..", "data"));
-var referenceDir = Path.Combine(repoData, "reference");
+// Defaults are repo-relative (ContentRootPath = src/WealthIQ.Web → repo root is two levels up).
+// Optional config overrides: DataPaths:Root (the data/ folder) and DataPaths:Reference.
+var defaultRoot = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "..", "data"));
+var repoData = string.IsNullOrWhiteSpace(builder.Configuration["DataPaths:Root"])
+    ? defaultRoot
+    : Path.GetFullPath(builder.Configuration["DataPaths:Root"]!);
+var referenceDir = string.IsNullOrWhiteSpace(builder.Configuration["DataPaths:Reference"])
+    ? Path.Combine(repoData, "reference")
+    : Path.GetFullPath(builder.Configuration["DataPaths:Reference"]!);
 var appDataDir = Path.Combine(repoData, "app");
 var auditDir = Path.Combine(appDataDir, "audit");
 var dbPath = Path.Combine(appDataDir, "wealthiq.db");
