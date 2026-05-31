@@ -145,4 +145,54 @@ public sealed class GermanTaxCalculatorVorabpauschaleTests
         Assert.Contains(result.Entries,
             e => e.Type == GermanTaxEntryType.Vorabpauschale && e.Date == new DateOnly(2025, 1, 1));
     }
+
+    [Fact]
+    public void Vorabpauschale_LotBoughtAfterDividend_IsNotReducedByThatDividend()
+    {
+        // Lot A (Jan, 12 months) is held at the June dividend; lot B (Aug) is not.
+        // Only A's Vorabpauschale is reduced by the distribution.
+        // A: basis yield = 100 × 0.05 × 0.7 × 12/12 = 3.50/sh; div reduces it → max(0, 3.50-3.00)=0.50/sh.
+        // B: not held at dividend date → no reduction; but B opened Aug (5 months) so
+        //    basis yield = 100 × 0.05 × 0.7 × 5/12 = 1.4583.../sh, total = 145.83.
+        var calculator = Calculator(basisRate: 0.05m, yearEndPrice: 200m);
+        var ledger = new PortfolioLedger([
+            TaxEntries.Trade(Account, Equity, TradeSide.Buy, 100m, 100m,
+                new DateTimeOffset(2024, 1, 10, 10, 0, 0, TimeSpan.Zero), "BUY-A"),
+            TaxEntries.Dividend(Account, Equity, Equity, grossAmount: 300m,
+                new DateTimeOffset(2024, 6, 10, 12, 0, 0, TimeSpan.Zero), "DIV-1"),
+            TaxEntries.Trade(Account, Equity, TradeSide.Buy, 100m, 100m,
+                new DateTimeOffset(2024, 8, 10, 10, 0, 0, TimeSpan.Zero), "BUY-B")
+        ]);
+
+        var result = calculator.Calculate(ledger, Catalog);
+
+        var vorab = result.Entries.Where(x => x.Type == GermanTaxEntryType.Vorabpauschale).ToList();
+        var total = vorab.Sum(v => v.RawAmount);
+        // A (Jan, 12 months): max(0, 3.50 - 3.00) × 100 = 0.50 × 100 = 50.00
+        // B (Aug, 5 months):  100 × 0.05 × 0.7 × (5/12) × 100 shares = 1.4583... × 100 = 145.83
+        // total ≈ 195.83
+        Assert.Equal(195.83m, decimal.Round(total, 2));
+    }
+
+    [Fact]
+    public void Vorabpauschale_DividendInOtherAccount_DoesNotReduceThisAccount()
+    {
+        var otherAccount = AccountId.NewId();
+        // Same instrument held in two accounts; the dividend is paid in `otherAccount` only.
+        var calculator = Calculator(basisRate: 0.05m, yearEndPrice: 200m);
+        var ledger = new PortfolioLedger([
+            TaxEntries.Trade(Account, Equity, TradeSide.Buy, 100m, 100m,
+                new DateTimeOffset(2024, 1, 10, 10, 0, 0, TimeSpan.Zero), "BUY-1"),
+            TaxEntries.Trade(otherAccount, Equity, TradeSide.Buy, 100m, 100m,
+                new DateTimeOffset(2024, 1, 10, 10, 0, 0, TimeSpan.Zero), "BUY-2"),
+            TaxEntries.Dividend(otherAccount, Equity, Equity, grossAmount: 1000m,
+                new DateTimeOffset(2024, 6, 10, 12, 0, 0, TimeSpan.Zero), "DIV-1")
+        ]);
+
+        var result = calculator.Calculate(ledger, Catalog);
+
+        // `Account`'s lot received no distribution → full basis-yield Vorabpauschale: 3.50 × 100 = 350.00.
+        var total = result.Entries.Where(x => x.Type == GermanTaxEntryType.Vorabpauschale).Sum(v => v.RawAmount);
+        Assert.Equal(350m, decimal.Round(total, 2));
+    }
 }

@@ -28,7 +28,7 @@ public sealed class GermanTaxCalculator(
         var instrumentById = instruments.ToDictionary(x => x.InstrumentId);
         var openLots = new List<OpenLot>();
         var ledger = new List<GermanTaxEntry>();
-        var distributions = new Dictionary<(int Year, InstrumentId InstrumentId), decimal>();
+        var distributions = new List<Distribution>();
 
         var orderedEntries = portfolioLedger.Entries.OrderBy(x => x.OccurredAt).ToList();
         var entriesByYear = orderedEntries
@@ -131,7 +131,7 @@ public sealed class GermanTaxCalculator(
         CashEntry cashEntry,
         List<OpenLot> openLots,
         List<GermanTaxEntry> ledger,
-        Dictionary<(int Year, InstrumentId InstrumentId), decimal> distributions,
+        List<Distribution> distributions,
         IReadOnlyDictionary<InstrumentId, Instrument> instrumentById)
     {
         var date = DateOnly.FromDateTime(cashEntry.OccurredAt.UtcDateTime);
@@ -151,15 +151,21 @@ public sealed class GermanTaxCalculator(
                     rawDividend * (1m - dividendInstrument.Teilfreistellungsquote)));
 
                 var heldLots = openLots
-                    .Where(x => x.InstrumentId == dividendInstrument.InstrumentId && x.RemainingQuantity.Value > 0m)
+                    .Where(x => x.AccountId == cashEntry.AccountId
+                        && x.InstrumentId == dividendInstrument.InstrumentId
+                        && x.RemainingQuantity.Value > 0m)
                     .ToList();
 
                 var totalHeldQuantity = heldLots.Sum(x => x.RemainingQuantity.Value);
                 if (totalHeldQuantity > 0m)
                 {
                     var dividendPerShare = rawDividend / totalHeldQuantity;
-                    var key = (cashEntry.OccurredAt.Year, dividendInstrument.InstrumentId);
-                    distributions[key] = distributions.GetValueOrDefault(key) + dividendPerShare;
+                    distributions.Add(new Distribution(
+                        cashEntry.OccurredAt.Year,
+                        cashEntry.AccountId,
+                        dividendInstrument.InstrumentId,
+                        date,
+                        dividendPerShare));
                 }
                 break;
 
@@ -196,7 +202,7 @@ public sealed class GermanTaxCalculator(
         int year,
         List<OpenLot> openLots,
         List<GermanTaxEntry> ledger,
-        Dictionary<(int Year, InstrumentId InstrumentId), decimal> distributions,
+        List<Distribution> distributions,
         IReadOnlyDictionary<InstrumentId, Instrument> instrumentById)
     {
         var basisInterestRate = interestRateProvider.GetRate(year);
@@ -225,7 +231,6 @@ public sealed class GermanTaxCalculator(
                     $"but is missing. Add it to the reference price data.");
             }
 
-            var distributionPerShare = distributions.GetValueOrDefault((year, instrument.InstrumentId));
             foreach (var lot in instrumentGroup.ToList())
             {
                 var acquisitionPrice = CalculateRemainingAcquisitionPriceInEur(lot);
@@ -238,6 +243,16 @@ public sealed class GermanTaxCalculator(
                 var basisYield = acquisitionPrice * basisFactor * (months / 12m);
                 var appreciation = Math.Max(0m, yearEndPrice.Value - acquisitionPrice);
                 var maxVorabpauschale = Math.Min(basisYield, appreciation);
+
+                // Only distributions paid into THIS lot's account, on THIS instrument, while the lot
+                // was already held (paid on/after the lot's open date), reduce its Vorabpauschale.
+                var distributionPerShare = distributions
+                    .Where(d => d.Year == year
+                        && d.AccountId == lot.AccountId
+                        && d.InstrumentId == instrument.InstrumentId
+                        && d.Date >= lot.OpenTradeDate)
+                    .Sum(d => d.PerShare);
+
                 var actualVorabpauschalePerShare = Math.Max(0m, maxVorabpauschale - distributionPerShare);
                 if (actualVorabpauschalePerShare <= 0m)
                 {
@@ -360,4 +375,13 @@ public sealed class GermanTaxCalculator(
         var acquisitionTotalInEur = _fxConverter.Convert(sourceAcquisitionTotal, lot.OpenTradeDate);
         return acquisitionTotalInEur.Amount / lot.RemainingQuantity.Value;
     }
+
+    /// <summary>A per-share distribution recorded for Vorabpauschale reduction, scoped to the account,
+    /// instrument and the date it was paid (so only lots held at that date are reduced).</summary>
+    private readonly record struct Distribution(
+        int Year,
+        AccountId AccountId,
+        InstrumentId InstrumentId,
+        DateOnly Date,
+        decimal PerShare);
 }
