@@ -79,6 +79,7 @@ else
 
     private string? _error;
     private string? _filterIsin;
+    private string? _appliedIsinQuery;
     private IReadOnlyList<ImportBatchView> _batches = Array.Empty<ImportBatchView>();
     private List<EntryView> _entries = new();
 
@@ -91,7 +92,6 @@ else
     {
         try
         {
-            _filterIsin = IsinQuery;
             _batches = await AuditStore.GetBatchesAsync();
 
             var ledger = await LedgerStore.LoadLedgerAsync();
@@ -101,6 +101,16 @@ else
         catch (Exception ex)
         {
             _error = $"Audit-Daten konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        // Apply the query string only when it changes, so a user-typed filter is not clobbered on re-render.
+        if (IsinQuery != _appliedIsinQuery)
+        {
+            _appliedIsinQuery = IsinQuery;
+            _filterIsin = IsinQuery;
         }
     }
 
