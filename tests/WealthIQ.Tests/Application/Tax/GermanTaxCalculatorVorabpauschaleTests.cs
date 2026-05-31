@@ -63,7 +63,7 @@ public sealed class GermanTaxCalculatorVorabpauschaleTests
 
         var result = calculator.Calculate(ledger, Catalog);
 
-        Assert.Empty(result.Entries.Where(x => x.Type == GermanTaxEntryType.Vorabpauschale));
+        Assert.DoesNotContain(result.Entries, x => x.Type == GermanTaxEntryType.Vorabpauschale);
     }
 
     [Theory]
@@ -80,7 +80,7 @@ public sealed class GermanTaxCalculatorVorabpauschaleTests
 
         var result = calculator.Calculate(ledger, Catalog);
 
-        Assert.Empty(result.Entries.Where(x => x.Type == GermanTaxEntryType.Vorabpauschale));
+        Assert.DoesNotContain(result.Entries, x => x.Type == GermanTaxEntryType.Vorabpauschale);
     }
 
     [Fact]
@@ -116,8 +116,8 @@ public sealed class GermanTaxCalculatorVorabpauschaleTests
 
         var result = calculator.Calculate(ledger, Catalog);
 
-        Assert.Empty(result.Entries.Where(x => x.Type == GermanTaxEntryType.Vorabpauschale));
-        var dividend = Assert.Single(result.Entries.Where(x => x.Type == GermanTaxEntryType.Dividend));
+        Assert.DoesNotContain(result.Entries, x => x.Type == GermanTaxEntryType.Vorabpauschale);
+        var dividend = Assert.Single(result.Entries, x => x.Type == GermanTaxEntryType.Dividend);
         Assert.Equal(400m, decimal.Round(dividend.RawAmount, 2));
         Assert.Equal(280m, decimal.Round(dividend.TaxableAmount, 2)); // 400 × (1 - 0.30)
     }

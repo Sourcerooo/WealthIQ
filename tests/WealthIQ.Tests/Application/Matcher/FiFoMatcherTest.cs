@@ -324,11 +324,18 @@ public class FiFoMatcherTest
         // Two buys at the SAME timestamp, different prices and source references.
         var lotA = new OpenLot
         {
-            LotId = LotId.NewId(), AccountId = account, InstrumentId = instrument,
-            OpenEntryId = PortfolioEntryId.NewId(), OpenOccurredAt = ts, OpenTradeDate = DateOnly.FromDateTime(ts.UtcDateTime),
-            OpenSourceReference = "A-1", Direction = PositionDirection.Long,
-            OriginalQuantity = new Quantity(10m), RemainingQuantity = new Quantity(10m),
-            OpenUnitPrice = new Money(100m, Currency.EUR), RemainingOpenFees = new Money(0m, Currency.EUR),
+            LotId = LotId.NewId(),
+            AccountId = account,
+            InstrumentId = instrument,
+            OpenEntryId = PortfolioEntryId.NewId(),
+            OpenOccurredAt = ts,
+            OpenTradeDate = DateOnly.FromDateTime(ts.UtcDateTime),
+            OpenSourceReference = "A-1",
+            Direction = PositionDirection.Long,
+            OriginalQuantity = new Quantity(10m),
+            RemainingQuantity = new Quantity(10m),
+            OpenUnitPrice = new Money(100m, Currency.EUR),
+            RemainingOpenFees = new Money(0m, Currency.EUR),
             RemainingOpenTaxes = new Money(0m, Currency.EUR)
         };
         var lotB = lotA with { LotId = LotId.NewId(), OpenSourceReference = "B-2", OpenUnitPrice = new Money(200m, Currency.EUR) };

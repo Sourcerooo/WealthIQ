@@ -116,7 +116,7 @@ public sealed class GermanTaxCalculatorEdgeCaseTests
 
         var result = Calculator().Calculate(ledger, instruments);
 
-        Assert.Empty(result.Entries.Where(x => x.Type == GermanTaxEntryType.Sell));
+        Assert.DoesNotContain(result.Entries, x => x.Type == GermanTaxEntryType.Sell);
         var openLot = Assert.Single(result.OpenLots);
         Assert.Equal(PositionDirection.Short, openLot.Direction);
         Assert.Equal(10m, openLot.RemainingQuantity.Value);
