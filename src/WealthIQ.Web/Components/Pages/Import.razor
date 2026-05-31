@@ -1,0 +1,163 @@
+@page "/import"
+@using WealthIQ.Application.Import
+@using WealthIQ.Application.Import.Diagnostic
+@using WealthIQ.Application.Import.Enumeration
+@using WealthIQ.Domain.Model.General
+@inject StatementImportPipeline Pipeline
+
+<PageTitle>WealthIQ — Import</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Import</MudText>
+
+<MudPaper Class="pa-4 mb-4" Style="max-width: 640px;">
+    <MudText Typo="Typo.subtitle2" GutterBottom="true">Interactive Brokers (FlexQuery XML)</MudText>
+
+    <MudTextField @bind-Value="_accountNumber" Label="Account-Nummer" Variant="Variant.Outlined"
+                  ShrinkLabel="true" autocomplete="off" Class="mb-4" />
+
+    <MudText Typo="Typo.body2" Class="mb-2">Statement-Datei(en) (.xml, mehrere erlaubt):</MudText>
+    @* @key forces Blazor to recreate the input element after each import, resetting the file selection *@
+    <InputFile @key="_fileInputKey" OnChange="OnFilesSelected" accept=".xml" multiple />
+
+    @if (_pendingFiles.Count > 0)
+    {
+        <MudText Typo="Typo.caption" Class="mt-2">
+            Ausgewählt: @(_pendingFiles.Count == 1 ? _pendingFiles[0].Name : $"{_pendingFiles.Count} Dateien")
+        </MudText>
+    }
+
+    <div class="mt-4">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(_busy || _pendingFiles.Count == 0 || string.IsNullOrWhiteSpace(_accountNumber))"
+                   OnClick="RunImport">
+            @(_busy ? $"Importiere… ({_doneCount}/{_pendingFiles.Count})" : "Import starten")
+        </MudButton>
+    </div>
+</MudPaper>
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+
+@foreach (var r in _results)
+{
+    var committed = r.Result.Status == ImportStatus.Committed;
+    <MudAlert Severity="@(committed ? Severity.Success : Severity.Warning)" Class="mb-2">
+        <strong>@r.FileName</strong> —
+        @(committed
+            ? $"Committed. Neu: {r.Result.InsertedEntries}, übersprungen (Duplikate): {r.Result.SkippedDuplicateEntries}."
+            : "Abgebrochen — blockierende Diagnostics, nichts gespeichert.")
+    </MudAlert>
+
+    @if (r.Result.Diagnostics.Count > 0)
+    {
+        <MudTable Items="r.Result.Diagnostics" Dense="true" Hover="true" Class="mb-4">
+            <HeaderContent>
+                <MudTh>Severity</MudTh>
+                <MudTh>Code</MudTh>
+                <MudTh>Meldung</MudTh>
+                <MudTh>Sektion</MudTh>
+                <MudTh>Referenz</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Severity">@context.Severity</MudTd>
+                <MudTd DataLabel="Code">@context.Code</MudTd>
+                <MudTd DataLabel="Meldung">@context.Message</MudTd>
+                <MudTd DataLabel="Sektion">@context.Section</MudTd>
+                <MudTd DataLabel="Referenz">@context.SourceReference</MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+}
+
+@code {
+    private string _accountNumber = "";
+    private int _fileInputKey = 0;
+    private readonly List<(string Name, string TempPath)> _pendingFiles = new();
+    private readonly List<(string FileName, ImportPipelineResult Result)> _results = new();
+    private bool _busy;
+    private int _doneCount;
+    private string? _error;
+
+    private async Task OnFilesSelected(InputFileChangeEventArgs e)
+    {
+        _error = null;
+        _results.Clear();
+        _pendingFiles.Clear();
+        try
+        {
+            foreach (var file in e.GetMultipleFiles(20))
+            {
+                var temp = Path.Combine(Path.GetTempPath(), $"wealthiq-upload-{Guid.NewGuid():N}-{file.Name}");
+                await using (var fs = File.Create(temp))
+                await using (var stream = file.OpenReadStream(maxAllowedSize: 64 * 1024 * 1024))
+                {
+                    await stream.CopyToAsync(fs);
+                }
+                _pendingFiles.Add((file.Name, temp));
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Datei konnte nicht gelesen werden: {ex.Message}";
+            foreach (var (_, path) in _pendingFiles)
+                if (File.Exists(path)) File.Delete(path);
+            _pendingFiles.Clear();
+        }
+    }
+
+    private async Task RunImport()
+    {
+        if (_pendingFiles.Count == 0 || string.IsNullOrWhiteSpace(_accountNumber))
+            return;
+
+        _busy = true;
+        _doneCount = 0;
+        _error = null;
+        _results.Clear();
+
+        var accountId = DeterministicAccount.IdFor("InteractiveBrokers", _accountNumber.Trim());
+        var account = new Account(accountId, _accountNumber.Trim());
+
+        var toProcess = _pendingFiles.ToList();
+        _pendingFiles.Clear();
+
+        try
+        {
+            foreach (var (name, tempPath) in toProcess)
+            {
+                try
+                {
+                    var command = new ImportStatementCommand(
+                        new ImportRequest
+                        {
+                            Source = new ImportSource(Broker.InteractiveBrokers, Format.XML, tempPath),
+                            AccountId = accountId
+                        },
+                        account);
+
+                    var result = await Pipeline.RunAsync(command);
+                    _results.Add((name, result));
+                }
+                catch (Exception ex)
+                {
+                    _error = $"{name}: Import fehlgeschlagen — {ex.Message}";
+                }
+                finally
+                {
+                    if (File.Exists(tempPath)) File.Delete(tempPath);
+                }
+
+                _doneCount++;
+                StateHasChanged();
+            }
+        }
+        finally
+        {
+            _busy = false;
+            // Increment key so the InputFile DOM element is recreated, allowing re-selection of same files
+            _fileInputKey++;
+        }
+    }
+}

@@ -1,8 +1,8 @@
-﻿using WealthIQ.Domain.Enumeration;
+using WealthIQ.Domain.Enumeration;
 using WealthIQ.Domain.Interface.Matcher;
-using WealthIQ.Domain.Model.Event;
 using WealthIQ.Domain.Model.General;
 using WealthIQ.Domain.Model.Lot;
+using WealthIQ.Domain.Model.Ledger;
 using WealthIQ.Domain.Model.Matching;
 
 namespace WealthIQ.Application.Matcher;
@@ -10,23 +10,23 @@ namespace WealthIQ.Application.Matcher;
 public sealed record FiFoMatcher : ILotMatcher
 {
     public TradeMatchResult Match(
-        ExecutedTradeEvent tradeEvent,
+        TradeEntry tradeEntry,
         IReadOnlyList<OpenLot> currentOpenLots,
         LotMatchingPolicy policy)
     {
-        ArgumentNullException.ThrowIfNull(tradeEvent);
+        ArgumentNullException.ThrowIfNull(tradeEntry);
 
-        var oppositeDirection = tradeEvent.Side == TradeSide.Buy ? PositionDirection.Short : PositionDirection.Long;
-        var remainingQuantityToMatch = tradeEvent.Quantity.Value;
+        var oppositeDirection = tradeEntry.Side == TradeSide.Buy ? PositionDirection.Short : PositionDirection.Long;
+        var remainingQuantityToMatch = tradeEntry.Quantity.Value;
         var updateOpenLots = currentOpenLots.ToList();
-        updateOpenLots.Sort((x, y) => x.OpenTradeDate.CompareTo(y.OpenTradeDate));
+        updateOpenLots.Sort((x, y) => x.OpenOccurredAt.CompareTo(y.OpenOccurredAt));
         var consumptionList = new List<LotConsumption>();
         var newOpenLot = default(OpenLot?);
         while (remainingQuantityToMatch > 0m)
         {
             var lotIndex = updateOpenLots.FindIndex(openLot =>
-            openLot.AccountId == tradeEvent.AccountId
-                && openLot.InstrumentId == tradeEvent.InstrumentId
+            openLot.AccountId == tradeEntry.AccountId
+                && openLot.InstrumentId == tradeEntry.InstrumentId
                 && openLot.Direction == oppositeDirection
                 && openLot.RemainingQuantity.Value > 0);
             if (lotIndex < 0)
@@ -36,15 +36,15 @@ public sealed record FiFoMatcher : ILotMatcher
             var openLot = updateOpenLots[lotIndex];
             var quantityToMatch = new Quantity(Math.Min(openLot.RemainingQuantity.Value, remainingQuantityToMatch));
             remainingQuantityToMatch -= quantityToMatch.Value;
-            var ratio = quantityToMatch.Value / tradeEvent.Quantity.Value;
+            var ratio = quantityToMatch.Value / tradeEntry.Quantity.Value;
             var changedOpenLot = openLot.Consume(quantityToMatch);
             consumptionList.Add(
                  new LotConsumption
                  {
                      OpenLotId = openLot.LotId,
-                     OpenEventId = openLot.OpenEventId,
+                     OpenEntryId = openLot.OpenEntryId,
                      OpenTradeDate = openLot.OpenTradeDate,
-                     CloseTradeDate = DateOnly.FromDateTime(tradeEvent.OccurredAt.DateTime),
+                     CloseTradeDate = DateOnly.FromDateTime(tradeEntry.OccurredAt.DateTime),
                      InstrumentId = openLot.InstrumentId,
                      AccountId = openLot.AccountId,
                      Direction = openLot.Direction,
@@ -52,9 +52,9 @@ public sealed record FiFoMatcher : ILotMatcher
                      OpenUnitPrice = openLot.OpenUnitPrice,
                      AllocatedOpenFees = openLot.RemainingOpenFees - changedOpenLot.RemainingOpenFees,
                      AllocatedOpenTaxes = openLot.RemainingOpenTaxes - changedOpenLot.RemainingOpenTaxes,
-                     CloseUnitPrice = tradeEvent.UnitPrice,
-                     AllocatedCloseFees = tradeEvent.Fees * ratio,
-                     AllocatedCloseTaxes = tradeEvent.Taxes * ratio
+                     CloseUnitPrice = tradeEntry.UnitPrice,
+                     AllocatedCloseFees = tradeEntry.Fees * ratio,
+                     AllocatedCloseTaxes = tradeEntry.Taxes * ratio
                  }
              );
             updateOpenLots[lotIndex] = changedOpenLot;
@@ -62,26 +62,27 @@ public sealed record FiFoMatcher : ILotMatcher
 
         if (remainingQuantityToMatch > 0)
         {
-            var ratio = remainingQuantityToMatch / tradeEvent.Quantity.Value;
+            var ratio = remainingQuantityToMatch / tradeEntry.Quantity.Value;
             newOpenLot = new OpenLot
             {
                 LotId = LotId.NewId(),
-                AccountId = tradeEvent.AccountId,
-                InstrumentId = tradeEvent.InstrumentId,
-                OpenEventId = tradeEvent.EventId,
-                OpenTradeDate = DateOnly.FromDateTime(tradeEvent.OccurredAt.DateTime),
-                Direction = tradeEvent.Side == TradeSide.Buy ? PositionDirection.Long : PositionDirection.Short,
+                AccountId = tradeEntry.AccountId,
+                InstrumentId = tradeEntry.InstrumentId,
+                OpenEntryId = tradeEntry.EntryId,
+                OpenOccurredAt = tradeEntry.OccurredAt,
+                OpenTradeDate = DateOnly.FromDateTime(tradeEntry.OccurredAt.DateTime),
+                Direction = tradeEntry.Side == TradeSide.Buy ? PositionDirection.Long : PositionDirection.Short,
                 OriginalQuantity = new Quantity(remainingQuantityToMatch),
                 RemainingQuantity = new Quantity(remainingQuantityToMatch),
-                OpenUnitPrice = tradeEvent.UnitPrice,
-                RemainingOpenFees = tradeEvent.Fees * ratio,
-                RemainingOpenTaxes = tradeEvent.Taxes * ratio
+                OpenUnitPrice = tradeEntry.UnitPrice,
+                RemainingOpenFees = tradeEntry.Fees * ratio,
+                RemainingOpenTaxes = tradeEntry.Taxes * ratio
             };
         }
 
         var result = new TradeMatchResult
         {
-            ClosingEvent = tradeEvent,
+            ClosingEntry = tradeEntry,
             Consumptions = consumptionList,
             UpdatedOpenLots = updateOpenLots,
             NewlyOpenedRemainderLot = newOpenLot

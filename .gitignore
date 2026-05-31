@@ -1,3 +1,6 @@
+# IDE / user-specific project files
+*.user
+
 # Prerequisites
 *.d
 
@@ -32,6 +35,7 @@
 *.app
 
 #Folders
+/.superpowers/
 /**/obj/
 /**/bin/
 /.vs/
@@ -44,3 +48,8 @@
 *.so
 .coverage
 .pytest_cache/
+
+/ConsoleApp1/
+/QueueImplementation/
+/data/design_template/
+/data/app/

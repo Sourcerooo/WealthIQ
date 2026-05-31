@@ -1,0 +1,22 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudText Typo="Typo.h6">WealthIQ</MudText>
+        <MudSpacer />
+        <MudButton Href="/" Color="Color.Inherit">Steuerreport</MudButton>
+        <MudButton Href="/import" Color="Color.Inherit">Import</MudButton>
+        <MudButton Href="/audit" Color="Color.Inherit">Audit</MudButton>
+        <MudButton Href="/diagnostics" Color="Color.Inherit">Diagnostics</MudButton>
+    </MudAppBar>
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="my-6">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>

@@ -1,0 +1,82 @@
+@page "/diagnostics"
+@using WealthIQ.Application.Audit
+@using WealthIQ.Application.Audit.Interface
+@inject IImportAuditStore AuditStore
+
+<PageTitle>WealthIQ — Diagnostics</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Diagnostics</MudText>
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+
+<MudSelect T="string" @bind-Value="_severityFilter" Label="Severity" Dense="true" Variant="Variant.Outlined"
+           Style="max-width: 200px;" Class="mb-4">
+    <MudSelectItem T="string" Value="@AllSeverities">Alle</MudSelectItem>
+    <MudSelectItem T="string" Value="@("Info")">Info</MudSelectItem>
+    <MudSelectItem T="string" Value="@("Warning")">Warning</MudSelectItem>
+    <MudSelectItem T="string" Value="@("Error")">Error</MudSelectItem>
+    <MudSelectItem T="string" Value="@("Fatal")">Fatal</MudSelectItem>
+</MudSelect>
+
+@if (FilteredDiagnostics.Count == 0)
+{
+    <MudText Typo="Typo.body2">Keine Diagnostics vorhanden.</MudText>
+}
+else
+{
+    <MudTable Items="FilteredDiagnostics" Dense="true" Hover="true">
+        <HeaderContent>
+            <MudTh>Severity</MudTh>
+            <MudTh>Code</MudTh>
+            <MudTh>Meldung</MudTh>
+            <MudTh>Sektion</MudTh>
+            <MudTh>Referenz</MudTh>
+            <MudTh>Feld</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Severity">
+                <MudChip T="string" Size="Size.Small" Color="@SeverityColor(context.Severity)">@context.Severity</MudChip>
+            </MudTd>
+            <MudTd DataLabel="Code">@context.Code</MudTd>
+            <MudTd DataLabel="Meldung">@context.Message</MudTd>
+            <MudTd DataLabel="Sektion">@context.Section</MudTd>
+            <MudTd DataLabel="Referenz">@context.SourceReference</MudTd>
+            <MudTd DataLabel="Feld">@context.Field</MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private const string AllSeverities = "Alle";
+
+    private string? _error;
+    private string _severityFilter = AllSeverities;
+    private IReadOnlyList<ImportDiagnosticView> _diagnostics = Array.Empty<ImportDiagnosticView>();
+
+    private IReadOnlyList<ImportDiagnosticView> FilteredDiagnostics =>
+        _severityFilter == AllSeverities
+            ? _diagnostics
+            : _diagnostics.Where(d => d.Severity == _severityFilter).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _diagnostics = await AuditStore.GetDiagnosticsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Diagnostics konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private static Color SeverityColor(string severity) => severity switch
+    {
+        "Error" or "Fatal" => Color.Error,
+        "Warning" => Color.Warning,
+        _ => Color.Default
+    };
+}

@@ -1,7 +1,7 @@
 using WealthIQ.Application.Matcher;
 using WealthIQ.Domain.Enumeration;
-using WealthIQ.Domain.Model.Event;
 using WealthIQ.Domain.Model.General;
+using WealthIQ.Domain.Model.Ledger;
 using WealthIQ.Domain.Model.Lot;
 
 namespace WealthIQ.Tests.Application.Matcher;
@@ -324,7 +324,8 @@ public class FiFoMatcherTest
         decimal openUnitPrice = 100m,
         decimal remainingOpenFees = 10m,
         decimal remainingOpenTaxes = 4m,
-        DateOnly? openTradeDate = null)
+        DateOnly? openTradeDate = null,
+        DateTimeOffset? openOccurredAt = null)
     {
         var effectiveAccountId = accountId ?? AccountId.NewId();
         var effectiveInstrumentId = instrumentId ?? InstrumentId.NewId();
@@ -334,7 +335,8 @@ public class FiFoMatcherTest
             LotId = lotId ?? LotId.NewId(),
             AccountId = effectiveAccountId,
             InstrumentId = effectiveInstrumentId,
-            OpenEventId = AccountEventId.NewId(),
+            OpenEntryId = PortfolioEntryId.NewId(),
+            OpenOccurredAt = openOccurredAt ?? new DateTimeOffset((openTradeDate ?? new DateOnly(2025, 1, 10)).ToDateTime(new TimeOnly(0, 0)), TimeSpan.Zero),
             OpenTradeDate = openTradeDate ?? new DateOnly(2025, 1, 10),
             Direction = direction,
             OriginalQuantity = new Quantity(originalQuantity),
@@ -345,7 +347,7 @@ public class FiFoMatcherTest
         };
     }
 
-    private static ExecutedTradeEvent CreateTradeEvent(
+    private static TradeEntry CreateTradeEvent(
         TradeSide side = TradeSide.Sell,
         decimal quantity = 100m,
         decimal unitPrice = 150m,
@@ -360,17 +362,23 @@ public class FiFoMatcherTest
         var effectiveAccountId = accountId ?? AccountId.NewId();
         var effectiveInstrumentId = instrumentId ?? InstrumentId.NewId();
 
-        return new ExecutedTradeEvent(
-            EventId: AccountEventId.NewId(),
-            AccountId: effectiveAccountId,
-            OccurredAt: occurredAt ?? DateTimeOffset.UtcNow,
-            SourceBroker: sourceBroker,
-            SourceReference: sourceReference,
-            InstrumentId: effectiveInstrumentId,
-            Side: side,
-            Quantity: new Quantity(quantity),
-            UnitPrice: new Money(unitPrice, Currency.EUR),
-            Fees: new Money(fees, Currency.EUR),
-            Taxes: new Money(taxes, Currency.EUR));
+        return new TradeEntry(
+            PortfolioEntryId.NewId(),
+            effectiveAccountId,
+            occurredAt ?? DateTimeOffset.UtcNow,
+            DateOnly.FromDateTime((occurredAt ?? DateTimeOffset.UtcNow).UtcDateTime),
+            new SourceProvenance
+            {
+                SourceSystem = sourceBroker,
+                ImportFormat = "TEST",
+                SourceLocation = "unit-test",
+                SourceRecordReference = sourceReference
+            },
+            effectiveInstrumentId,
+            side,
+            new Quantity(quantity),
+            new Money(unitPrice, Currency.EUR),
+            new Money(fees, Currency.EUR),
+            new Money(taxes, Currency.EUR));
     }
 }

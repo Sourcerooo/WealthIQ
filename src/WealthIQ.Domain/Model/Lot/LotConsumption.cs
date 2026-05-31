@@ -1,13 +1,13 @@
-﻿using WealthIQ.Domain.Enumeration;
-using WealthIQ.Domain.Model.Event;
+using WealthIQ.Domain.Enumeration;
 using WealthIQ.Domain.Model.General;
+using WealthIQ.Domain.Model.Ledger;
 
 namespace WealthIQ.Domain.Model.Lot;
 
 public sealed record LotConsumption
 {
     public required LotId OpenLotId { get; init; }
-    public required AccountEventId OpenEventId { get; init; }
+    public required PortfolioEntryId OpenEntryId { get; init; }
     // Provenance
     public DateOnly OpenTradeDate { get; init; }
     public DateOnly CloseTradeDate { get; init; }

@@ -17,10 +17,15 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\WealthIQ.Application\WealthIQ.Application.csproj" />
     <ProjectReference Include="..\..\src\WealthIQ.Domain\WealthIQ.Domain.csproj" />
+    <ProjectReference Include="..\..\src\WealthIQ.Infrastructure\WealthIQ.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="**\Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

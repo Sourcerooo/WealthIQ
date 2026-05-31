@@ -1,9 +1,9 @@
-﻿using WealthIQ.Domain.Model.Event;
 using WealthIQ.Domain.Model.General;
+using WealthIQ.Domain.Model.Ledger;
 
 namespace WealthIQ.Domain.Model.Lot;
 
 public readonly record struct EventSliceRef(
-    AccountEventId EventId,
+    PortfolioEntryId EntryId,
     Quantity QuantityPortion
 );
