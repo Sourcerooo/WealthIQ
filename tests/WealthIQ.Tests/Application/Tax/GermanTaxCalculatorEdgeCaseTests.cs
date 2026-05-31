@@ -82,6 +82,29 @@ public sealed class GermanTaxCalculatorEdgeCaseTests
     }
 
     [Fact]
+    public void Calculate_UnsupportedEntryType_Throws()
+    {
+        var instrumentId = InstrumentId.NewId();
+        var instruments = new[] { new Instrument(instrumentId, Isin, "VUSA", "Vanguard", 0.30m) };
+
+        // AssetTransferEntry is a valid canonical entry no importer currently produces. Tax replay
+        // must not silently ignore it — it must fail fast.
+        var transfer = new AssetTransferEntry(
+            PortfolioEntryId.NewId(),
+            Account,
+            new DateTimeOffset(2024, 4, 1, 10, 0, 0, TimeSpan.Zero),
+            new DateOnly(2024, 4, 1),
+            TaxEntries.Provenance("XFER-1"),
+            AssetTransferType.Incoming,
+            instrumentId,
+            new Quantity(10m));
+
+        var ledger = new PortfolioLedger([transfer]);
+
+        Assert.Throws<NotSupportedException>(() => Calculator().Calculate(ledger, instruments));
+    }
+
+    [Fact]
     public void Calculate_SellWithoutOpenLong_OpensShortAndProducesNoDisposal()
     {
         var instrumentId = InstrumentId.NewId();
