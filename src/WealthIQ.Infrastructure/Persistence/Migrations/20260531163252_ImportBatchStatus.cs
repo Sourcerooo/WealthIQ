@@ -15,7 +15,7 @@ namespace WealthIQ.Infrastructure.Persistence.Migrations
                 table: "ImportBatches",
                 type: "TEXT",
                 nullable: false,
-                defaultValue: "");
+                defaultValue: "Committed");
         }
 
         /// <inheritdoc />
