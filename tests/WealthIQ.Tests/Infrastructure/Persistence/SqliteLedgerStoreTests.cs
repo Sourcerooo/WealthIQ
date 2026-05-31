@@ -107,4 +107,37 @@ public sealed class SqliteLedgerStoreTests
             Assert.Equal(3, loaded.Entries.Count);
         }
     }
+
+    [Fact]
+    public async Task SaveLedger_DuplicateSourceReferencesInSameLedger_InsertsOnce()
+    {
+        using var db = new InMemorySqlite();
+        var account = new Account(AccountId.NewId(), "U123");
+        var instrument = new Instrument(InstrumentId.NewId(), "US0001", "SPY", "S&P 500", 0.3m);
+
+        // Two distinct entries that share the same (SourceSystem, SourceRecordReference).
+        var ledger = new PortfolioLedger(
+            new PortfolioEntry[]
+            {
+                Trade(account.AccountId, instrument.InstrumentId, "DUP", 1),
+                Trade(account.AccountId, instrument.InstrumentId, "DUP", 2)
+            },
+            new[] { instrument },
+            new[] { account });
+
+        LedgerSaveResult result;
+        await using (var ctx = db.NewContext())
+        {
+            result = await new SqliteLedgerStore(ctx).SaveLedgerAsync(ledger);
+        }
+
+        Assert.Equal(1, result.InsertedEntries);
+        Assert.Equal(1, result.SkippedDuplicateEntries);
+
+        await using (var ctx = db.NewContext())
+        {
+            var loaded = await new SqliteLedgerStore(ctx).LoadLedgerAsync();
+            Assert.Single(loaded.Entries);
+        }
+    }
 }

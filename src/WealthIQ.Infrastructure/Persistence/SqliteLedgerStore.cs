@@ -13,10 +13,16 @@ public sealed class SqliteLedgerStore(WealthIqDbContext db) : ILedgerStore
     {
         int inserted = 0, skipped = 0;
 
+        var seenInThisBatch = new HashSet<(string System, string Reference)>();
+
         foreach (var entry in ledger.Entries)
         {
             var system = entry.SourceProvenance.SourceSystem;
             var reference = entry.SourceProvenance.SourceRecordReference;
+
+            // Dedup within the incoming ledger: AnyAsync below only sees committed rows, not the
+            // adds queued earlier in this same loop.
+            if (!seenInThisBatch.Add((system, reference))) { skipped++; continue; }
 
             bool exists = await db.PortfolioEntries
                 .AnyAsync(r => r.SourceSystem == system && r.SourceRecordReference == reference, ct);
