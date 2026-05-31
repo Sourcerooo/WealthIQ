@@ -10,7 +10,7 @@ import xml.etree.ElementTree as ET
 
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
-DEFAULT_OUTPUT = REPO_ROOT / "data" / "old_project" / "Frontend" / "ConsoleUi" / "Sigmatic.Console" / "Input" / "Configuration" / "fx_rates.csv"
+DEFAULT_OUTPUT = REPO_ROOT / "data" / "reference" / "fx_rates.csv"
 
 ECB_HISTORICAL_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.xml"
 SUPPORTED_CURRENCIES = {"USD", "GBP", "CHF"}

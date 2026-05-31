@@ -15,8 +15,8 @@ public sealed class GermanTaxRegressionTests
     public async Task Calculate_2024SampleData_MatchesSigmaticDisposalsAndVorabpauschale()
     {
         var repoRoot = FindRepositoryRoot();
-        var inputPath = Path.Combine(repoRoot, "data", "old_project", "Frontend", "ConsoleUi", "Sigmatic.Console", "Input");
-        var configurationPath = Path.Combine(repoRoot, "data", "old_project", "Frontend", "ConsoleUi", "Sigmatic.Console", "Input", "Configuration");
+        var inputPath = Path.Combine(repoRoot, "data", "test", "statements");
+        var configurationPath = Path.Combine(repoRoot, "data", "test", "configuration");
 
         var importer = new IbkrStatementImporter();
         var importResult = await importer.ImportAsync(new ImportRequest

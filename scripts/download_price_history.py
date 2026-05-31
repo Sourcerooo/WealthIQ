@@ -11,8 +11,8 @@ import urllib.request
 
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
-DEFAULT_MAPPING = REPO_ROOT / "data" / "old_project" / "Frontend" / "ConsoleUi" / "Sigmatic.Console" / "Input" / "Configuration" / "market_data_mappings.json"
-DEFAULT_OUTPUT = REPO_ROOT / "data" / "old_project" / "Frontend" / "ConsoleUi" / "Sigmatic.Console" / "Input" / "Configuration" / "historical_prices.csv"
+DEFAULT_MAPPING = REPO_ROOT / "data" / "reference" / "market_data_mappings.json"
+DEFAULT_OUTPUT = REPO_ROOT / "data" / "reference" / "historical_prices.csv"
 
 
 def fetch_history(symbol: str, start: dt.date, end: dt.date) -> list[dict[str, str]]:

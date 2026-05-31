@@ -1,3 +1,6 @@
+# IDE / user-specific project files
+*.user
+
 # Prerequisites
 *.d
 
@@ -49,5 +52,4 @@
 /ConsoleApp1/
 /QueueImplementation/
 /data/design_template/
-/data/old_project/
 /data/app/
