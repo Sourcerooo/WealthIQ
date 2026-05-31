@@ -170,7 +170,7 @@ basisErtrag   = startValueEur × Basiszins(Y) × 0.7
 cap           = max(0, (endValueEur − startValueEur) + distPerShare)     # §18(1): Mehrbetrag + Ausschüttungen
 cappedBE      = min(basisErtrag, cap)
 vorabFull     = max(0, cappedBE − distPerShare)                          # §18(1): Basisertrag übersteigt Ausschüttungen
-monthFactor   = (lot.OpenTradeDate.Year == Y) ? (13 − lot.OpenTradeDate.Month) / 12 : 1   # §18(1) last sentence
+monthFactor   = (lot.OpenTradeDate.Year == Y) ? (13 − lot.OpenTradeDate.Month) / 12 : 1   # §18(2)
 vorabPerShare = vorabFull × monthFactor
 if vorabPerShare <= 0: skip lot
 
@@ -199,11 +199,13 @@ Lot/FIFO handling, short-position handling, the per-lot `AccumulatedVorabpauscha
 
 ### 6.5 Legal basis & decision record (why option b, distributions-in-cap, 1/12 placement)
 
-Verbatim **§18(1) InvStG** (Vorabpauschale), as published (see sources below):
+Verbatim **§18 InvStG** (Vorabpauschale), Absätze 1–3, per the cited sources (key clauses matched identically across two independent retrievals; the official portal is captcha-walled):
 
-> *„Die Vorabpauschale ist der Betrag, um den der Basisertrag die Ausschüttungen aus einem Investmentanteil innerhalb eines Kalenderjahres übersteigt. Der Basisertrag wird durch Multiplikation des Rücknahmepreises des Investmentanteils **am Anfang des Kalenderjahres** mit 70 Prozent des Basiszinses nach Absatz 4 ermittelt. Der Basisertrag ist auf den Mehrbetrag begrenzt, der sich zwischen dem **ersten und dem letzten im Kalenderjahr festgesetzten Rücknahmepreis zuzüglich der Ausschüttungen** innerhalb des Kalenderjahres ergibt. Ist ein Rücknahmepreis nicht festgesetzt, so tritt an seine Stelle der Börsen- oder Marktpreis. **Im Jahr des Erwerbs** der Investmentanteile **vermindert sich die Vorabpauschale** um ein Zwölftel für jeden vollen Monat, der dem Monat des Erwerbs vorangeht."*
+> **(1)** *„Die Vorabpauschale ist der Betrag, um den die Ausschüttungen eines Investmentfonds innerhalb eines Kalenderjahres den Basisertrag für dieses Kalenderjahr unterschreiten. Der Basisertrag wird ermittelt durch Multiplikation des Rücknahmepreises des Investmentanteils **zu Beginn des Kalenderjahres** mit 70 Prozent des Basiszinses nach Absatz 4. Der Basisertrag ist auf den Mehrbetrag begrenzt, der sich zwischen dem **ersten und dem letzten im Kalenderjahr festgesetzten Rücknahmepreis zuzüglich der Ausschüttungen** innerhalb des Kalenderjahres ergibt. Wird kein Rücknahmepreis festgesetzt, so tritt der Börsen- oder Marktpreis an die Stelle des Rücknahmepreises."*
+> **(2)** *„Im Jahr des Erwerbs der Investmentanteile **vermindert sich die Vorabpauschale** um ein Zwölftel für jeden vollen Monat, der dem Monat des Erwerbs vorangeht."*
+> **(3)** *„Die Vorabpauschale gilt am ersten Werktag des folgenden Kalenderjahres als zugeflossen."*
 
-**§18(3):** *„Die Vorabpauschale gilt … als zugeflossen am ersten Werktag des folgenden Kalenderjahres."*
+Note: the §18(1) S.1 wording (*"um den die Ausschüttungen … den Basisertrag … unterschreiten"*) is algebraically `Vorabpauschale = max(0, cappedBasisertrag − Ausschüttungen)` — matching §6.2.
 
 Decisions derived, with rationale:
 
