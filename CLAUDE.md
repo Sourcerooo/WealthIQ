@@ -65,7 +65,8 @@ Rules: never depend from `Domain` outward; business rules live in `Domain`/`Appl
 - **Teilfreistellung** (e.g. 30% for equity funds) applies to sales, dividends, and Vorabpauschale; driven by instrument profile (default 30% when ISIN present but unknown).
 - Importer accepts only `STK`/`FUND`; forex/cash/other asset classes → Info diagnostic + skip. Cancellation pairs ("(Ca.)") are matched and removed.
 - Golden baseline: `tests/.../Application/Tax/GermanTaxRegressionTests.cs` asserts exact 2024 disposal + Vorabpauschale figures against `data/test`. If tax logic changes, update expected values deliberately and explain why.
-- Known thin spots: short-position tax semantics; Teilfreistellung variants other than 30%/0% (no such instruments in data yet).
+- Known thin spots: short-position tax semantics; Teilfreistellung variants other than 30%/0% (no such instruments in data yet); Vorabpauschale for a position held *beyond* the last ledger entry still needs an explicit as-of/through-year parameter (calculator currently replays only up to the last entry year).
+- `AssetTransferEntry` / `PositionAdjustmentEntry` exist in the domain but tax replay fails fast with `NotSupportedException` if encountered — full transfer/adjustment semantics are unimplemented (no importer constructs them yet; YAGNI until IBKR data requires it).
 
 ## EF Core / migrations
 - DbContext `WealthIqDbContext`; design-time factory `WealthIqDbContextFactory` (so no `--startup-project` needed). Migrations live in `src/WealthIQ.Infrastructure/Persistence/Migrations/`.
