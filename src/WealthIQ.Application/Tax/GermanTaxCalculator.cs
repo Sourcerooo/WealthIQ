@@ -30,25 +30,41 @@ public sealed class GermanTaxCalculator(
         var ledger = new List<GermanTaxEntry>();
         var distributions = new Dictionary<(int Year, InstrumentId InstrumentId), decimal>();
 
-        foreach (var yearlyEntries in portfolioLedger.Entries
-                     .OrderBy(x => x.OccurredAt)
-                     .GroupBy(x => x.OccurredAt.Year)
-                     .OrderBy(x => x.Key))
-        {
-            foreach (var portfolioEntry in yearlyEntries)
-            {
-                switch (portfolioEntry)
-                {
-                    case TradeEntry tradeEntry:
-                        ProcessTrade(tradeEntry, openLots, ledger, instrumentById);
-                        break;
-                    case CashEntry cashEntry:
-                        ProcessCash(cashEntry, openLots, ledger, distributions, instrumentById);
-                        break;
-                }
-            }
+        var orderedEntries = portfolioLedger.Entries.OrderBy(x => x.OccurredAt).ToList();
+        var entriesByYear = orderedEntries
+            .GroupBy(x => x.OccurredAt.Year)
+            .ToDictionary(g => g.Key, g => g.ToList());
 
-            PerformYearEndClosing(yearlyEntries.Key, openLots, ledger, distributions, instrumentById);
+        if (orderedEntries.Count > 0)
+        {
+            var firstYear = orderedEntries[0].OccurredAt.Year;
+            var lastYear = orderedEntries[^1].OccurredAt.Year;
+
+            // Close every year in the range — including quiet years with no entries — so a Vorabpauschale
+            // is posted for each year a lot is held over year-end (CLAUDE.md tax guardrails).
+            for (var year = firstYear; year <= lastYear; year++)
+            {
+                if (entriesByYear.TryGetValue(year, out var yearEntries))
+                {
+                    foreach (var portfolioEntry in yearEntries)
+                    {
+                        switch (portfolioEntry)
+                        {
+                            case TradeEntry tradeEntry:
+                                ProcessTrade(tradeEntry, openLots, ledger, instrumentById);
+                                break;
+                            case CashEntry cashEntry:
+                                ProcessCash(cashEntry, openLots, ledger, distributions, instrumentById);
+                                break;
+                            default:
+                                throw new NotSupportedException(
+                                    $"Tax replay does not support entry type '{portfolioEntry.GetType().Name}'.");
+                        }
+                    }
+                }
+
+                PerformYearEndClosing(year, openLots, ledger, distributions, instrumentById);
+            }
         }
 
         return new GermanTaxCalculationResult(ledger, openLots);

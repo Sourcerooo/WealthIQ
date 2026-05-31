@@ -121,4 +121,28 @@ public sealed class GermanTaxCalculatorVorabpauschaleTests
         Assert.Equal(400m, decimal.Round(dividend.RawAmount, 2));
         Assert.Equal(280m, decimal.Round(dividend.TaxableAmount, 2)); // 400 × (1 - 0.30)
     }
+
+    [Fact]
+    public void Vorabpauschale_QuietHoldingYearWithNoEntries_StillProducesEntry()
+    {
+        // Buy 2023, no entries at all in 2024, sale would be later. The 2024 year-end closing must still
+        // run, posting a Vorabpauschale deemed received 2025-01-01.
+        var calculator = new GermanTaxCalculator(
+            new FakeBasisInterestRateProvider((2023, 0.05m), (2024, 0.05m)),
+            new FakeYearEndPriceProvider((Isin, 2023, 150m), (Isin, 2024, 200m)),
+            new FakeFxRateLookup());
+
+        var ledger = new PortfolioLedger([
+            TaxEntries.Trade(Account, Equity, TradeSide.Buy, 100m, 100m,
+                new DateTimeOffset(2023, 1, 10, 10, 0, 0, TimeSpan.Zero), "BUY-1"),
+            // A late 2025 entry establishes the replay range end; 2024 has no entries.
+            TaxEntries.Trade(Account, Equity, TradeSide.Buy, 1m, 100m,
+                new DateTimeOffset(2025, 6, 10, 10, 0, 0, TimeSpan.Zero), "BUY-2")
+        ]);
+
+        var result = calculator.Calculate(ledger, Catalog);
+
+        Assert.Contains(result.Entries,
+            e => e.Type == GermanTaxEntryType.Vorabpauschale && e.Date == new DateOnly(2025, 1, 1));
+    }
 }
