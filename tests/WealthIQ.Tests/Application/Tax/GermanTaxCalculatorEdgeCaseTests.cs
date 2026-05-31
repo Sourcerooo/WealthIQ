@@ -65,7 +65,7 @@ public sealed class GermanTaxCalculatorEdgeCaseTests
     }
 
     [Fact]
-    public void Calculate_MissingYearEndPrice_SkipsVorabpauschale()
+    public void Calculate_MissingYearEndPrice_WhenVorabRequired_Throws()
     {
         var instrumentId = InstrumentId.NewId();
         var instruments = new[] { new Instrument(instrumentId, Isin, "VUSA", "Vanguard", 0.30m) };
@@ -74,11 +74,11 @@ public sealed class GermanTaxCalculatorEdgeCaseTests
                 new DateTimeOffset(2024, 1, 10, 10, 0, 0, TimeSpan.Zero), "BUY-1")
         ]);
 
-        // Basiszins is positive but no year-end price is configured → Vorabpauschale cannot be computed.
-        var result = Calculator(new FakeBasisInterestRateProvider((2024, 0.05m)), new FakeYearEndPriceProvider())
-            .Calculate(ledger, instruments);
+        // Basiszins is positive and a long fund lot is held over year-end, so the year-end price is
+        // required. It is not configured → fail-fast (CLAUDE.md: missing required price data is blocking).
+        var calculator = Calculator(new FakeBasisInterestRateProvider((2024, 0.05m)), new FakeYearEndPriceProvider());
 
-        Assert.Empty(result.Entries.Where(x => x.Type == GermanTaxEntryType.Vorabpauschale));
+        Assert.Throws<InvalidOperationException>(() => calculator.Calculate(ledger, instruments));
     }
 
     [Fact]

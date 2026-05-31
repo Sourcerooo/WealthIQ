@@ -204,7 +204,9 @@ public sealed class GermanTaxCalculator(
             var yearEndPrice = yearEndPriceProvider.GetPrice(instrument.ISIN, year);
             if (!yearEndPrice.HasValue)
             {
-                continue;
+                throw new InvalidOperationException(
+                    $"Year-end price for ISIN '{instrument.ISIN}' in {year} is required to compute Vorabpauschale " +
+                    $"but is missing. Add it to the reference price data.");
             }
 
             var distributionPerShare = distributions.GetValueOrDefault((year, instrument.InstrumentId));
