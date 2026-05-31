@@ -306,6 +306,7 @@ public sealed class GermanTaxCalculator(
         OpenEntryId = tradeEntry.EntryId,
         OpenOccurredAt = tradeEntry.OccurredAt,
         OpenTradeDate = DateOnly.FromDateTime(tradeEntry.OccurredAt.UtcDateTime),
+        OpenSourceReference = tradeEntry.SourceProvenance.SourceRecordReference,
         Direction = PositionDirection.Long,
         OriginalQuantity = tradeEntry.Quantity,
         RemainingQuantity = tradeEntry.Quantity,

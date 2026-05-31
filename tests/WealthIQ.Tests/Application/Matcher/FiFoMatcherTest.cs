@@ -314,6 +314,39 @@ public class FiFoMatcherTest
         Assert.Equal(4969.2m, consumption.RealizedPnL.Amount);
     }
 
+    [Fact]
+    public void Match_SameTimestampBuys_ConsumesInSourceReferenceOrder()
+    {
+        var account = AccountId.NewId();
+        var instrument = InstrumentId.NewId();
+        var ts = new DateTimeOffset(2024, 3, 1, 12, 0, 0, TimeSpan.Zero);
+
+        // Two buys at the SAME timestamp, different prices and source references.
+        var lotA = new OpenLot
+        {
+            LotId = LotId.NewId(), AccountId = account, InstrumentId = instrument,
+            OpenEntryId = PortfolioEntryId.NewId(), OpenOccurredAt = ts, OpenTradeDate = DateOnly.FromDateTime(ts.UtcDateTime),
+            OpenSourceReference = "A-1", Direction = PositionDirection.Long,
+            OriginalQuantity = new Quantity(10m), RemainingQuantity = new Quantity(10m),
+            OpenUnitPrice = new Money(100m, Currency.EUR), RemainingOpenFees = new Money(0m, Currency.EUR),
+            RemainingOpenTaxes = new Money(0m, Currency.EUR)
+        };
+        var lotB = lotA with { LotId = LotId.NewId(), OpenSourceReference = "B-2", OpenUnitPrice = new Money(200m, Currency.EUR) };
+
+        // Pass them in reverse order to prove the matcher re-establishes deterministic order.
+        var sell = new TradeEntry(
+            PortfolioEntryId.NewId(), account, ts.AddDays(1), DateOnly.FromDateTime(ts.AddDays(1).UtcDateTime),
+            new SourceProvenance { SourceSystem = "IBKR", ImportFormat = "XML", SourceLocation = "f", SourceRecordReference = "SELL" },
+            instrument, TradeSide.Sell, new Quantity(10m),
+            new Money(300m, Currency.EUR), new Money(0m, Currency.EUR), new Money(0m, Currency.EUR));
+
+        var result = new FiFoMatcher().Match(sell, new[] { lotB, lotA }, LotMatchingPolicy.FIFO);
+
+        var consumption = Assert.Single(result.Consumptions);
+        Assert.Equal(lotA.LotId, consumption.OpenLotId);          // A-1 consumed before B-2
+        Assert.Equal(100m, consumption.OpenUnitPrice.Amount);
+    }
+
     private static OpenLot CreateOpenLot(
         LotId? lotId = null,
         AccountId? accountId = null,

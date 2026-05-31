@@ -18,8 +18,12 @@ public sealed record FiFoMatcher : ILotMatcher
 
         var oppositeDirection = tradeEntry.Side == TradeSide.Buy ? PositionDirection.Short : PositionDirection.Long;
         var remainingQuantityToMatch = tradeEntry.Quantity.Value;
-        var updateOpenLots = currentOpenLots.ToList();
-        updateOpenLots.Sort((x, y) => x.OpenOccurredAt.CompareTo(y.OpenOccurredAt));
+        // Stable, deterministic FIFO order: by open time, then by the opening source reference
+        // (broker booking order), mirroring PortfolioLedger's tie-break. Avoids List.Sort's instability.
+        var updateOpenLots = currentOpenLots
+            .OrderBy(x => x.OpenOccurredAt)
+            .ThenBy(x => x.OpenSourceReference, StringComparer.Ordinal)
+            .ToList();
         var consumptionList = new List<LotConsumption>();
         var newOpenLot = default(OpenLot?);
         while (remainingQuantityToMatch > 0m)
@@ -71,6 +75,7 @@ public sealed record FiFoMatcher : ILotMatcher
                 OpenEntryId = tradeEntry.EntryId,
                 OpenOccurredAt = tradeEntry.OccurredAt,
                 OpenTradeDate = DateOnly.FromDateTime(tradeEntry.OccurredAt.DateTime),
+                OpenSourceReference = tradeEntry.SourceProvenance.SourceRecordReference,
                 Direction = tradeEntry.Side == TradeSide.Buy ? PositionDirection.Long : PositionDirection.Short,
                 OriginalQuantity = new Quantity(remainingQuantityToMatch),
                 RemainingQuantity = new Quantity(remainingQuantityToMatch),
