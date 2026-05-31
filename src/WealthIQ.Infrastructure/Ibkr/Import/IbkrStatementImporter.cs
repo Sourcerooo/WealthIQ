@@ -157,17 +157,18 @@ public sealed class IbkrStatementImporter : IStatementImporter
             return null;
         }
 
-        var rawDate = element.Attribute("dateTime")?.Value
-            ?? element.Attribute("tradeDate")?.Value
-            ?? element.Attribute("reportDate")?.Value;
-        if (!TryParseDateTimeOffset(rawDate, out var occurredAt))
+        var dateAttr = element.Attribute("dateTime")
+            ?? element.Attribute("tradeDate")
+            ?? element.Attribute("reportDate");
+        if (!TryParseDateTimeOffset(dateAttr?.Value, out var occurredAt))
         {
+            var fieldName = dateAttr?.Name.LocalName ?? "dateTime";
             diagnostics.Add(new ImportDiagnostic(
                 ImportDiagnosticSeverity.Error,
                 ImportDiagnosticCode.MalformedField,
                 $"Missing or unparseable date for transaction '{transactionId}'.",
                 SourceReference: transactionId,
-                Field: "dateTime"));
+                Field: fieldName));
             return null;
         }
 

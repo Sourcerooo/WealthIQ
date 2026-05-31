@@ -55,7 +55,9 @@ public sealed class IbkrStatementImporterFailFastTests : IDisposable
 
         Assert.Empty(result.PortfolioLedger.Entries.OfType<TradeEntry>());
         Assert.Contains(result.Diagnostics,
-            d => d.Code == ImportDiagnosticCode.MalformedField && d.Severity == ImportDiagnosticSeverity.Error);
+            d => d.Code == ImportDiagnosticCode.MalformedField
+              && d.Severity == ImportDiagnosticSeverity.Error
+              && d.Field == "dateTime");
     }
 
     public void Dispose()
