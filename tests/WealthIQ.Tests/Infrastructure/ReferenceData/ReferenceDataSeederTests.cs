@@ -71,4 +71,39 @@ public sealed class ReferenceDataSeederTests
             Assert.Equal(3, await ctx.FxRates.CountAsync());
         }
     }
+
+    [Fact]
+    public async Task SeedIfEmpty_MalformedFxRow_ThrowsWithFileAndLine()
+    {
+        using var db = new InMemorySqlite();
+        var dir = Path.Combine(Path.GetTempPath(), "wealthiq-seed-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            // Header + one good row + one malformed row (non-numeric rate) on line 3.
+            var fxPath = Path.Combine(dir, "fx_rates.csv");
+            await File.WriteAllTextAsync(fxPath, "date,currency,rate\n2024-01-02,USD,0.91\n2024-01-03,USD,not-a-rate\n");
+
+            // Minimal valid files for the other three sources so FX is what fails.
+            var basisPath = Path.Combine(dir, "basiszins.csv");
+            await File.WriteAllTextAsync(basisPath, "year,rate\n2024,0.0255\n");
+            var pricesPath = Path.Combine(dir, "prices.csv");
+            await File.WriteAllTextAsync(pricesPath, "year,isin,price\n2024,IE00B3XXRP09,200\n");
+            var instrumentsPath = Path.Combine(dir, "instruments.json");
+            await File.WriteAllTextAsync(instrumentsPath, "{}");
+
+            var sources = new ReferenceDataSources(basisPath, pricesPath, instrumentsPath, fxPath);
+
+            await using var ctx = db.NewContext();
+            var seeder = new ReferenceDataSeeder(ctx);
+
+            var ex = await Assert.ThrowsAsync<FormatException>(() => seeder.SeedIfEmptyAsync(sources));
+            Assert.Contains("fx_rates.csv", ex.Message);
+            Assert.Contains("line 3", ex.Message);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
 }

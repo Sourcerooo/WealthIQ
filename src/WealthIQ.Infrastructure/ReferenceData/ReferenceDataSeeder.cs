@@ -51,38 +51,44 @@ public sealed class ReferenceDataSeeder(WealthIqDbContext db) : IReferenceDataSe
 
     private static IEnumerable<BasisInterestRateRow> ReadBasisInterestRates(string path)
     {
-        foreach (var parts in ReadCsv(path, "Basis interest rate file not found.", minColumns: 2))
+        foreach (var (lineNumber, parts) in ReadCsv(path, "Basis interest rate file not found.", minColumns: 2))
         {
-            if (int.TryParse(parts[0], out var year)
-                && decimal.TryParse(parts[1], NumberStyles.Any, CultureInfo.InvariantCulture, out var rate))
+            if (!int.TryParse(parts[0], out var year)
+                || !decimal.TryParse(parts[1], NumberStyles.Any, CultureInfo.InvariantCulture, out var rate))
             {
-                yield return new BasisInterestRateRow { Year = year, Rate = rate };
+                throw new FormatException($"Malformed row in '{Path.GetFileName(path)}' line {lineNumber}: invalid year or rate.");
             }
+
+            yield return new BasisInterestRateRow { Year = year, Rate = rate };
         }
     }
 
     private static IEnumerable<YearEndPriceRow> ReadYearEndPrices(string path)
     {
-        foreach (var parts in ReadCsv(path, "Year-end price file not found.", minColumns: 3))
+        foreach (var (lineNumber, parts) in ReadCsv(path, "Year-end price file not found.", minColumns: 3))
         {
-            if (int.TryParse(parts[0], out var year)
-                && decimal.TryParse(parts[2], NumberStyles.Any, CultureInfo.InvariantCulture, out var price))
+            if (!int.TryParse(parts[0], out var year)
+                || !decimal.TryParse(parts[2], NumberStyles.Any, CultureInfo.InvariantCulture, out var price))
             {
-                yield return new YearEndPriceRow { Year = year, Isin = parts[1].Trim(), PriceEur = price };
+                throw new FormatException($"Malformed row in '{Path.GetFileName(path)}' line {lineNumber}: invalid year or price.");
             }
+
+            yield return new YearEndPriceRow { Year = year, Isin = parts[1].Trim(), PriceEur = price };
         }
     }
 
     private static IEnumerable<FxRateRow> ReadFxRates(string path)
     {
-        foreach (var parts in ReadCsv(path, "FX rate file not found.", minColumns: 3))
+        foreach (var (lineNumber, parts) in ReadCsv(path, "FX rate file not found.", minColumns: 3))
         {
-            if (DateOnly.TryParseExact(parts[0].Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
-                && decimal.TryParse(parts[2].Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var rate)
-                && rate > 0m)
+            if (!DateOnly.TryParseExact(parts[0].Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
+                || !decimal.TryParse(parts[2].Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var rate)
+                || rate <= 0m)
             {
-                yield return new FxRateRow { Date = date, Currency = parts[1].Trim(), RateToEur = rate };
+                throw new FormatException($"Malformed row in '{Path.GetFileName(path)}' line {lineNumber}: invalid date or non-positive rate.");
             }
+
+            yield return new FxRateRow { Date = date, Currency = parts[1].Trim(), RateToEur = rate };
         }
     }
 
@@ -108,25 +114,30 @@ public sealed class ReferenceDataSeeder(WealthIqDbContext db) : IReferenceDataSe
         }
     }
 
-    private static IEnumerable<string[]> ReadCsv(string path, string notFoundMessage, int minColumns)
+    private static IEnumerable<(int LineNumber, string[] Parts)> ReadCsv(string path, string notFoundMessage, int minColumns)
     {
         if (!File.Exists(path))
         {
             throw new FileNotFoundException(notFoundMessage, path);
         }
 
+        var lineNumber = 1; // header is line 1
         foreach (var line in File.ReadLines(path).Skip(1))
         {
+            lineNumber++;
             if (string.IsNullOrWhiteSpace(line))
             {
                 continue;
             }
 
             var parts = line.Split(',');
-            if (parts.Length >= minColumns)
+            if (parts.Length < minColumns)
             {
-                yield return parts;
+                throw new FormatException(
+                    $"Malformed row in '{Path.GetFileName(path)}' line {lineNumber}: expected at least {minColumns} columns, got {parts.Length}.");
             }
+
+            yield return (lineNumber, parts);
         }
     }
 
