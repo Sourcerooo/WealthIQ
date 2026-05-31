@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using WealthIQ.Infrastructure.Persistence;
 
@@ -10,9 +11,11 @@ using WealthIQ.Infrastructure.Persistence;
 namespace WealthIQ.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(WealthIqDbContext))]
-    partial class WealthIqDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260531160702_UniqueSourceReference")]
+    partial class UniqueSourceReference
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.0");
@@ -91,10 +94,6 @@ namespace WealthIQ.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("SkippedDuplicateEntries")
                         .HasColumnType("INTEGER");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
 
                     b.HasKey("BatchId");
 

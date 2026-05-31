@@ -30,7 +30,7 @@
         <MudButton Variant="Variant.Filled" Color="Color.Primary"
                    Disabled="@(_busy || _pendingFiles.Count == 0 || string.IsNullOrWhiteSpace(_accountNumber))"
                    OnClick="RunImport">
-            @(_busy ? $"Importiere… ({_doneCount}/{_pendingFiles.Count})" : "Import starten")
+            @(_busy ? $"Importiere… ({_doneCount}/{_totalCount})" : "Import starten")
         </MudButton>
     </div>
 </MudPaper>
@@ -78,12 +78,18 @@
     private readonly List<(string FileName, ImportPipelineResult Result)> _results = new();
     private bool _busy;
     private int _doneCount;
+    private int _totalCount;
     private string? _error;
 
     private async Task OnFilesSelected(InputFileChangeEventArgs e)
     {
         _error = null;
         _results.Clear();
+        // Delete temp copies from a previous selection before replacing the list, or they leak in %TEMP%.
+        foreach (var (_, previousPath) in _pendingFiles)
+        {
+            if (File.Exists(previousPath)) File.Delete(previousPath);
+        }
         _pendingFiles.Clear();
         try
         {
@@ -121,6 +127,7 @@
         var account = new Account(accountId, _accountNumber.Trim());
 
         var toProcess = _pendingFiles.ToList();
+        _totalCount = toProcess.Count;
         _pendingFiles.Clear();
 
         try

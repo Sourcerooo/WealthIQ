@@ -16,4 +16,11 @@ public interface IImportStore
         PortfolioLedger ledger,
         IReadOnlyList<ImportDiagnostic> diagnostics,
         CancellationToken ct = default);
+
+    /// <summary>Persists a batch that aborted on blocking diagnostics: the batch row (status Failed)
+    /// and its diagnostics, but no ledger entries. Transactional.</summary>
+    Task PersistFailedImportAsync(
+        ImportBatch batch,
+        IReadOnlyList<ImportDiagnostic> diagnostics,
+        CancellationToken ct = default);
 }

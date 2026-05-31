@@ -20,7 +20,7 @@ public sealed class WealthIqDbContext(DbContextOptions<WealthIqDbContext> option
         modelBuilder.Entity<PortfolioEntryRow>(e =>
         {
             e.HasKey(x => x.EntryId);
-            e.HasIndex(x => new { x.SourceSystem, x.SourceRecordReference });
+            e.HasIndex(x => new { x.SourceSystem, x.SourceRecordReference }).IsUnique();
             e.Property(x => x.Category).IsRequired();
             e.Property(x => x.PayloadJson).IsRequired();
         });

@@ -45,6 +45,17 @@ public sealed class StatementImportPipeline(
         var hasBlocking = importResult.Diagnostics.Any(d => d.Severity >= ImportDiagnosticSeverity.Error);
         if (hasBlocking)
         {
+            var failedBatch = new ImportBatch(
+                batchId,
+                command.Request.Source.Broker,
+                command.Request.Source.Format,
+                command.Request.AccountId,
+                storedPath,
+                importedAt,
+                ImportBatchStatus.Failed);
+
+            await importStore.PersistFailedImportAsync(failedBatch, importResult.Diagnostics, ct);
+
             return new ImportPipelineResult(ImportStatus.Aborted, batchId, 0, 0, importResult.Diagnostics);
         }
 

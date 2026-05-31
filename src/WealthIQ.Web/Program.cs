@@ -19,9 +19,15 @@ using WealthIQ.Web.Components;
 var builder = WebApplication.CreateBuilder(args);
 
 // --- Local data layout ---
-// ContentRootPath = src/WealthIQ.Web → repo root is two levels up.
-var repoData = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "..", "data"));
-var referenceDir = Path.Combine(repoData, "reference");
+// Defaults are repo-relative (ContentRootPath = src/WealthIQ.Web → repo root is two levels up).
+// Optional config overrides: DataPaths:Root (the data/ folder) and DataPaths:Reference.
+var defaultRoot = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "..", "data"));
+var repoData = string.IsNullOrWhiteSpace(builder.Configuration["DataPaths:Root"])
+    ? defaultRoot
+    : Path.GetFullPath(builder.Configuration["DataPaths:Root"]!);
+var referenceDir = string.IsNullOrWhiteSpace(builder.Configuration["DataPaths:Reference"])
+    ? Path.Combine(repoData, "reference")
+    : Path.GetFullPath(builder.Configuration["DataPaths:Reference"]!);
 var appDataDir = Path.Combine(repoData, "app");
 var auditDir = Path.Combine(appDataDir, "audit");
 var dbPath = Path.Combine(appDataDir, "wealthiq.db");
@@ -32,7 +38,11 @@ builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddMudServices();
 
 // --- Persistence ---
-builder.Services.AddDbContext<WealthIqDbContext>(options => options.UseSqlite($"Data Source={dbPath}"));
+// Blazor Server: scoped == circuit-lifetime, so a single AddDbContext would be shared across
+// overlapping UI operations. Register a factory and resolve a fresh, short-lived context per scope.
+builder.Services.AddDbContextFactory<WealthIqDbContext>(options => options.UseSqlite($"Data Source={dbPath}"));
+builder.Services.AddScoped<WealthIqDbContext>(sp =>
+    sp.GetRequiredService<IDbContextFactory<WealthIqDbContext>>().CreateDbContext());
 // SqliteLedgerStore registered as both concrete and interface so SqliteImportStore (which takes the
 // concrete type to share the same EF transaction) and ILedgerStore consumers both resolve the same instance.
 builder.Services.AddScoped<SqliteLedgerStore>();

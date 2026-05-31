@@ -1,0 +1,28 @@
+@page "/Error"
+@using Microsoft.AspNetCore.Components.Web
+
+<PageTitle>WealthIQ — Fehler</PageTitle>
+
+<MudContainer Class="mt-8">
+    <MudAlert Severity="Severity.Error" Variant="Variant.Filled">
+        Ein unerwarteter Fehler ist aufgetreten.
+    </MudAlert>
+    <MudText Typo="Typo.body2" Class="mt-4">
+        Bitte lade die Seite neu. Tritt der Fehler erneut auf, prüfe die Logs der Anwendung.
+    </MudText>
+    @if (!string.IsNullOrEmpty(RequestId))
+    {
+        <MudText Typo="Typo.caption" Class="mt-2">Request-ID: <code>@RequestId</code></MudText>
+    }
+    <MudButton Href="/" Variant="Variant.Filled" Color="Color.Primary" Class="mt-4">Zur Startseite</MudButton>
+</MudContainer>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+
+    protected override void OnInitialized()
+        => RequestId = HttpContext?.TraceIdentifier;
+}

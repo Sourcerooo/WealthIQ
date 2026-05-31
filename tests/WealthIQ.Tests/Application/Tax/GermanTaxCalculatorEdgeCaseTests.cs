@@ -65,7 +65,7 @@ public sealed class GermanTaxCalculatorEdgeCaseTests
     }
 
     [Fact]
-    public void Calculate_MissingYearEndPrice_SkipsVorabpauschale()
+    public void Calculate_MissingYearEndPrice_WhenVorabRequired_Throws()
     {
         var instrumentId = InstrumentId.NewId();
         var instruments = new[] { new Instrument(instrumentId, Isin, "VUSA", "Vanguard", 0.30m) };
@@ -74,11 +74,34 @@ public sealed class GermanTaxCalculatorEdgeCaseTests
                 new DateTimeOffset(2024, 1, 10, 10, 0, 0, TimeSpan.Zero), "BUY-1")
         ]);
 
-        // Basiszins is positive but no year-end price is configured → Vorabpauschale cannot be computed.
-        var result = Calculator(new FakeBasisInterestRateProvider((2024, 0.05m)), new FakeYearEndPriceProvider())
-            .Calculate(ledger, instruments);
+        // Basiszins is positive and a long fund lot is held over year-end, so the year-end price is
+        // required. It is not configured → fail-fast (CLAUDE.md: missing required price data is blocking).
+        var calculator = Calculator(new FakeBasisInterestRateProvider((2024, 0.05m)), new FakeYearEndPriceProvider());
 
-        Assert.Empty(result.Entries.Where(x => x.Type == GermanTaxEntryType.Vorabpauschale));
+        Assert.Throws<InvalidOperationException>(() => calculator.Calculate(ledger, instruments));
+    }
+
+    [Fact]
+    public void Calculate_UnsupportedEntryType_Throws()
+    {
+        var instrumentId = InstrumentId.NewId();
+        var instruments = new[] { new Instrument(instrumentId, Isin, "VUSA", "Vanguard", 0.30m) };
+
+        // AssetTransferEntry is a valid canonical entry no importer currently produces. Tax replay
+        // must not silently ignore it — it must fail fast.
+        var transfer = new AssetTransferEntry(
+            PortfolioEntryId.NewId(),
+            Account,
+            new DateTimeOffset(2024, 4, 1, 10, 0, 0, TimeSpan.Zero),
+            new DateOnly(2024, 4, 1),
+            TaxEntries.Provenance("XFER-1"),
+            AssetTransferType.Incoming,
+            instrumentId,
+            new Quantity(10m));
+
+        var ledger = new PortfolioLedger([transfer]);
+
+        Assert.Throws<NotSupportedException>(() => Calculator().Calculate(ledger, instruments));
     }
 
     [Fact]
@@ -93,7 +116,7 @@ public sealed class GermanTaxCalculatorEdgeCaseTests
 
         var result = Calculator().Calculate(ledger, instruments);
 
-        Assert.Empty(result.Entries.Where(x => x.Type == GermanTaxEntryType.Sell));
+        Assert.DoesNotContain(result.Entries, x => x.Type == GermanTaxEntryType.Sell);
         var openLot = Assert.Single(result.OpenLots);
         Assert.Equal(PositionDirection.Short, openLot.Direction);
         Assert.Equal(10m, openLot.RemainingQuantity.Value);

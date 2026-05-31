@@ -157,14 +157,50 @@ public sealed class IbkrStatementImporter : IStatementImporter
             return null;
         }
 
-        var occurredAt = ParseDateTimeOffset(element.Attribute("dateTime")?.Value
-            ?? element.Attribute("tradeDate")?.Value
-            ?? element.Attribute("reportDate")?.Value);
+        var dateAttr = element.Attribute("dateTime")
+            ?? element.Attribute("tradeDate")
+            ?? element.Attribute("reportDate");
+        if (!TryParseDateTimeOffset(dateAttr?.Value, out var occurredAt))
+        {
+            var fieldName = dateAttr?.Name.LocalName ?? "dateTime";
+            diagnostics.Add(new ImportDiagnostic(
+                ImportDiagnosticSeverity.Error,
+                ImportDiagnosticCode.MalformedField,
+                $"Missing or unparseable date for transaction '{transactionId}'.",
+                SourceReference: transactionId,
+                Field: fieldName));
+            return null;
+        }
+
         var effectiveDate = DateOnly.FromDateTime(occurredAt.UtcDateTime);
 
-        var quantity = ParseDecimal(element.Attribute("quantity")?.Value);
-        var price = ParseDecimal(element.Attribute("tradePrice")?.Value ?? element.Attribute("amount")?.Value);
-        var commission = ParseDecimal(element.Attribute("ibCommission")?.Value);
+        // Cash records carry the value in "amount"; trades in "tradePrice". Both are required.
+        var rawPrice = isCash ? element.Attribute("amount")?.Value : element.Attribute("tradePrice")?.Value;
+        if (!TryParseDecimal(rawPrice, allowEmpty: false, out var price))
+        {
+            diagnostics.Add(new ImportDiagnostic(
+                ImportDiagnosticSeverity.Error,
+                ImportDiagnosticCode.MalformedField,
+                $"Missing or unparseable {(isCash ? "amount" : "tradePrice")} for transaction '{transactionId}'.",
+                SourceReference: transactionId,
+                Field: isCash ? "amount" : "tradePrice"));
+            return null;
+        }
+
+        var quantity = 0m;
+        if (!isCash && !TryParseDecimal(element.Attribute("quantity")?.Value, allowEmpty: false, out quantity))
+        {
+            diagnostics.Add(new ImportDiagnostic(
+                ImportDiagnosticSeverity.Error,
+                ImportDiagnosticCode.MalformedField,
+                $"Missing or unparseable quantity for transaction '{transactionId}'.",
+                SourceReference: transactionId,
+                Field: "quantity"));
+            return null;
+        }
+
+        // ibCommission is optional (cash records often omit it) → empty means zero.
+        TryParseDecimal(element.Attribute("ibCommission")?.Value, allowEmpty: true, out var commission);
         var currencyCode = ParseCurrency(currency);
         var fees = new Money(Math.Abs(commission), currencyCode);
         var sourceProvenance = new SourceProvenance
@@ -451,27 +487,38 @@ public sealed class IbkrStatementImporter : IStatementImporter
         return portfolioEntries.Where((_, index) => !indicesToRemove.Contains(index)).ToList();
     }
 
-    private static decimal ParseDecimal(string? value)
-        => decimal.TryParse(value, NumberStyles.Any, Culture, out var result) ? result : 0m;
-
-    private static DateTimeOffset ParseDateTimeOffset(string? value)
+    private static bool TryParseDecimal(string? value, bool allowEmpty, out decimal result)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            return DateTimeOffset.MinValue;
+            result = 0m;
+            return allowEmpty;
+        }
+
+        return decimal.TryParse(value, NumberStyles.Any, Culture, out result);
+    }
+
+    private static bool TryParseDateTimeOffset(string? value, out DateTimeOffset result)
+    {
+        result = default;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
         }
 
         if (DateTime.TryParseExact(value, "yyyyMMdd;HHmmss", Culture, DateTimeStyles.AssumeUniversal, out var dateTime))
         {
-            return new DateTimeOffset(DateTime.SpecifyKind(dateTime, DateTimeKind.Utc));
+            result = new DateTimeOffset(DateTime.SpecifyKind(dateTime, DateTimeKind.Utc));
+            return true;
         }
 
         if (DateTime.TryParseExact(value, "yyyyMMdd", Culture, DateTimeStyles.AssumeUniversal, out var dateOnly))
         {
-            return new DateTimeOffset(DateTime.SpecifyKind(dateOnly.AddHours(23).AddMinutes(59).AddSeconds(59), DateTimeKind.Utc));
+            result = new DateTimeOffset(DateTime.SpecifyKind(dateOnly.AddHours(23).AddMinutes(59).AddSeconds(59), DateTimeKind.Utc));
+            return true;
         }
 
-        return DateTimeOffset.MinValue;
+        return false;
     }
 
     private static InstrumentId CreateStableInstrumentId(string key)

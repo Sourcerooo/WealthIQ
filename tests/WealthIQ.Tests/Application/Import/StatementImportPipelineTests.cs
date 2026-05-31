@@ -78,7 +78,7 @@ public sealed class StatementImportPipelineTests
     }
 
     [Fact]
-    public async Task Run_BlockingDiagnostic_AbortsWithoutPersisting()
+    public async Task Run_BlockingDiagnostic_PersistsFailedBatchWithoutLedger()
     {
         var result = new ImportResult
         {
@@ -92,7 +92,10 @@ public sealed class StatementImportPipelineTests
 
         Assert.Equal(ImportStatus.Aborted, outcome.Status);
         Assert.Equal(0, outcome.InsertedEntries);
-        Assert.Equal(0, store.CallCount);              // nothing persisted
-        Assert.Single(outcome.Diagnostics);            // diagnostics still surfaced to the caller
+        Assert.Equal(0, store.CallCount);                       // no committed (ledger) persist
+        Assert.Equal(1, store.FailedCallCount);                 // failed batch persisted
+        Assert.Equal(ImportBatchStatus.Failed, store.SeenFailedBatch!.Status);
+        Assert.Single(store.SeenFailedDiagnostics!);            // diagnostics persisted for audit
+        Assert.Single(outcome.Diagnostics);                     // and still surfaced to the caller
     }
 }

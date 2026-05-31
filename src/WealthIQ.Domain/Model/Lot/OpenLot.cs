@@ -15,6 +15,11 @@ public sealed record OpenLot
     public DateTimeOffset OpenOccurredAt { get; init; }
     public DateOnly OpenTradeDate { get; init; }
 
+    /// <summary>The opening trade's source record reference (e.g. broker transaction id). Used as the
+    /// deterministic FIFO tie-break for lots that share <see cref="OpenOccurredAt"/>, mirroring
+    /// <c>PortfolioLedger</c> ordering. Defaults to empty for lots built without provenance.</summary>
+    public string OpenSourceReference { get; init; } = "";
+
     public PositionDirection Direction { get; init; }
     public Quantity OriginalQuantity { get; init; }
     public Quantity RemainingQuantity { get; init; }

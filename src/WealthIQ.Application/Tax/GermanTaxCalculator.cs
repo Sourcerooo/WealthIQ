@@ -28,27 +28,43 @@ public sealed class GermanTaxCalculator(
         var instrumentById = instruments.ToDictionary(x => x.InstrumentId);
         var openLots = new List<OpenLot>();
         var ledger = new List<GermanTaxEntry>();
-        var distributions = new Dictionary<(int Year, InstrumentId InstrumentId), decimal>();
+        var distributions = new List<Distribution>();
 
-        foreach (var yearlyEntries in portfolioLedger.Entries
-                     .OrderBy(x => x.OccurredAt)
-                     .GroupBy(x => x.OccurredAt.Year)
-                     .OrderBy(x => x.Key))
+        var orderedEntries = portfolioLedger.Entries.OrderBy(x => x.OccurredAt).ToList();
+        var entriesByYear = orderedEntries
+            .GroupBy(x => x.OccurredAt.Year)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        if (orderedEntries.Count > 0)
         {
-            foreach (var portfolioEntry in yearlyEntries)
-            {
-                switch (portfolioEntry)
-                {
-                    case TradeEntry tradeEntry:
-                        ProcessTrade(tradeEntry, openLots, ledger, instrumentById);
-                        break;
-                    case CashEntry cashEntry:
-                        ProcessCash(cashEntry, openLots, ledger, distributions, instrumentById);
-                        break;
-                }
-            }
+            var firstYear = orderedEntries[0].OccurredAt.Year;
+            var lastYear = orderedEntries[^1].OccurredAt.Year;
 
-            PerformYearEndClosing(yearlyEntries.Key, openLots, ledger, distributions, instrumentById);
+            // Close every year in the range — including quiet years with no entries — so a Vorabpauschale
+            // is posted for each year a lot is held over year-end (CLAUDE.md tax guardrails).
+            for (var year = firstYear; year <= lastYear; year++)
+            {
+                if (entriesByYear.TryGetValue(year, out var yearEntries))
+                {
+                    foreach (var portfolioEntry in yearEntries)
+                    {
+                        switch (portfolioEntry)
+                        {
+                            case TradeEntry tradeEntry:
+                                ProcessTrade(tradeEntry, openLots, ledger, instrumentById);
+                                break;
+                            case CashEntry cashEntry:
+                                ProcessCash(cashEntry, openLots, ledger, distributions, instrumentById);
+                                break;
+                            default:
+                                throw new NotSupportedException(
+                                    $"Tax replay does not support entry type '{portfolioEntry.GetType().Name}'.");
+                        }
+                    }
+                }
+
+                PerformYearEndClosing(year, openLots, ledger, distributions, instrumentById);
+            }
         }
 
         return new GermanTaxCalculationResult(ledger, openLots);
@@ -115,7 +131,7 @@ public sealed class GermanTaxCalculator(
         CashEntry cashEntry,
         List<OpenLot> openLots,
         List<GermanTaxEntry> ledger,
-        Dictionary<(int Year, InstrumentId InstrumentId), decimal> distributions,
+        List<Distribution> distributions,
         IReadOnlyDictionary<InstrumentId, Instrument> instrumentById)
     {
         var date = DateOnly.FromDateTime(cashEntry.OccurredAt.UtcDateTime);
@@ -135,15 +151,21 @@ public sealed class GermanTaxCalculator(
                     rawDividend * (1m - dividendInstrument.Teilfreistellungsquote)));
 
                 var heldLots = openLots
-                    .Where(x => x.InstrumentId == dividendInstrument.InstrumentId && x.RemainingQuantity.Value > 0m)
+                    .Where(x => x.AccountId == cashEntry.AccountId
+                        && x.InstrumentId == dividendInstrument.InstrumentId
+                        && x.RemainingQuantity.Value > 0m)
                     .ToList();
 
                 var totalHeldQuantity = heldLots.Sum(x => x.RemainingQuantity.Value);
                 if (totalHeldQuantity > 0m)
                 {
                     var dividendPerShare = rawDividend / totalHeldQuantity;
-                    var key = (cashEntry.OccurredAt.Year, dividendInstrument.InstrumentId);
-                    distributions[key] = distributions.GetValueOrDefault(key) + dividendPerShare;
+                    distributions.Add(new Distribution(
+                        cashEntry.OccurredAt.Year,
+                        cashEntry.AccountId,
+                        dividendInstrument.InstrumentId,
+                        date,
+                        dividendPerShare));
                 }
                 break;
 
@@ -180,7 +202,7 @@ public sealed class GermanTaxCalculator(
         int year,
         List<OpenLot> openLots,
         List<GermanTaxEntry> ledger,
-        Dictionary<(int Year, InstrumentId InstrumentId), decimal> distributions,
+        List<Distribution> distributions,
         IReadOnlyDictionary<InstrumentId, Instrument> instrumentById)
     {
         var basisInterestRate = interestRateProvider.GetRate(year);
@@ -204,10 +226,11 @@ public sealed class GermanTaxCalculator(
             var yearEndPrice = yearEndPriceProvider.GetPrice(instrument.ISIN, year);
             if (!yearEndPrice.HasValue)
             {
-                continue;
+                throw new InvalidOperationException(
+                    $"Year-end price for ISIN '{instrument.ISIN}' in {year} is required to compute Vorabpauschale " +
+                    $"but is missing. Add it to the reference price data.");
             }
 
-            var distributionPerShare = distributions.GetValueOrDefault((year, instrument.InstrumentId));
             foreach (var lot in instrumentGroup.ToList())
             {
                 var acquisitionPrice = CalculateRemainingAcquisitionPriceInEur(lot);
@@ -220,6 +243,16 @@ public sealed class GermanTaxCalculator(
                 var basisYield = acquisitionPrice * basisFactor * (months / 12m);
                 var appreciation = Math.Max(0m, yearEndPrice.Value - acquisitionPrice);
                 var maxVorabpauschale = Math.Min(basisYield, appreciation);
+
+                // Only distributions paid into THIS lot's account, on THIS instrument, while the lot
+                // was already held (paid on/after the lot's open date), reduce its Vorabpauschale.
+                var distributionPerShare = distributions
+                    .Where(d => d.Year == year
+                        && d.AccountId == lot.AccountId
+                        && d.InstrumentId == instrument.InstrumentId
+                        && d.Date >= lot.OpenTradeDate)
+                    .Sum(d => d.PerShare);
+
                 var actualVorabpauschalePerShare = Math.Max(0m, maxVorabpauschale - distributionPerShare);
                 if (actualVorabpauschalePerShare <= 0m)
                 {
@@ -273,6 +306,7 @@ public sealed class GermanTaxCalculator(
         OpenEntryId = tradeEntry.EntryId,
         OpenOccurredAt = tradeEntry.OccurredAt,
         OpenTradeDate = DateOnly.FromDateTime(tradeEntry.OccurredAt.UtcDateTime),
+        OpenSourceReference = tradeEntry.SourceProvenance.SourceRecordReference,
         Direction = PositionDirection.Long,
         OriginalQuantity = tradeEntry.Quantity,
         RemainingQuantity = tradeEntry.Quantity,
@@ -342,4 +376,13 @@ public sealed class GermanTaxCalculator(
         var acquisitionTotalInEur = _fxConverter.Convert(sourceAcquisitionTotal, lot.OpenTradeDate);
         return acquisitionTotalInEur.Amount / lot.RemainingQuantity.Value;
     }
+
+    /// <summary>A per-share distribution recorded for Vorabpauschale reduction, scoped to the account,
+    /// instrument and the date it was paid (so only lots held at that date are reduced).</summary>
+    private readonly record struct Distribution(
+        int Year,
+        AccountId AccountId,
+        InstrumentId InstrumentId,
+        DateOnly Date,
+        decimal PerShare);
 }

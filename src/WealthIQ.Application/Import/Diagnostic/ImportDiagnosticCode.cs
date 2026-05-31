@@ -7,5 +7,6 @@ public enum ImportDiagnosticCode
     FileReadFailed,
     InvalidRecord,
     IgnoredAsset,
-    CancellationRemoved
+    CancellationRemoved,
+    MalformedField
 }
