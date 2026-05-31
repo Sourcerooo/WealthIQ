@@ -54,6 +54,7 @@ else
         <MudTh>Importiert</MudTh>
         <MudTh>Broker</MudTh>
         <MudTh>Format</MudTh>
+        <MudTh>Status</MudTh>
         <MudTh>Datei</MudTh>
         <MudTh Style="text-align:right">Neu</MudTh>
         <MudTh Style="text-align:right">Übersprungen</MudTh>
@@ -62,6 +63,7 @@ else
         <MudTd DataLabel="Importiert">@context.ImportedAt.ToString("u")</MudTd>
         <MudTd DataLabel="Broker">@context.Broker</MudTd>
         <MudTd DataLabel="Format">@context.Format</MudTd>
+        <MudTd DataLabel="Status">@context.Status</MudTd>
         <MudTd DataLabel="Datei">@context.RawFilePath</MudTd>
         <MudTd DataLabel="Neu" Style="text-align:right">@context.InsertedEntries</MudTd>
         <MudTd DataLabel="Übersprungen" Style="text-align:right">@context.SkippedDuplicateEntries</MudTd>

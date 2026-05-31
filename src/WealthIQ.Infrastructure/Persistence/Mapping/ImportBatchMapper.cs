@@ -12,6 +12,7 @@ public static class ImportBatchMapper
         Format = batch.Format.ToString(),
         AccountId = batch.AccountId.Value,
         RawFilePath = batch.RawFilePath,
-        ImportedAt = batch.ImportedAt
+        ImportedAt = batch.ImportedAt,
+        Status = batch.Status.ToString()
     };
 }

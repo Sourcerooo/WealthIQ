@@ -14,7 +14,7 @@ public sealed class SqliteImportAuditStore(WealthIqDbContext db) : IImportAuditS
             .OrderByDescending(x => x.ImportedAt)
             .Select(x => new ImportBatchView(
                 x.BatchId, x.Broker, x.Format, x.AccountId, x.RawFilePath, x.ImportedAt,
-                x.InsertedEntries, x.SkippedDuplicateEntries))
+                x.InsertedEntries, x.SkippedDuplicateEntries, x.Status))
             .ToList();
     }
 

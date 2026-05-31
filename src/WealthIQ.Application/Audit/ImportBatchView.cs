@@ -9,4 +9,5 @@ public sealed record ImportBatchView(
     string RawFilePath,
     DateTimeOffset ImportedAt,
     int InsertedEntries,
-    int SkippedDuplicateEntries);
+    int SkippedDuplicateEntries,
+    string Status);

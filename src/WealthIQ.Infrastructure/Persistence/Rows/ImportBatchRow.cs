@@ -10,4 +10,5 @@ public sealed class ImportBatchRow
     public DateTimeOffset ImportedAt { get; set; }
     public int InsertedEntries { get; set; }
     public int SkippedDuplicateEntries { get; set; }
+    public string Status { get; set; } = "Committed";
 }

@@ -40,4 +40,22 @@ public sealed class SqliteImportStore(WealthIqDbContext db, SqliteLedgerStore le
 
         return new ImportPersistCounts(saveResult.InsertedEntries, saveResult.SkippedDuplicateEntries, diagnostics.Count);
     }
+
+    public async Task PersistFailedImportAsync(
+        ImportBatch batch,
+        IReadOnlyList<ImportDiagnostic> diagnostics,
+        CancellationToken ct = default)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+
+        db.ImportBatches.Add(ImportBatchMapper.ToRow(batch));
+
+        foreach (var diagnostic in diagnostics)
+        {
+            db.ImportDiagnostics.Add(ImportDiagnosticMapper.ToRow(diagnostic, batch.BatchId));
+        }
+
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+    }
 }
