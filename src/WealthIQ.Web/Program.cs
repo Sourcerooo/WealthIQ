@@ -32,7 +32,11 @@ builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddMudServices();
 
 // --- Persistence ---
-builder.Services.AddDbContext<WealthIqDbContext>(options => options.UseSqlite($"Data Source={dbPath}"));
+// Blazor Server: scoped == circuit-lifetime, so a single AddDbContext would be shared across
+// overlapping UI operations. Register a factory and resolve a fresh, short-lived context per scope.
+builder.Services.AddDbContextFactory<WealthIqDbContext>(options => options.UseSqlite($"Data Source={dbPath}"));
+builder.Services.AddScoped<WealthIqDbContext>(sp =>
+    sp.GetRequiredService<IDbContextFactory<WealthIqDbContext>>().CreateDbContext());
 // SqliteLedgerStore registered as both concrete and interface so SqliteImportStore (which takes the
 // concrete type to share the same EF transaction) and ILedgerStore consumers both resolve the same instance.
 builder.Services.AddScoped<SqliteLedgerStore>();
