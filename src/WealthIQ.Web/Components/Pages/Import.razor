@@ -84,6 +84,11 @@
     {
         _error = null;
         _results.Clear();
+        // Delete temp copies from a previous selection before replacing the list, or they leak in %TEMP%.
+        foreach (var (_, previousPath) in _pendingFiles)
+        {
+            if (File.Exists(previousPath)) File.Delete(previousPath);
+        }
         _pendingFiles.Clear();
         try
         {
