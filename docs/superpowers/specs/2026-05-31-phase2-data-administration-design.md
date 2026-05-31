@@ -1,28 +1,29 @@
-# WealthIQ Phase 2 — Data Administration (Design)
+# WealthIQ Phase 2 — Data Administration & Vorabpauschale Correction (Design)
 
 - **Date:** 2026-05-31
 - **Status:** Accepted (Design), ready for implementation plan
 - **Branch:** `feature/Phase2`
-- **Context:** Phase 2 of the WealthIQ v1 rebuild. Phase 1 (foundation/persistence), the import→persist pipeline, and tax-replay + dashboard are all implemented. This phase makes all data that the tax engine depends on **administrable from inside the app**: clearable, reloadable, and — for externally-sourced datasets — fetchable directly from the internet, replacing the two standalone Python scripts. A new "Data Administration" UI exposes every operation.
+- **Context:** Phase 2 of the WealthIQ v1 rebuild. Phase 1 (foundation/persistence), the import→persist pipeline, and tax-replay + dashboard are all implemented. This phase (a) makes all data the tax engine depends on **administrable from inside the app** — clearable, reloadable, and fetchable directly from the internet, replacing the two standalone Python scripts — and (b) **fixes a confirmed correctness bug in the Vorabpauschale calculation for positions held across multiple calendar years**, which the new data layer makes possible. A new "Data Administration" UI exposes every operation.
 
 ---
 
 ## 1. Goals & Non-Goals
 
-**Goals**
-1. Clear the imported ledger for a clean reload from scratch.
-2. Clear and reload every seeded reference dataset (Basiszins, FX rates, historical prices, instruments).
-3. Replace `scripts/download_price_history.py` with a native C# Yahoo Finance integration that stores OHLCV bars in SQLite, refreshes incrementally, and is currency/exchange-aware.
+**Goals (priority order)**
+1. **[HIGHEST PRIORITY] Fix the multi-year Vorabpauschale bug** (§6). For any year *after* a lot's acquisition year, the calculation must re-base to that year's **1 January value** (Rücknahmepreis zu Beginn des Kalenderjahres) per §18 InvStG — both for the Basisertrag base and the within-year appreciation cap — instead of the lot's original acquisition cost. By the end of Phase 2 this bug is correctly and verifiably fixed.
+2. Store full daily historical prices in SQLite (the data prerequisite for Goal 1), currency/exchange-aware, replacing `scripts/download_price_history.py` with a native C# Yahoo Finance integration that refreshes incrementally.
+3. Derive **year-end *and* year-start** prices from stored historical prices (drop the dedicated `YearEndPrice` table).
 4. Replace `scripts/download_fx_rates.py` with a native C# ECB integration storing rates in SQLite.
-5. Fetch the official Basiszins for the Vorabpauschale from an internet source, with a manual override.
-6. View / edit / delete / upload instrument reference data.
-7. Derive year-end prices from stored historical prices (drop the dedicated `YearEndPrice` table).
-8. A single "Data Administration" UI page exposing all of the above.
-9. All external data sources sit behind interfaces so providers can be swapped later.
+5. Fetch the official Basiszins for the Vorabpauschale from an internet source (BMF), with a manual override.
+6. Clear the imported ledger for a clean reload from scratch.
+7. Clear and reload every seeded reference dataset (Basiszins, FX rates, historical prices, instruments).
+8. View / edit / delete / upload instrument reference data.
+9. A single "Data Administration" UI page exposing all of the above.
+10. All external data sources sit behind interfaces so providers can be swapped later.
 
 **Non-Goals (unchanged from v1)**
 - Portfolio valuation / charts, PDF export, additional brokers, strategies/backtesting, multi-base-currency.
-- The "Vorabpauschale for a position held beyond the last ledger entry" as-of/through-year parameter remains a known thin spot and is **out of scope** here.
+- The "Vorabpauschale for a position held beyond the last ledger entry" as-of/through-year parameter remains a known thin spot and is **out of scope** here (the calculator still replays only up to the last ledger entry year).
 
 ---
 
@@ -30,14 +31,15 @@
 
 | Topic | Decision | Rationale |
 |---|---|---|
+| **Multi-year Vorabpauschale** | **Fix within Phase 2 (highest priority).** Re-base to the year-start value for non-acquisition years per §18 InvStG | Confirmed correctness bug affecting the *normal* buy-and-hold case; the project's purpose is a Finanzamt-grade report |
+| Implementation sequencing | **Two stages**: (1) build the data layer + price accessors and prove the year-end path is behavior-preserving; (2) add year-start derivation + corrected formula as the capstone | Isolates "did the plumbing change a number?" from "did the formula deliberately change a number?" — de-risks touching the engine |
 | Yahoo acquisition | **Thin `HttpClient`**, no third-party NuGet; port the proven Python v8 chart call | All libraries wrap the same unofficial endpoint; several have an EU cookie/consent bug; the Python call already works from the EU; full control, hidden behind an interface |
 | Yahoo politeness | One symbol at a time, fixed inter-request delay, exponential back-off + bounded retry on 429/5xx | Avoid throttling/blocking |
 | Yahoo caching | Incremental: fetch only `(maxStoredDate+1 … today)` per symbol; immutable older bars never re-requested; explicit "Force full reload" wipes+refetches one symbol | Downloaded bars rarely change; minimize requests |
 | Basiszins source | **Scrape the official BMF published value** behind `IBasisInterestRateSource`; manual override always available | One authoritative number per year; matches Finanzamt expectations; low risk |
 | Seed files | **Keep committed CSV/JSON as offline bootstrap seed** (first run + CI/regression fixtures). Internet refresh writes to the DB only, never back to files | Keeps CI deterministic; clean separation of seed vs. live data |
 | Multi-listing | **Design for safety**: support multiple listings per ISIN keyed by `(Isin, Currency)`; never mix currencies | User may hold the same ISIN in multiple currencies/exchanges |
-| Year-end prices | **Derived** from `HistoricalPrice`; FX-converted in the calculator at the bar's own date; `YearEndPrice` table removed | Single source of truth; honors the "convert only at replay" FX rule |
-| Year-end refactor safety | **Behavior-preserving**: engineer committed test fixtures so derived EUR year-end prices reproduce the current `prices.csv` values exactly, keeping `GermanTaxRegressionTests` green **unchanged** | The tax engine is the crown jewel; the refactor must be provably non-altering |
+| Price source for tax | **Derived** from `HistoricalPrice`; each Rücknahmepreis FX-converted at its **own bar date**; `YearEndPrice` table removed | Single source of truth; honors the "convert only at replay, at the event's own time" FX rule |
 
 ---
 
@@ -80,7 +82,7 @@ Refresh operations follow the existing import philosophy: collect structured dia
 - Now also written by the BMF refresh and manual edits.
 
 ### Remove — `YearEndPrice` table
-- Year-end prices become derived (see §6). The migration drops the table; `DbYearEndPriceProvider` is replaced by a derived provider.
+- Year-end **and** year-start prices become derived from `HistoricalPrice` (see §5.4 and §6). The migration drops the table; `DbYearEndPriceProvider` is replaced by a derived provider.
 
 ### New small table — `DataRefreshLog` `(Dataset, LastRefreshedUtc, Note)`
 - Powers the admin page's "last refreshed" status. One row per dataset, upserted on each refresh.
@@ -89,7 +91,7 @@ A single EF Core migration adds `HistoricalPrice`, `InstrumentListing`, `DataRef
 
 ---
 
-## 5. External providers
+## 5. External providers & price accessors
 
 ### 5.1 Yahoo historical prices — `YahooHistoricalPriceProvider : IHistoricalPriceProvider`
 - Ports `download_price_history.py`: `GET https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?period1=…&period2=…&interval=1d&events=history` with a browser `User-Agent`, parses the `chart.result[0]` payload (timestamps + `indicators.quote[0]` OHLCV + `adjclose` + `meta.currency`), skips incomplete rows.
@@ -100,38 +102,142 @@ A single EF Core migration adds `HistoricalPrice`, `InstrumentListing`, `DataRef
 ### 5.2 ECB FX rates — `EcbFxRateProvider : IFxRateProvider`
 - Ports `download_fx_rates.py`: fetches `https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.xml`, parses daily cubes, emits `EUR=1.0` plus `currency_to_eur = 1/rate` for the supported currencies (USD/GBP/CHF, configurable), within a date window.
 - **Interface:** `Task<IReadOnlyList<FxRateRecord>> FetchAsync(DateOnly from, DateOnly to, CancellationToken)`.
+- **Coverage note:** the corrected calculation needs an FX rate at *every* year-start and year-end bar date for non-EUR lots. The ECB series excludes weekends/holidays, and the FX lookup already supports roll-forward (`NextAvailableOnOrAfter`); the calculator converts at the **bar's own date**, which is a trading day and therefore an ECB business day, so a rate is normally present. A genuinely missing rate is a blocking error (no silent fallback).
 
 ### 5.3 Basiszins — `BmfBasisInterestRateSource : IBasisInterestRateSource`
 - Fetches the official BMF "Basiszins zur Berechnung der Vorabpauschale" published value for a given year (the single authoritative percentage, e.g. 2.53% for 2025, 3.20% for 2026) and returns `(year, rate)`.
 - **Interface:** `Task<BasisInterestRateRecord?> FetchAsync(int year, CancellationToken)`.
 - Parsing is defensive (the published figure is a single number); failure yields a diagnostic, never a silent wrong rate. Manual override in the UI is the fallback.
 
----
+### 5.4 Price accessors (the data prerequisite for §6)
+- **`DbHistoricalPriceLookup : IHistoricalPriceLookup`** — reads `HistoricalPrice` by `ProviderSymbol`. Extend `PriceLookupDateHandling` with **`EarliestOnOrAfter`** (for year-start lookups) alongside the existing `ExactDate` and `LatestOnOrBefore`.
+- **`DbInstrumentMarketDataMap : IInstrumentMarketDataMap`** — resolves `(ISIN, Currency)` → `ProviderSymbol` from `InstrumentListing`. Missing mapping is a blocking error.
+- **New tax-facing accessor — `IInstrumentPriceProvider`** (Application, `Tax` namespace), implemented by **`DerivedInstrumentPriceProvider`** (Infrastructure):
+  ```csharp
+  public readonly record struct InstrumentQuote(decimal Close, Currency Currency, DateOnly AsOf);
 
-## 6. Year-end price derivation (behavior-preserving refactor)
+  public interface IInstrumentPriceProvider
+  {
+      // Returns the relevant Rücknahmepreis (close) for the instrument's listing in `currency`,
+      // resolved by date handling. Close is in `Currency`; the CALLER converts to EUR.
+      // Null only when no listing/bar exists; the calculator turns null into a blocking error.
+      InstrumentQuote? GetQuote(string isin, Currency currency, DateOnly pricingDate, PriceQuoteHandling handling);
+  }
 
-**This is the highest-risk change; the tax engine's output must not change.**
-
-Today `GermanTaxCalculator.PerformYearEndClosing` calls `IYearEndPriceProvider.GetPrice(isin, year)` → one **EUR** value, compared to the lot's EUR acquisition cost to compute appreciation for the Vorabpauschale cap.
-
-New derivation, currency-aware:
-1. Each `OpenLot` already carries its currency via `OpenUnitPrice.Currency`.
-2. Resolve `(ISIN, lot currency)` → `ProviderSymbol` via `IInstrumentMarketDataMap`.
-3. Fetch the **last trading bar of the year** for that symbol from `IHistoricalPriceLookup` (`LatestOnOrBefore` 31 Dec of `year`).
-4. Convert that native-currency close → EUR via the **existing `FxConverter`** at the bar's own date (honors "convert only at replay, at the event's own time"). A missing FX rate or year-end bar is a **blocking error** — no silent fallback (unchanged contract: the calculator already throws when a year-end price is missing).
-
-**Interface change (contained):**
-`IYearEndPriceProvider.GetPrice(isin, year)` → `GetYearEndClose(isin, currency, year)` returning a small `YearEndQuote(decimal Close, Currency Currency, DateOnly AsOf)`. The **calculator** performs the EUR conversion, keeping all FX in one place. Only `PerformYearEndClosing` changes; the Vorabpauschale formula, lot handling, distribution offset, and Teilfreistellung logic are untouched.
-
-**Non-regression strategy (mandatory):**
-- Add committed historical-price fixtures under `data/test/configuration/` covering each regression instrument's year-ends, with native-currency closes + matching FX fixtures chosen so the **derived EUR year-end equals the current `prices.csv` value to the cent**.
-- `GermanTaxRegressionTests` must then pass **with its existing expected values unchanged**, proving the refactor preserves behavior.
-- Only if a value genuinely cannot be reproduced (e.g. a listing-currency mismatch in the current data) do we adjust the baseline — and then only with an explicit comment explaining the cause, per CLAUDE.md.
-- Add focused unit tests for the derived provider: correct symbol resolution per currency, last-trading-day selection, FX conversion at the bar date, and blocking errors on missing bar/rate/listing.
+  public enum PriceQuoteHandling { LatestOnOrBefore, EarliestOnOrAfter, ExactDate }
+  ```
+  `DerivedInstrumentPriceProvider` resolves the symbol via `IInstrumentMarketDataMap`, reads the bar via `IHistoricalPriceLookup`, and returns `(close, barCurrency, barDate)`. It asserts `barCurrency == currency` (else blocking error). **It does not do FX** — conversion stays in the calculator, in one place, per the architecture rule.
+- This **replaces** `IYearEndPriceProvider` / `DbYearEndPriceProvider` entirely.
 
 ---
 
-## 7. Instrument reference administration
+## 6. The Vorabpauschale correction (core deliverable)
+
+### 6.1 Current (buggy) behavior — for reference
+`GermanTaxCalculator.PerformYearEndClosing` uses, for **every** year a lot is held:
+- base = the lot's **original acquisition cost** per share in EUR (FX at trade date, fees included),
+- `Basisertrag = base × Basiszins(Y) × 0.7 × months/12`,
+- `appreciation = max(0, yearEndPrice − base)` (cumulative since purchase),
+- `Vorab = min(Basisertrag, appreciation) − distributions`.
+
+The `months/12` factor is pro-rated only in the acquisition year (`12 − OpenTradeDate.Month + 1`) and is `12/12` afterwards. The acquisition year is therefore already correct; **only non-acquisition years are wrong** — they should re-base to the year-start value.
+
+### 6.2 Corrected algorithm (§18 InvStG)
+
+For each open **long** lot with `RemainingQuantity > 0` held at the end of calendar year **Y**:
+
+```
+lotCurrency = lot.OpenUnitPrice.Currency
+basisFactor = Basiszins(Y) × 0.7
+
+# --- per-share START value in EUR + month factor ---
+if lot.OpenTradeDate.Year == Y:                      # ACQUISITION YEAR — unchanged from today
+    startValueEur = CalculateRemainingAcquisitionPriceInEur(lot)   # cost incl. fees, FX @ trade date
+    monthsFactor  = (12 - lot.OpenTradeDate.Month + 1) / 12
+else:                                                 # HELD FROM A PRIOR YEAR — the fix
+    q = priceProvider.GetQuote(isin, lotCurrency, Jan 1 of Y, EarliestOnOrAfter)   # first trading bar of Y
+    if q is null: BLOCKING ERROR
+    startValueEur = fxConverter.Convert(Money(q.Close, q.Currency), q.AsOf).Amount   # FX @ year-start bar date
+    monthsFactor  = 1
+
+# --- per-share END value in EUR ---
+e = priceProvider.GetQuote(isin, lotCurrency, Dec 31 of Y, LatestOnOrBefore)        # last trading bar of Y
+if e is null: BLOCKING ERROR
+endValueEur = fxConverter.Convert(Money(e.Close, e.Currency), e.AsOf).Amount         # FX @ year-end bar date
+
+# --- Vorabpauschale (per share) ---
+basisErtrag    = startValueEur × basisFactor × monthsFactor
+wertsteigerung = max(0, endValueEur − startValueEur)        # appreciation WITHIN year Y
+grossVorab     = min(basisErtrag, wertsteigerung)
+distPerShare   = Σ distributions for this lot in Y, paid on/after lot.OpenTradeDate   # unchanged
+netVorab       = max(0, grossVorab − distPerShare)
+if netVorab <= 0: skip lot
+
+totalVorab     = netVorab × lot.RemainingQuantity
+# accumulate on the lot (AccumulatedVorabpauschale) and post the ledger entry,
+# Teilfreistellung applied, posted to (Y+1, 1 Jan) — ALL unchanged from today.
+```
+
+**What changes vs. today:** only the `else` branch (non-acquisition years) — `startValueEur` becomes the **year-start market price** instead of the original cost, and `monthsFactor` is `1`. Everything else — acquisition-year handling, distribution offset, Teilfreistellung, accumulation, posting to year+1, deduction of previously-taxed Vorabpauschale at sale — is **untouched**.
+
+### 6.3 Explicit, documented assumptions (so they are conscious choices, not accidents)
+
+1. **Year-start = first trading day of the year.** "Rücknahmepreis zu Beginn des Kalenderjahres" is taken as the first historical bar with `Date ≥ 1 Jan` (`EarliestOnOrAfter`), symmetric with year-end (last bar `≤ 31 Dec`). The tiny New-Year gap between one year's last bar and the next year's first bar is taxed in neither year — accepted. (Alternative considered: prior-year 31 Dec close; rejected for being less literal and asymmetric.)
+2. **Per-component FX.** Each Rücknahmepreis is converted to EUR at **its own bar date** (year-start at the year-start bar date, year-end at the year-end bar date, acquisition cost at trade date). This matches the project's core FX rule and the existing realized-gain methodology. (Alternative considered: compute Vorabpauschale in fund currency, convert the *result* at the Y+1 inflow date; rejected for inconsistency with the rest of the engine. Documented so it can be revisited if a Finanzamt requires otherwise.)
+3. **Acquisition-year base keeps fees** (existing `CalculateRemainingAcquisitionPriceInEur`); year-start base is a pure market close (no fees). This mirrors current behavior for the acquisition year and the legal use of the market Rücknahmepreis thereafter. Not changed in this phase.
+4. **Quotes are per share** (NAV per unit), consistent with `OpenUnitPrice` being per share.
+
+### 6.4 Edge cases (all fail-fast, no silent fallback)
+- No `InstrumentListing` for `(ISIN, lotCurrency)` → blocking error naming the ISIN + currency.
+- No year-start bar on/after 1 Jan of Y (e.g. fund not yet listed) for a *non-acquisition* lot → blocking error.
+- No year-end bar on/before 31 Dec of Y → blocking error.
+- Missing FX rate at a bar date → blocking error (existing `FxConverter` behavior).
+- `bar.Currency != lotCurrency` → blocking error (guards against a mis-mapped listing).
+- `endValueEur ≤ startValueEur` → `wertsteigerung = 0` → no Vorabpauschale (correct).
+- Partial-sold lot: value `RemainingQuantity`; `OpenTradeDate.Year` still determines acquisition-vs-prior-year.
+
+---
+
+## 7. Staged delivery & regression strategy (de-risking the engine change)
+
+**Stage A — data layer + accessors, behavior-preserving checkpoint.**
+- Build `HistoricalPrice`, `InstrumentListing`, `DbHistoricalPriceLookup` (+ `EarliestOnOrAfter`), `DbInstrumentMarketDataMap`, `DerivedInstrumentPriceProvider`, and the Yahoo/ECB/BMF providers + refresh services.
+- Wire the calculator to source the **year-end** price from `DerivedInstrumentPriceProvider` **while keeping the current (acquisition-cost) formula**.
+- Engineer committed historical-price + FX fixtures under `data/test/configuration/` so the **derived EUR year-end equals the current `prices.csv` value to the cent**.
+- **`GermanTaxRegressionTests` must pass with its existing expected values UNCHANGED.** This proves the new data path did not move any number — isolating plumbing risk from formula risk.
+
+**Stage B — corrected formula, deliberate behavior change (the capstone).**
+- Implement §6.2 (year-start re-basing for non-acquisition years).
+- **Recompute the regression baseline** using the methodology in §8 and update `GermanTaxRegressionTests` with the new expected values, each accompanied by a comment showing the arithmetic and *why* it changed (per CLAUDE.md "update expected values deliberately").
+- Add the new targeted tests in §9.
+- At this point the bug is fixed and the suite is green on the corrected numbers. **Phase 2 is not complete until Stage B is done.**
+
+---
+
+## 8. Regression-baseline recomputation methodology (do this exactly)
+
+The current `GermanTaxRegressionTests` asserts exact 2024 disposal + Vorabpauschale figures from `data/test`. The test instruments are held multiple years, so Stage B changes their Vorabpauschale. To regenerate the baseline without mistakes:
+
+1. **Enumerate Vorabpauschale-bearing lots** from the test statements: for each, record `ISIN`, currency, `OpenTradeDate`, quantity (and any partial sales), per year up to 2024.
+2. **Assemble fixtures** so that, for every `(ISIN, currency, year)` a held lot needs, the committed `HistoricalPrice` fixture contains:
+   - the **first** trading bar of the year (year-start), and
+   - the **last** trading bar of the year (year-end),
+   in the lot's currency, plus the **FX fixtures** for those two dates.
+   Choose fixture closes deliberately (round, documented values) — these are the single source of truth for the expected numbers.
+3. **Compute per lot, per year** with §6.2:
+   - acquisition year → `startValueEur` = acquisition cost (as the existing test already implies), `monthsFactor` pro-rated;
+   - later years → `startValueEur` = year-start fixture close → EUR @ year-start date, `monthsFactor = 1`;
+   - `endValueEur` = year-end fixture close → EUR @ year-end date;
+   - `basisErtrag`, `wertsteigerung`, `min`, minus distributions, `× remaining qty`, `× (1 − tfs)` for the taxable amount.
+4. **Sum** to the report figures the test asserts; record the arithmetic in a worked table inside the implementation plan **and** as comments in the test.
+5. **Cross-check**: a standalone, committed unit test (`Vorabpauschale_MultiYearHold_RebasesToYearStart`) reproduces one lot's multi-year numbers from first principles so the regression baseline has an independent witness.
+6. **Sanity check** against §6.1: every changed Vorabpauschale should move in the expected direction (typically *up* for an appreciating multi-year hold, because the year-start base exceeds the original cost).
+
+> Note on the `IE00B3XXRP09` listing/currency mismatch (mapped to `VUSA.L` GBP, but `prices.csv` stored EUR year-end values): Stage A's fixtures must reconcile this explicitly — either model the lot in GBP with GBP fixtures + FX, or add a EUR listing if the lot was actually traded in EUR. The correct currency comes from the lot's `OpenUnitPrice.Currency` in the test statements; the fixtures follow that. Surfacing this is a feature.
+
+---
+
+## 9. Instrument reference administration
 
 The editable "Instrument" is the union of two normalized tables, presented as one entity in the UI:
 - **Profile:** `Isin`, `Name`, `Type`, `Teilfreistellungsquote`
@@ -145,7 +251,7 @@ The editable "Instrument" is the union of two normalized tables, presented as on
 
 ---
 
-## 8. Clearing & reload semantics
+## 10. Clearing & reload semantics
 
 - **Clear ledger**: transactional delete of `PortfolioEntries` + `ImportBatches` + `ImportDiagnostics` + `Accounts`, with an option to also purge raw audit files in `data/app/audit`. Reference/market data untouched. Double-confirm.
 - **Per-dataset Clear**: transactional truncate of the dataset's table(s).
@@ -156,7 +262,7 @@ The editable "Instrument" is the union of two normalized tables, presented as on
 
 ---
 
-## 9. Data Administration UI (`/data-admin`)
+## 11. Data Administration UI (`/data-admin`)
 
 A single MudBlazor page, one collapsible card per dataset, each showing **status** and **actions**. Nav link added to `MainLayout`.
 
@@ -172,18 +278,24 @@ Long-running refreshes run asynchronously with progress and a result summary (ad
 
 ---
 
-## 10. DI / composition (`Web/Program.cs`)
+## 12. DI / composition (`Web/Program.cs`)
 - Register `IHttpClientFactory`; bind `YahooHistoricalPriceProvider`, `EcbFxRateProvider`, `BmfBasisInterestRateSource` to their interfaces.
-- Repoint `IHistoricalPriceLookup` → `DbHistoricalPriceLookup`, `IInstrumentMarketDataMap` → `DbInstrumentMarketDataMap`, `IYearEndPriceProvider` → derived provider.
+- Repoint `IHistoricalPriceLookup` → `DbHistoricalPriceLookup`, `IInstrumentMarketDataMap` → `DbInstrumentMarketDataMap`; register `IInstrumentPriceProvider` → `DerivedInstrumentPriceProvider`; **remove** `IYearEndPriceProvider`.
 - Register the per-dataset refresh services, clear services, and `IInstrumentReferenceAdmin`.
 - Configuration knobs (delays, retry counts, supported FX currencies, source URLs) via `appsettings` bound options, with sane defaults.
 
 ---
 
-## 11. Testing
+## 13. Testing
 
-- **Regression (must stay green, unchanged):** `GermanTaxRegressionTests` with engineered historical-price + FX fixtures (see §6).
-- **Derived year-end provider:** symbol resolution per currency, last-trading-day selection, FX at bar date, blocking errors.
+- **Stage A regression (must stay green, UNCHANGED):** `GermanTaxRegressionTests` with engineered historical-price + FX fixtures reproducing current `prices.csv` year-end EUR values (§7 Stage A).
+- **Stage B regression (deliberately updated):** `GermanTaxRegressionTests` recomputed per §8, with arithmetic comments.
+- **New corrected-calc tests:**
+  - `Vorabpauschale_AcquisitionYear_UsesAcquisitionCostAndProRatesMonths` (unchanged behavior preserved).
+  - `Vorabpauschale_MultiYearHold_RebasesToYearStart` (the fix; independent first-principles witness).
+  - `Vorabpauschale_NonEurLot_ConvertsYearStartAndYearEndAtOwnDates`.
+  - Blocking-error cases: missing listing, missing year-start bar, missing year-end bar, missing FX, currency mismatch.
+- **Derived price provider:** symbol resolution per currency, `EarliestOnOrAfter` / `LatestOnOrBefore` selection, currency-mismatch guard.
 - **Refresh services:** incremental gap fetch, dedup/idempotency, diagnostic on currency mismatch, back-off path (provider mocked — **no live network in tests**).
 - **Providers:** parse fixtures captured from real Yahoo/ECB/BMF responses (committed sample payloads), asserting correct mapping; no live calls.
 - **Instrument admin:** validation rules, delete-guard when referenced, upload merge/replace.
@@ -191,22 +303,29 @@ Long-running refreshes run asynchronously with progress and a result summary (ad
 
 ---
 
-## 12. Work units (for the implementation plan)
-1. Migration: add `HistoricalPrice`, `InstrumentListing`, `DataRefreshLog`, `InstrumentProfile.Type`; drop `YearEndPrice`.
-2. DB stores/lookups: `DbHistoricalPriceLookup`, `DbInstrumentMarketDataMap`; extend seeder for new tables.
-3. Year-end derivation refactor + non-regression fixtures (§6).
-4. Yahoo provider + incremental refresh service.
-5. ECB provider + refresh service.
-6. BMF Basiszins source + refresh service + manual edit.
-7. Instrument reference admin (CRUD + upload).
-8. Clear services (ledger + per-dataset).
-9. Data Administration UI page + nav.
-10. DI wiring + configuration options.
-11. Retire Python scripts and `historical_prices.csv` / `market_data_mappings.json` as live inputs (keep seed CSV/JSON as bootstrap; remove Python from the repo or mark deprecated).
+## 14. Work units (for the implementation plan; order matters)
+
+*Prerequisites for the fix come first; the fix is the capstone but must land within Phase 2.*
+
+1. **Migration**: add `HistoricalPrice`, `InstrumentListing`, `DataRefreshLog`, `InstrumentProfile.Type`; drop `YearEndPrice`.
+2. **Price accessors**: `DbHistoricalPriceLookup` (+ `EarliestOnOrAfter`), `DbInstrumentMarketDataMap`, `DerivedInstrumentPriceProvider` + `IInstrumentPriceProvider`; extend seeder for the new tables.
+3. **Stage A wiring**: calculator sources **year-end** price from the derived provider, formula unchanged; engineer fixtures so `GermanTaxRegressionTests` passes **unchanged**. ✅ checkpoint.
+4. **Yahoo provider** + incremental refresh service.
+5. **ECB provider** + refresh service.
+6. **BMF Basiszins source** + refresh service + manual edit.
+7. **Stage B — Vorabpauschale correction** (§6.2): year-start re-basing; recompute baseline (§8); new tests (§13). ✅ **the bug is fixed here.**
+8. **Instrument reference admin** (CRUD + upload).
+9. **Clear services** (ledger + per-dataset).
+10. **Data Administration UI** page + nav.
+11. **DI wiring** + configuration options.
+12. **Retire** Python scripts and `historical_prices.csv` / `market_data_mappings.json` as live inputs (keep seed CSV/JSON as bootstrap; remove/deprecate Python).
+13. **Update `CLAUDE.md`**: tax guardrails now describe year-start re-basing; remove the multi-year item from "known thin spots".
 
 ---
 
-## 13. Open risks
+## 15. Open risks
+- **Regression-baseline arithmetic** is the highest-risk task: it must be recomputed by hand and independently witnessed (§8). Mitigation: the standalone first-principles test + worked table in the plan.
+- **Year-start data gaps**: a fund without a price near 1 Jan of a held year blocks replay by design. Mitigation: Yahoo refresh pulls ≥5 years of daily history; blocking errors name the exact missing `(ISIN, currency, date)`.
 - **Yahoo endpoint stability**: unofficial; mitigated by the interface boundary and committed parse fixtures.
 - **BMF page format drift**: mitigated by defensive parsing + manual override.
-- **Currency-mismatch in existing reference data**: the S&P 500 ETF (`IE00B3XXRP09`) is mapped to `VUSA.L` (GBP) yet its current `prices.csv` year-end is stored in EUR. §6's fixture engineering must reconcile this explicitly; surfacing such mismatches is a feature, not a bug.
+- **FX-conversion interpretation** for Vorabpauschale (§6.3 assumption 2): documented and isolated in the calculator so it can be revisited without touching the data layer.
