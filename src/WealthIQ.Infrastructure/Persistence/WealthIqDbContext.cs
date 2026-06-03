@@ -14,6 +14,7 @@ public sealed class WealthIqDbContext(DbContextOptions<WealthIqDbContext> option
     public DbSet<YearEndPriceRow> YearEndPrices => Set<YearEndPriceRow>();
     public DbSet<InstrumentProfileRow> InstrumentProfiles => Set<InstrumentProfileRow>();
     public DbSet<FxRateRow> FxRates => Set<FxRateRow>();
+    public DbSet<HistoricalPriceRow> HistoricalPrices => Set<HistoricalPriceRow>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -62,6 +63,11 @@ public sealed class WealthIqDbContext(DbContextOptions<WealthIqDbContext> option
         modelBuilder.Entity<FxRateRow>(e =>
         {
             e.HasKey(x => new { x.Date, x.Currency });
+        });
+
+        modelBuilder.Entity<HistoricalPriceRow>(e =>
+        {
+            e.HasKey(x => new { x.ProviderSymbol, x.Date });
         });
     }
 }
