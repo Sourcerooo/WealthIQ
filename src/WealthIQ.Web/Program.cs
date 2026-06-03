@@ -78,8 +78,9 @@ using (var scope = app.Services.CreateScope())
     var seeder = scope.ServiceProvider.GetRequiredService<IReferenceDataSeeder>();
     var sources = new ReferenceDataSources(
         Path.Combine(referenceDir, "basiszins.csv"),
-        Path.Combine(referenceDir, "prices.csv"),
+        Path.Combine(referenceDir, "historical_prices.csv"),
         Path.Combine(referenceDir, "instruments.json"),
+        Path.Combine(referenceDir, "listings.json"),
         Path.Combine(referenceDir, "fx_rates.csv"));
     await seeder.SeedIfEmptyAsync(sources);
 }
