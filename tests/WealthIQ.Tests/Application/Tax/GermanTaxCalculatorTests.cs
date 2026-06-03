@@ -18,12 +18,15 @@ public sealed class GermanTaxCalculatorTests
         var instrumentId = InstrumentId.NewId();
         var instruments = new[]
         {
-            new Instrument(instrumentId, "IE00B6R52259", "ACWI", "ACWI", 0.30m)
+            new Instrument(instrumentId, "IE00B6R52259", "ACWI", "ACWI", 0.30m) { SubjectToVorabpauschale = true }
         };
 
+        // year-start price = 100 (= acquisition price); year-end = 120
+        // With new §18 algorithm: basisErtrag = 100×0.025×0.7 = 1.75; dist/sh = 5/10 = 0.50;
+        // cap = (120-100)+0.50 = 20.50; capped = 1.75; vorabFull = 1.75-0.50 = 1.25; ×10 = 12.5
         var calculator = new GermanTaxCalculator(
             new StubInterestRateProvider((2024, 0.025m)),
-            new StubYearEndPriceProvider(("IE00B6R52259", 2024, 120m)),
+            new StubYearStartAndEndPriceProvider(("IE00B6R52259", 2024, 100m, 120m)),
             new StubFxRateLookup());
 
         var result = calculator.Calculate(new PortfolioLedger([
@@ -150,6 +153,18 @@ public sealed class GermanTaxCalculatorTests
             => _prices.TryGetValue((isin, pricingDate.Year), out var price)
                 ? new InstrumentQuote(price, CurrencyCode.EUR, pricingDate)
                 : null;
+    }
+
+    /// <summary>Returns a distinct start price (EarliestOnOrAfter) and end price (LatestOnOrBefore) per ISIN+year.</summary>
+    private sealed class StubYearStartAndEndPriceProvider(params (string Isin, int Year, decimal Start, decimal End)[] prices) : IInstrumentPriceProvider
+    {
+        public InstrumentQuote? GetQuote(string isin, CurrencyCode currency, DateOnly pricingDate, PriceQuoteHandling handling)
+        {
+            var entry = prices.FirstOrDefault(p => p.Isin == isin && p.Year == pricingDate.Year);
+            if (entry == default) return null;
+            var price = handling == PriceQuoteHandling.EarliestOnOrAfter ? entry.Start : entry.End;
+            return new InstrumentQuote(price, CurrencyCode.EUR, pricingDate);
+        }
     }
 
     private sealed class StubFxRateLookup : IFxRateLookup

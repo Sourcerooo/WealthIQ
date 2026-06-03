@@ -16,14 +16,44 @@ internal sealed class FakeBasisInterestRateProvider(params (int Year, decimal Ra
     public decimal? GetRate(int year) => _rates.TryGetValue(year, out var rate) ? rate : null;
 }
 
+/// <summary>Returns the same price for both year-start and year-end lookups (keyed by ISIN+year).
+/// Suitable for tests that don't need to distinguish start vs. end (e.g. cap-test with same price).
+/// For tests that need separate start/end prices use <see cref="FakeYearStartAndEndPriceProvider"/>.</summary>
 internal sealed class FakeYearEndPriceProvider(params (string Isin, int Year, decimal Price)[] prices) : IInstrumentPriceProvider
 {
     private readonly Dictionary<(string Isin, int Year), decimal> _prices = prices.ToDictionary(x => (x.Isin, x.Year), x => x.Price);
 
     public InstrumentQuote? GetQuote(string isin, WealthIQ.Domain.Enumeration.Currency currency, DateOnly pricingDate, PriceQuoteHandling handling)
     {
-        // Look up by ISIN + year; ignore currency (test double returns EUR directly, no FX needed).
+        // Look up by ISIN + year; ignore currency and handling (returns EUR directly, no FX needed).
         return _prices.TryGetValue((isin, pricingDate.Year), out var price)
+            ? new InstrumentQuote(price, WealthIQ.Domain.Enumeration.Currency.EUR, pricingDate)
+            : null;
+    }
+}
+
+/// <summary>Returns separate year-start and year-end prices. Keys: (ISIN, year, handling).
+/// Use <see cref="PriceQuoteHandling.EarliestOnOrAfter"/> for year-start and
+/// <see cref="PriceQuoteHandling.LatestOnOrBefore"/> for year-end.</summary>
+internal sealed class FakeYearStartAndEndPriceProvider : IInstrumentPriceProvider
+{
+    private readonly Dictionary<(string Isin, int Year, PriceQuoteHandling Handling), decimal> _prices = new();
+
+    public FakeYearStartAndEndPriceProvider AddStart(string isin, int year, decimal price)
+    {
+        _prices[(isin, year, PriceQuoteHandling.EarliestOnOrAfter)] = price;
+        return this;
+    }
+
+    public FakeYearStartAndEndPriceProvider AddEnd(string isin, int year, decimal price)
+    {
+        _prices[(isin, year, PriceQuoteHandling.LatestOnOrBefore)] = price;
+        return this;
+    }
+
+    public InstrumentQuote? GetQuote(string isin, WealthIQ.Domain.Enumeration.Currency currency, DateOnly pricingDate, PriceQuoteHandling handling)
+    {
+        return _prices.TryGetValue((isin, pricingDate.Year, handling), out var price)
             ? new InstrumentQuote(price, WealthIQ.Domain.Enumeration.Currency.EUR, pricingDate)
             : null;
     }
