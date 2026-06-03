@@ -11,7 +11,6 @@ public sealed class WealthIqDbContext(DbContextOptions<WealthIqDbContext> option
     public DbSet<ImportBatchRow> ImportBatches => Set<ImportBatchRow>();
     public DbSet<ImportDiagnosticRow> ImportDiagnostics => Set<ImportDiagnosticRow>();
     public DbSet<BasisInterestRateRow> BasisInterestRates => Set<BasisInterestRateRow>();
-    public DbSet<YearEndPriceRow> YearEndPrices => Set<YearEndPriceRow>();
     public DbSet<InstrumentProfileRow> InstrumentProfiles => Set<InstrumentProfileRow>();
     public DbSet<FxRateRow> FxRates => Set<FxRateRow>();
     public DbSet<HistoricalPriceRow> HistoricalPrices => Set<HistoricalPriceRow>();
@@ -54,11 +53,6 @@ public sealed class WealthIqDbContext(DbContextOptions<WealthIqDbContext> option
         });
 
         modelBuilder.Entity<BasisInterestRateRow>(e => e.HasKey(x => x.Year));
-
-        modelBuilder.Entity<YearEndPriceRow>(e =>
-        {
-            e.HasKey(x => new { x.Year, x.Isin });
-        });
 
         modelBuilder.Entity<InstrumentProfileRow>(e => e.HasKey(x => x.Isin));
 

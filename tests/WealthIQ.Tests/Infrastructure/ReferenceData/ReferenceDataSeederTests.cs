@@ -29,15 +29,12 @@ public sealed class ReferenceDataSeederTests
             result = await new ReferenceDataSeeder(ctx).SeedIfEmptyAsync(Sources());
         }
 
-        Assert.Equal(new ReferenceDataSeedResult(2, 2, 2, 3), result);
+        Assert.Equal(new ReferenceDataSeedResult(2, 0, 2, 3), result);
 
         await using (var ctx = db.NewContext())
         {
             var basis = await ctx.BasisInterestRates.SingleAsync(x => x.Year == 2024);
             Assert.Equal(0.0229m, basis.Rate);
-
-            var price = await ctx.YearEndPrices.SingleAsync(x => x.Year == 2024 && x.Isin == "IE00B3XXRP09");
-            Assert.Equal(106.47m, price.PriceEur);
 
             var profile = await ctx.InstrumentProfiles.SingleAsync(x => x.Isin == "IE00B3XXRP09");
             Assert.Equal(0.30m, profile.Teilfreistellungsquote);
@@ -63,7 +60,7 @@ public sealed class ReferenceDataSeederTests
             second = await new ReferenceDataSeeder(ctx).SeedIfEmptyAsync(Sources());
         }
 
-        Assert.Equal(new ReferenceDataSeedResult(2, 2, 2, 3), second);
+        Assert.Equal(new ReferenceDataSeedResult(2, 0, 2, 3), second);
 
         await using (var ctx = db.NewContext())
         {

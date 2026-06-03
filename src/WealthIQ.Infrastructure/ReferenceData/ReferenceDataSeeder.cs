@@ -24,11 +24,6 @@ public sealed class ReferenceDataSeeder(WealthIqDbContext db) : IReferenceDataSe
             db.BasisInterestRates.AddRange(ReadBasisInterestRates(sources.BasisInterestRateCsvPath));
         }
 
-        if (!await db.YearEndPrices.AnyAsync(ct))
-        {
-            db.YearEndPrices.AddRange(ReadYearEndPrices(sources.YearEndPriceCsvPath));
-        }
-
         if (!await db.InstrumentProfiles.AnyAsync(ct))
         {
             db.InstrumentProfiles.AddRange(ReadInstrumentProfiles(sources.InstrumentProfileJsonPath));
@@ -44,7 +39,7 @@ public sealed class ReferenceDataSeeder(WealthIqDbContext db) : IReferenceDataSe
 
         return new ReferenceDataSeedResult(
             await db.BasisInterestRates.CountAsync(ct),
-            await db.YearEndPrices.CountAsync(ct),
+            0, // YearEndPrices table dropped (Phase 2)
             await db.InstrumentProfiles.CountAsync(ct),
             await db.FxRates.CountAsync(ct));
     }
@@ -60,20 +55,6 @@ public sealed class ReferenceDataSeeder(WealthIqDbContext db) : IReferenceDataSe
             }
 
             yield return new BasisInterestRateRow { Year = year, Rate = rate };
-        }
-    }
-
-    private static IEnumerable<YearEndPriceRow> ReadYearEndPrices(string path)
-    {
-        foreach (var (lineNumber, parts) in ReadCsv(path, "Year-end price file not found.", minColumns: 3))
-        {
-            if (!int.TryParse(parts[0], out var year)
-                || !decimal.TryParse(parts[2], NumberStyles.Any, CultureInfo.InvariantCulture, out var price))
-            {
-                throw new FormatException($"Malformed row in '{Path.GetFileName(path)}' line {lineNumber}: invalid year or price.");
-            }
-
-            yield return new YearEndPriceRow { Year = year, Isin = parts[1].Trim(), PriceEur = price };
         }
     }
 

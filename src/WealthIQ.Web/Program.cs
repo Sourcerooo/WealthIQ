@@ -59,7 +59,6 @@ builder.Services.AddScoped<StatementImportPipeline>();
 // --- Reference data ---
 builder.Services.AddScoped<IReferenceDataSeeder, ReferenceDataSeeder>();
 builder.Services.AddScoped<IBasisInterestRateProvider, DbBasisInterestRateProvider>();
-builder.Services.AddScoped<IYearEndPriceProvider, DbYearEndPriceProvider>();
 builder.Services.AddScoped<IInstrumentProfileEnricher, DbInstrumentProfileEnricher>();
 builder.Services.AddScoped<IFxRateLookup, DbFxRateLookup>();
 
