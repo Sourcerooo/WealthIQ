@@ -4,6 +4,8 @@ using WealthIQ.Domain.Model.General;
 using WealthIQ.Domain.Model.Ledger;
 using WealthIQ.Domain.Model.Lot;
 
+using CurrencyCode = WealthIQ.Domain.Enumeration.Currency;
+
 namespace WealthIQ.Tests.Application.Matcher;
 
 public class FiFoMatcherTest
@@ -334,18 +336,18 @@ public class FiFoMatcherTest
             Direction = PositionDirection.Long,
             OriginalQuantity = new Quantity(10m),
             RemainingQuantity = new Quantity(10m),
-            OpenUnitPrice = new Money(100m, Currency.EUR),
-            RemainingOpenFees = new Money(0m, Currency.EUR),
-            RemainingOpenTaxes = new Money(0m, Currency.EUR)
+            OpenUnitPrice = new Money(100m, CurrencyCode.EUR),
+            RemainingOpenFees = new Money(0m, CurrencyCode.EUR),
+            RemainingOpenTaxes = new Money(0m, CurrencyCode.EUR)
         };
-        var lotB = lotA with { LotId = LotId.NewId(), OpenSourceReference = "B-2", OpenUnitPrice = new Money(200m, Currency.EUR) };
+        var lotB = lotA with { LotId = LotId.NewId(), OpenSourceReference = "B-2", OpenUnitPrice = new Money(200m, CurrencyCode.EUR) };
 
         // Pass them in reverse order to prove the matcher re-establishes deterministic order.
         var sell = new TradeEntry(
             PortfolioEntryId.NewId(), account, ts.AddDays(1), DateOnly.FromDateTime(ts.AddDays(1).UtcDateTime),
             new SourceProvenance { SourceSystem = "IBKR", ImportFormat = "XML", SourceLocation = "f", SourceRecordReference = "SELL" },
             instrument, TradeSide.Sell, new Quantity(10m),
-            new Money(300m, Currency.EUR), new Money(0m, Currency.EUR), new Money(0m, Currency.EUR));
+            new Money(300m, CurrencyCode.EUR), new Money(0m, CurrencyCode.EUR), new Money(0m, CurrencyCode.EUR));
 
         var result = new FiFoMatcher().Match(sell, new[] { lotB, lotA }, LotMatchingPolicy.FIFO);
 
@@ -381,9 +383,9 @@ public class FiFoMatcherTest
             Direction = direction,
             OriginalQuantity = new Quantity(originalQuantity),
             RemainingQuantity = new Quantity(remainingQuantity ?? originalQuantity),
-            OpenUnitPrice = new Money(openUnitPrice, Currency.EUR),
-            RemainingOpenFees = new Money(remainingOpenFees, Currency.EUR),
-            RemainingOpenTaxes = new Money(remainingOpenTaxes, Currency.EUR)
+            OpenUnitPrice = new Money(openUnitPrice, CurrencyCode.EUR),
+            RemainingOpenFees = new Money(remainingOpenFees, CurrencyCode.EUR),
+            RemainingOpenTaxes = new Money(remainingOpenTaxes, CurrencyCode.EUR)
         };
     }
 
@@ -417,8 +419,8 @@ public class FiFoMatcherTest
             effectiveInstrumentId,
             side,
             new Quantity(quantity),
-            new Money(unitPrice, Currency.EUR),
-            new Money(fees, Currency.EUR),
-            new Money(taxes, Currency.EUR));
+            new Money(unitPrice, CurrencyCode.EUR),
+            new Money(fees, CurrencyCode.EUR),
+            new Money(taxes, CurrencyCode.EUR));
     }
 }

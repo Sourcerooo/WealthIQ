@@ -5,6 +5,8 @@ using WealthIQ.Domain.Model.Ledger;
 using WealthIQ.Domain.Model.Tax;
 using Xunit;
 
+using CurrencyCode = WealthIQ.Domain.Enumeration.Currency;
+
 namespace WealthIQ.Tests.Application.Tax;
 
 public sealed class GermanTaxCalculatorEdgeCaseTests
@@ -53,9 +55,9 @@ public sealed class GermanTaxCalculatorEdgeCaseTests
                 TaxEntries.Provenance("DIV-1"),
                 cashInstrument,
                 CashFlowType.Dividend,
-                new Money(50m, Currency.EUR),
-                new Money(0m, Currency.EUR),
-                new Money(0m, Currency.EUR),
+                new Money(50m, CurrencyCode.EUR),
+                new Money(0m, CurrencyCode.EUR),
+                new Money(0m, CurrencyCode.EUR),
                 relatedInstrumentId: null)
         ]);
 

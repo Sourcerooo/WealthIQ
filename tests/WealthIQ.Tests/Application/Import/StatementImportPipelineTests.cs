@@ -8,6 +8,8 @@ using WealthIQ.Domain.Model.Ledger;
 using WealthIQ.Tests.Application.Import.Fakes;
 using Xunit;
 
+using CurrencyCode = WealthIQ.Domain.Enumeration.Currency;
+
 namespace WealthIQ.Tests.Application.Import;
 
 public sealed class StatementImportPipelineTests
@@ -36,7 +38,7 @@ public sealed class StatementImportPipelineTests
             new DateTimeOffset(2024, 3, 1, 12, 0, 0, TimeSpan.Zero),
             new DateOnly(2024, 3, 1), Provenance(reference), InstrumentId.NewId(),
             TradeSide.Buy, new Quantity(5m),
-            new Money(100m, Currency.USD), new Money(1m, Currency.USD), new Money(0m, Currency.USD));
+            new Money(100m, CurrencyCode.USD), new Money(1m, CurrencyCode.USD), new Money(0m, CurrencyCode.USD));
 
     private static StatementImportPipeline Build(
         ImportResult importResult, FakeImportStore store, out FakeStatementImporter importer, out FakeRawFileStore raw)

@@ -4,6 +4,8 @@ using WealthIQ.Domain.Enumeration;
 using WealthIQ.Domain.Model.General;
 using WealthIQ.Domain.Model.Ledger;
 
+using CurrencyCode = WealthIQ.Domain.Enumeration.Currency;
+
 namespace WealthIQ.Tests.Application.Tax;
 
 /// <summary>Configurable test doubles + entry builders shared by the GermanTaxCalculator test suites.</summary>
@@ -28,15 +30,15 @@ internal sealed class FakeYearEndPriceProvider(params (string Isin, int Year, de
 }
 
 /// <summary>Identity for same-currency conversions; otherwise returns a configured rate or throws.</summary>
-internal sealed class FakeFxRateLookup(params (DateOnly Date, Currency Currency, decimal Rate)[] rates) : IFxRateLookup
+internal sealed class FakeFxRateLookup(params (DateOnly Date, CurrencyCode Currency, decimal Rate)[] rates) : IFxRateLookup
 {
-    private readonly Dictionary<(DateOnly Date, Currency Currency), decimal> _rates =
+    private readonly Dictionary<(DateOnly Date, CurrencyCode Currency), decimal> _rates =
         rates.ToDictionary(x => (x.Date, x.Currency), x => x.Rate);
 
     public decimal GetRate(
         DateOnly conversionDate,
-        Currency sourceCurrency,
-        Currency targetCurrency,
+        CurrencyCode sourceCurrency,
+        CurrencyCode targetCurrency,
         FxRateLookupDateHandling dateHandling = FxRateLookupDateHandling.ExactDate)
     {
         if (sourceCurrency == targetCurrency)
@@ -68,7 +70,7 @@ internal static class TaxEntries
         decimal unitPrice,
         DateTimeOffset occurredAt,
         string reference,
-        Currency currency = Currency.EUR,
+        CurrencyCode currency = CurrencyCode.EUR,
         decimal fees = 0m,
         decimal taxes = 0m)
         => new(
@@ -91,7 +93,7 @@ internal static class TaxEntries
         decimal grossAmount,
         DateTimeOffset occurredAt,
         string reference,
-        Currency currency = Currency.EUR)
+        CurrencyCode currency = CurrencyCode.EUR)
         => new(
             PortfolioEntryId.NewId(),
             accountId,
