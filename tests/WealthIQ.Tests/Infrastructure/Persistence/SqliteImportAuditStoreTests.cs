@@ -3,6 +3,8 @@ using WealthIQ.Application.Import.Diagnostic;
 using WealthIQ.Application.Import.Enumeration;
 using WealthIQ.Domain.Enumeration;
 using WealthIQ.Domain.Model.General;
+
+using CurrencyCode = WealthIQ.Domain.Enumeration.Currency;
 using WealthIQ.Domain.Model.Ledger;
 using WealthIQ.Infrastructure.Persistence;
 using Xunit;
@@ -24,7 +26,7 @@ public sealed class SqliteImportAuditStoreTests
             new DateTimeOffset(2024, 3, 1, 12, 0, 0, TimeSpan.Zero),
             new DateOnly(2024, 3, 1), Provenance(reference), instrument,
             TradeSide.Buy, new Quantity(5m),
-            new Money(100m, Currency.USD), new Money(1m, Currency.USD), new Money(0m, Currency.USD));
+            new Money(100m, CurrencyCode.USD), new Money(1m, CurrencyCode.USD), new Money(0m, CurrencyCode.USD));
 
     [Fact]
     public async Task GetBatchesAndDiagnostics_ReturnPersistedRows()
