@@ -16,7 +16,7 @@ public sealed class CsvReferenceProviderTests : IDisposable
     }
 
     [Fact]
-    public void BasisInterestRate_ParsesYears_AndReturnsZeroForUnknownYear()
+    public void BasisInterestRate_ParsesYears_AndReturnsNullForUnknownYear()
     {
         var provider = new CsvBasisInterestRateProvider(Write("basiszins.csv",
             """
@@ -28,7 +28,7 @@ public sealed class CsvReferenceProviderTests : IDisposable
 
         Assert.Equal(0.0255m, provider.GetRate(2023));
         Assert.Equal(0.0229m, provider.GetRate(2024));
-        Assert.Equal(0m, provider.GetRate(1999)); // unknown year → 0 (no Vorabpauschale)
+        Assert.Null(provider.GetRate(1999)); // unknown year → null (data gap)
     }
 
     [Fact]

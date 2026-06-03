@@ -206,12 +206,12 @@ public sealed class GermanTaxCalculator(
         IReadOnlyDictionary<InstrumentId, Instrument> instrumentById)
     {
         var basisInterestRate = interestRateProvider.GetRate(year);
-        if (basisInterestRate <= 0m)
+        if (basisInterestRate is null or <= 0m)
         {
             return;
         }
 
-        var basisFactor = basisInterestRate * 0.7m;
+        var basisFactor = basisInterestRate.Value * 0.7m;
 
         foreach (var instrumentGroup in openLots
                      .Where(x => x.Direction == PositionDirection.Long && x.RemainingQuantity.Value > 0m)

@@ -13,5 +13,5 @@ public sealed class DbBasisInterestRateProvider : IBasisInterestRateProvider
         _rates = db.BasisInterestRates.ToDictionary(x => x.Year, x => x.Rate);
     }
 
-    public decimal GetRate(int year) => _rates.GetValueOrDefault(year);
+    public decimal? GetRate(int year) => _rates.TryGetValue(year, out var rate) ? rate : null;
 }

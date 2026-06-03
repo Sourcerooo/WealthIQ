@@ -11,7 +11,7 @@ internal sealed class FakeBasisInterestRateProvider(params (int Year, decimal Ra
 {
     private readonly Dictionary<int, decimal> _rates = rates.ToDictionary(x => x.Year, x => x.Rate);
 
-    public decimal GetRate(int year) => _rates.GetValueOrDefault(year);
+    public decimal? GetRate(int year) => _rates.TryGetValue(year, out var rate) ? rate : null;
 }
 
 internal sealed class FakeYearEndPriceProvider(params (string Isin, int Year, decimal Price)[] prices) : IYearEndPriceProvider

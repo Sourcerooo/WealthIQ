@@ -35,12 +35,8 @@ public sealed class DbInstrumentProfileEnricher : IInstrumentProfileEnricher
             };
         }
 
-        return instrument with
-        {
-            Name = string.IsNullOrWhiteSpace(instrument.Name) ? "Auto-Generated" : instrument.Name,
-            Teilfreistellungsquote = instrument.Teilfreistellungsquote == 0m && !string.IsNullOrWhiteSpace(instrument.ISIN)
-                ? 0.30m
-                : instrument.Teilfreistellungsquote
-        };
+        // No profile on file: return as-is. Stage B turns "held over year-end with no profile"
+        // into a blocking error; here we no longer invent a 30% Teilfreistellung (spec §2, §4).
+        return instrument;
     }
 }

@@ -137,7 +137,7 @@ public sealed class GermanTaxCalculatorTests
     {
         private readonly Dictionary<int, decimal> _rates = rates.ToDictionary(x => x.Year, x => x.Rate);
 
-        public decimal GetRate(int year) => _rates.GetValueOrDefault(year);
+        public decimal? GetRate(int year) => _rates.TryGetValue(year, out var rate) ? rate : null;
     }
 
     private sealed class StubYearEndPriceProvider(params (string Isin, int Year, decimal Price)[] prices) : IYearEndPriceProvider
