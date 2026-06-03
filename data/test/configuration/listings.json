@@ -1,12 +1,14 @@
 {
   "IE00B3XXRP09": [
-    { "currency": "GBP", "provider": "YahooFinance", "provider_symbol": "VUSA.L", "notes": "London listing in GBP used to match broker-export trades in GBP." }
+    { "currency": "GBP", "provider": "YahooFinance", "provider_symbol": "VUSA.L", "notes": "London listing in GBP used to match broker-export trades in GBP." },
+    { "currency": "EUR", "provider": "YahooFinance", "provider_symbol": "VUSA.AS", "notes": "Euronext Amsterdam listing in EUR used to match broker-export trades originally recorded in EUR (IBKR switched from EUR to GBP reporting in mid-2021)." }
   ],
   "IE00B4ND3602": [
     { "currency": "USD", "provider": "YahooFinance", "provider_symbol": "IGLN.L", "notes": "London listing in USD used to match broker-export trades in USD." }
   ],
   "IE00BSKRJZ44": [
-    { "currency": "USD", "provider": "YahooFinance", "provider_symbol": "IDTL.L", "notes": "London listing in USD used to match broker-export trades in USD." }
+    { "currency": "USD", "provider": "YahooFinance", "provider_symbol": "IDTL.L", "notes": "London listing in USD used to match broker-export trades in USD." },
+    { "currency": "EUR", "provider": "YahooFinance", "provider_symbol": "IS04.AS", "notes": "Euronext Amsterdam listing in EUR used to match broker-export trades recorded in EUR under the IS04 symbol." }
   ],
   "IE00B53SZB19": [
     { "currency": "EUR", "provider": "YahooFinance", "provider_symbol": "CNDX.AS", "notes": "EUR listing used to match broker-export trades in EUR." }

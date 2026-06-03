@@ -35,27 +35,6 @@ public sealed class CsvReferenceProviderTests : IDisposable
     public void BasisInterestRate_FileNotFound_Throws()
         => Assert.Throws<FileNotFoundException>(() => new CsvBasisInterestRateProvider(Path.Combine(_temp, "nope.csv")));
 
-    [Fact]
-    public void YearEndPrice_ParsesCompositeKey_AndReturnsNullForUnknown()
-    {
-        var provider = new CsvYearEndPriceProvider(Write("prices.csv",
-            """
-            year,isin,price_eur
-            2024,IE00B3XXRP09,106.47
-            2024,IE00B4ND3602,48.77
-            2024,truncated
-            """));
-
-        Assert.Equal(106.47m, provider.GetPrice("IE00B3XXRP09", 2024));
-        Assert.Equal(48.77m, provider.GetPrice("IE00B4ND3602", 2024));
-        Assert.Null(provider.GetPrice("IE00B3XXRP09", 2023)); // right ISIN, wrong year
-        Assert.Null(provider.GetPrice("UNKNOWN", 2024));       // unknown ISIN
-    }
-
-    [Fact]
-    public void YearEndPrice_FileNotFound_Throws()
-        => Assert.Throws<FileNotFoundException>(() => new CsvYearEndPriceProvider(Path.Combine(_temp, "nope.csv")));
-
     public void Dispose()
     {
         if (Directory.Exists(_temp)) Directory.Delete(_temp, recursive: true);

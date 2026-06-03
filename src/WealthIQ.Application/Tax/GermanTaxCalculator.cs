@@ -12,7 +12,7 @@ namespace WealthIQ.Application.Tax;
 
 public sealed class GermanTaxCalculator(
     IBasisInterestRateProvider interestRateProvider,
-    IYearEndPriceProvider yearEndPriceProvider,
+    IInstrumentPriceProvider priceProvider,
     IFxRateLookup fxRateLookup)
 {
     private readonly FiFoMatcher _matcher = new();
@@ -223,16 +223,19 @@ public sealed class GermanTaxCalculator(
                 continue;
             }
 
-            var yearEndPrice = yearEndPriceProvider.GetPrice(instrument.ISIN, year);
-            if (!yearEndPrice.HasValue)
-            {
-                throw new InvalidOperationException(
-                    $"Year-end price for ISIN '{instrument.ISIN}' in {year} is required to compute Vorabpauschale " +
-                    $"but is missing. Add it to the reference price data.");
-            }
-
             foreach (var lot in instrumentGroup.ToList())
             {
+                var lotCurrency = lot.OpenUnitPrice.Currency;
+                var endQuote = priceProvider.GetQuote(instrument.ISIN, lotCurrency, new DateOnly(year, 12, 31), PriceQuoteHandling.LatestOnOrBefore);
+                if (endQuote is null)
+                {
+                    throw new InvalidOperationException(
+                        $"Year-end price for ISIN '{instrument.ISIN}' ({lotCurrency}) in {year} is required to compute Vorabpauschale but is missing.");
+                }
+
+                var yearEndPriceEur = _fxConverter.Convert(
+                    new Money(endQuote.Value.Close, endQuote.Value.Currency), endQuote.Value.AsOf).Amount;
+
                 var acquisitionPrice = CalculateRemainingAcquisitionPriceInEur(lot);
                 var months = 12m;
                 if (lot.OpenTradeDate.Year == year)
@@ -241,7 +244,7 @@ public sealed class GermanTaxCalculator(
                 }
 
                 var basisYield = acquisitionPrice * basisFactor * (months / 12m);
-                var appreciation = Math.Max(0m, yearEndPrice.Value - acquisitionPrice);
+                var appreciation = Math.Max(0m, yearEndPriceEur - acquisitionPrice);
                 var maxVorabpauschale = Math.Min(basisYield, appreciation);
 
                 // Only distributions paid into THIS lot's account, on THIS instrument, while the lot

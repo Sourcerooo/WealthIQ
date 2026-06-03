@@ -14,11 +14,17 @@ internal sealed class FakeBasisInterestRateProvider(params (int Year, decimal Ra
     public decimal? GetRate(int year) => _rates.TryGetValue(year, out var rate) ? rate : null;
 }
 
-internal sealed class FakeYearEndPriceProvider(params (string Isin, int Year, decimal Price)[] prices) : IYearEndPriceProvider
+internal sealed class FakeYearEndPriceProvider(params (string Isin, int Year, decimal Price)[] prices) : IInstrumentPriceProvider
 {
     private readonly Dictionary<(string Isin, int Year), decimal> _prices = prices.ToDictionary(x => (x.Isin, x.Year), x => x.Price);
 
-    public decimal? GetPrice(string isin, int year) => _prices.TryGetValue((isin, year), out var price) ? price : null;
+    public InstrumentQuote? GetQuote(string isin, WealthIQ.Domain.Enumeration.Currency currency, DateOnly pricingDate, PriceQuoteHandling handling)
+    {
+        // Look up by ISIN + year; ignore currency (test double returns EUR directly, no FX needed).
+        return _prices.TryGetValue((isin, pricingDate.Year), out var price)
+            ? new InstrumentQuote(price, WealthIQ.Domain.Enumeration.Currency.EUR, pricingDate)
+            : null;
+    }
 }
 
 /// <summary>Identity for same-currency conversions; otherwise returns a configured rate or throws.</summary>

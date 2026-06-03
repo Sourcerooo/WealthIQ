@@ -140,11 +140,14 @@ public sealed class GermanTaxCalculatorTests
         public decimal? GetRate(int year) => _rates.TryGetValue(year, out var rate) ? rate : null;
     }
 
-    private sealed class StubYearEndPriceProvider(params (string Isin, int Year, decimal Price)[] prices) : IYearEndPriceProvider
+    private sealed class StubYearEndPriceProvider(params (string Isin, int Year, decimal Price)[] prices) : IInstrumentPriceProvider
     {
         private readonly Dictionary<(string Isin, int Year), decimal> _prices = prices.ToDictionary(x => (x.Isin, x.Year), x => x.Price);
 
-        public decimal? GetPrice(string isin, int year) => _prices.TryGetValue((isin, year), out var price) ? price : null;
+        public InstrumentQuote? GetQuote(string isin, Currency currency, DateOnly pricingDate, PriceQuoteHandling handling)
+            => _prices.TryGetValue((isin, pricingDate.Year), out var price)
+                ? new InstrumentQuote(price, Currency.EUR, pricingDate)
+                : null;
     }
 
     private sealed class StubFxRateLookup : IFxRateLookup

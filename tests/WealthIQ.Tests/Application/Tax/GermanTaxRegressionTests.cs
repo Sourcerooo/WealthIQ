@@ -5,7 +5,9 @@ using WealthIQ.Domain.Enumeration;
 using WealthIQ.Domain.Model.General;
 using WealthIQ.Infrastructure.Ibkr.Currency;
 using WealthIQ.Infrastructure.Ibkr.Import;
+using WealthIQ.Infrastructure.Ibkr.MarketData;
 using WealthIQ.Infrastructure.Ibkr.Tax;
+using WealthIQ.Infrastructure.ReferenceData;
 
 namespace WealthIQ.Tests.Application.Tax;
 
@@ -31,9 +33,13 @@ public sealed class GermanTaxRegressionTests
             new JsonInstrumentProfileEnricher(Path.Combine(configurationPath, "instruments.json")))
             .Build(importResult.Instruments);
 
+        var priceProvider = new DerivedInstrumentPriceProvider(
+            new JsonInstrumentMarketDataMap(Path.Combine(configurationPath, "listings.json")),
+            new CsvHistoricalPriceLookup(Path.Combine(configurationPath, "historical_prices.csv")));
+
         var calculator = new GermanTaxCalculator(
             new CsvBasisInterestRateProvider(Path.Combine(configurationPath, "basiszins.csv")),
-            new CsvYearEndPriceProvider(Path.Combine(configurationPath, "prices.csv")),
+            priceProvider,
             new CsvFxRateLookup(Path.Combine(configurationPath, "fx_rates.csv")));
 
         var result = calculator.Calculate(importResult.PortfolioLedger, instrumentCatalog);
