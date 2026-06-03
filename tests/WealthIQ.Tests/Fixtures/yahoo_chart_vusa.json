@@ -1,0 +1,17 @@
+{
+  "chart": {
+    "result": [
+      {
+        "meta": { "currency": "GBP", "symbol": "VUSA.L" },
+        "timestamp": [1704153600, 1704240000],
+        "indicators": {
+          "quote": [
+            { "open": [90.1, 91.2], "high": [90.9, 91.8], "low": [89.5, 90.7], "close": [90.5, 91.5], "volume": [1000, 1100] }
+          ],
+          "adjclose": [ { "adjclose": [90.5, 91.5] } ]
+        }
+      }
+    ],
+    "error": null
+  }
+}
