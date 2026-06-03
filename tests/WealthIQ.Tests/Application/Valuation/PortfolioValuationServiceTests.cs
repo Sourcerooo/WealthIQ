@@ -6,6 +6,8 @@ using WealthIQ.Domain.Enumeration;
 using WealthIQ.Domain.Model.General;
 using WealthIQ.Domain.Model.Ledger;
 
+using CurrencyCode = WealthIQ.Domain.Enumeration.Currency;
+
 namespace WealthIQ.Tests.Application.Valuation;
 
 public sealed class PortfolioValuationServiceTests
@@ -105,12 +107,12 @@ public sealed class PortfolioValuationServiceTests
 
     private sealed class StubInstrumentMarketDataMap(InstrumentMarketDataProfile profile) : IInstrumentMarketDataMap
     {
-        public InstrumentMarketDataProfile GetProfile(Instrument instrument) => profile;
+        public InstrumentMarketDataProfile GetProfile(string isin, CurrencyCode currency) => profile;
     }
 
     private sealed class MissingInstrumentMarketDataMap : IInstrumentMarketDataMap
     {
-        public InstrumentMarketDataProfile GetProfile(Instrument instrument)
+        public InstrumentMarketDataProfile GetProfile(string isin, CurrencyCode currency)
             => throw new InvalidOperationException("Missing market-data mapping.");
     }
 
