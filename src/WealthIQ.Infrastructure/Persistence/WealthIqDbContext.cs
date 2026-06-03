@@ -15,6 +15,8 @@ public sealed class WealthIqDbContext(DbContextOptions<WealthIqDbContext> option
     public DbSet<InstrumentProfileRow> InstrumentProfiles => Set<InstrumentProfileRow>();
     public DbSet<FxRateRow> FxRates => Set<FxRateRow>();
     public DbSet<HistoricalPriceRow> HistoricalPrices => Set<HistoricalPriceRow>();
+    public DbSet<InstrumentListingRow> InstrumentListings => Set<InstrumentListingRow>();
+    public DbSet<DataRefreshLogRow> DataRefreshLog => Set<DataRefreshLogRow>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -69,5 +71,12 @@ public sealed class WealthIqDbContext(DbContextOptions<WealthIqDbContext> option
         {
             e.HasKey(x => new { x.ProviderSymbol, x.Date });
         });
+
+        modelBuilder.Entity<InstrumentListingRow>(e =>
+        {
+            e.HasKey(x => new { x.Isin, x.Currency });
+        });
+
+        modelBuilder.Entity<DataRefreshLogRow>(e => e.HasKey(x => x.Dataset));
     }
 }
