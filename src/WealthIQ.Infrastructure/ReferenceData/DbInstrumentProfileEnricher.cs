@@ -12,13 +12,13 @@ namespace WealthIQ.Infrastructure.ReferenceData;
 /// </summary>
 public sealed class DbInstrumentProfileEnricher : IInstrumentProfileEnricher
 {
-    private readonly Dictionary<string, (string Name, decimal Teilfreistellungsquote)> _profiles;
+    private readonly Dictionary<string, (string Name, string Type, decimal Teilfreistellungsquote, bool SubjectToVorabpauschale)> _profiles;
 
     public DbInstrumentProfileEnricher(WealthIqDbContext db)
     {
         _profiles = db.InstrumentProfiles.ToDictionary(
             x => x.Isin,
-            x => (x.Name, x.Teilfreistellungsquote),
+            x => (x.Name, x.Type, x.Teilfreistellungsquote, x.SubjectToVorabpauschale),
             StringComparer.OrdinalIgnoreCase);
     }
 
@@ -30,13 +30,15 @@ public sealed class DbInstrumentProfileEnricher : IInstrumentProfileEnricher
             return instrument with
             {
                 Name = profile.Name,
+                Type = profile.Type,
                 Teilfreistellungsquote = profile.Teilfreistellungsquote,
+                SubjectToVorabpauschale = profile.SubjectToVorabpauschale,
                 Symbol = string.IsNullOrWhiteSpace(instrument.Symbol) ? "Unknown" : instrument.Symbol
             };
         }
 
-        // No profile on file: return as-is. Stage B turns "held over year-end with no profile"
-        // into a blocking error; here we no longer invent a 30% Teilfreistellung (spec §2, §4).
+        // No profile on file: return as-is. SubjectToVorabpauschale stays null (Stage B turns
+        // "held over year-end with no profile" into a blocking error).
         return instrument;
     }
 }

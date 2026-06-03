@@ -23,7 +23,9 @@ public sealed class JsonInstrumentProfileEnricher : IInstrumentProfileEnricher
             return instrument with
             {
                 Name = profile.Name,
+                Type = profile.Type,
                 Teilfreistellungsquote = profile.Teilfreistellungsquote,
+                SubjectToVorabpauschale = profile.SubjectToVorabpauschale,
                 Symbol = string.IsNullOrWhiteSpace(instrument.Symbol) ? profile.SymbolFallback : instrument.Symbol
             };
         }
@@ -51,11 +53,11 @@ public sealed class JsonInstrumentProfileEnricher : IInstrumentProfileEnricher
                 throw new ApplicationException($"Invalid teilfreistellungsquote for instrument '{isin}'.");
             }
 
-            _profiles[isin] = new InstrumentProfile(profile.Name, teilfreistellungsquote);
+            _profiles[isin] = new InstrumentProfile(profile.Name, profile.Type, teilfreistellungsquote, profile.SubjectToVorabpauschale);
         }
     }
 
-    private sealed record InstrumentProfile(string Name, decimal Teilfreistellungsquote)
+    private sealed record InstrumentProfile(string Name, string Type, decimal Teilfreistellungsquote, bool SubjectToVorabpauschale)
     {
         public string SymbolFallback => "Unknown";
     }
@@ -65,7 +67,13 @@ public sealed class JsonInstrumentProfileEnricher : IInstrumentProfileEnricher
         [JsonPropertyName("name")]
         public string Name { get; init; } = string.Empty;
 
+        [JsonPropertyName("type")]
+        public string Type { get; init; } = "";
+
         [JsonPropertyName("tfs_quote")]
         public object? TeilfreistellungsquoteRaw { get; init; }
+
+        [JsonPropertyName("subject_to_vorabpauschale")]
+        public bool SubjectToVorabpauschale { get; init; }
     }
 }
