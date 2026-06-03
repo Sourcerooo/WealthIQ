@@ -67,6 +67,19 @@ public sealed class CsvHistoricalPriceLookup : IHistoricalPriceLookup
             throw new InvalidOperationException($"No historical price available for '{providerSymbol}' on '{pricingDate:yyyy-MM-dd}'.");
         }
 
+        if (dateHandling == PriceLookupDateHandling.EarliestOnOrAfter)
+        {
+            foreach (var candidate in barsByDate)
+            {
+                if (candidate.Key >= pricingDate)
+                {
+                    return candidate.Value;
+                }
+            }
+
+            throw new InvalidOperationException($"No historical price available for '{providerSymbol}' on or after '{pricingDate:yyyy-MM-dd}'.");
+        }
+
         foreach (var candidate in barsByDate.Reverse())
         {
             if (candidate.Key <= pricingDate)
