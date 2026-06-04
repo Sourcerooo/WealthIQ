@@ -173,7 +173,11 @@ else if (Current is not null)
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_animatePending)
+        // Only consume the flag once the figures are actually in the DOM. The first render shows
+        // the loading spinner (no count-up spans yet); consuming it there would skip the initial
+        // animation. Guarding on "data present" lets the post-load render animate, and year
+        // switches re-arm the flag in OnYearChanged.
+        if (_animatePending && !_loading && Current is not null)
         {
             _animatePending = false;
             await JS.InvokeVoidAsync("wealthiq.runCountUps");
