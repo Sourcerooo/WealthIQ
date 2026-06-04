@@ -39,6 +39,14 @@ var auditDir = Path.Combine(appDataDir, "audit");
 var dbPath = Path.Combine(appDataDir, "wealthiq.db");
 Directory.CreateDirectory(auditDir);
 
+var referenceDataSources = new ReferenceDataSources(
+    Path.Combine(referenceDir, "basiszins.csv"),
+    Path.Combine(referenceDir, "historical_prices.csv"),
+    Path.Combine(referenceDir, "instruments.json"),
+    Path.Combine(referenceDir, "listings.json"),
+    Path.Combine(referenceDir, "fx_rates.csv"));
+builder.Services.AddSingleton(referenceDataSources);
+
 // --- Config options ---
 var marketDataOptions = builder.Configuration.GetSection("MarketData").Get<HistoricalPriceProviderOptions>() ?? new HistoricalPriceProviderOptions();
 var fxRateOptions = builder.Configuration.GetSection("FxRates").Get<FxRateProviderOptions>() ?? new FxRateProviderOptions();
@@ -129,13 +137,7 @@ using (var scope = app.Services.CreateScope())
     db.Database.Migrate();
 
     var seeder = scope.ServiceProvider.GetRequiredService<IReferenceDataSeeder>();
-    var sources = new ReferenceDataSources(
-        Path.Combine(referenceDir, "basiszins.csv"),
-        Path.Combine(referenceDir, "historical_prices.csv"),
-        Path.Combine(referenceDir, "instruments.json"),
-        Path.Combine(referenceDir, "listings.json"),
-        Path.Combine(referenceDir, "fx_rates.csv"));
-    await seeder.SeedIfEmptyAsync(sources);
+    await seeder.SeedIfEmptyAsync(referenceDataSources);
 }
 
 if (!app.Environment.IsDevelopment())

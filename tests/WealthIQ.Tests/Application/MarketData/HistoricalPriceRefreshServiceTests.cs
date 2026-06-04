@@ -66,4 +66,19 @@ public sealed class HistoricalPriceRefreshServiceTests
 
         Assert.True(store.Deleted);
     }
+
+    [Fact]
+    public async Task RefreshRangeAsync_SelectedSymbol_FetchesExplicitRange()
+    {
+        var bar = new PriceBar(new DateOnly(2022, 6, 15), "VUSA.L", CurrencyCode.GBP, 1, 1, 1, 1, 1, 1);
+        var provider = new FakeProvider(new HistoricalPriceFetchResult("VUSA.L", CurrencyCode.GBP, [bar]));
+        var store = new FakeStore();
+
+        var service = new HistoricalPriceRefreshService(provider, store);
+        var result = await service.RefreshRangeAsync(["VUSA.L"], new DateOnly(2020, 1, 1), new DateOnly(2024, 12, 31), forceFullReload: false, CancellationToken.None);
+
+        Assert.Equal(new DateOnly(2020, 1, 1), provider.From);
+        Assert.Equal(1, result.Added);
+        Assert.False(result.HasBlockingDiagnostics);
+    }
 }
