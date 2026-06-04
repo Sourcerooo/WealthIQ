@@ -1,16 +1,22 @@
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 using WealthIQ.Application.Audit.Interface;
+using WealthIQ.Application.Currency;
 using WealthIQ.Application.Currency.Interface;
 using WealthIQ.Application.Import;
 using WealthIQ.Application.Import.Interface;
+using WealthIQ.Application.MarketData;
+using WealthIQ.Application.MarketData.Interface;
 using WealthIQ.Application.Persistence.Interface;
 using WealthIQ.Application.ReferenceData;
 using WealthIQ.Application.ReferenceData.Interface;
 using WealthIQ.Application.Tax;
 using WealthIQ.Application.Tax.Interface;
 using WealthIQ.Application.Tax.Report;
+using WealthIQ.Infrastructure.Ibkr.Currency;
 using WealthIQ.Infrastructure.Ibkr.Import;
+using WealthIQ.Infrastructure.Ibkr.MarketData;
+using WealthIQ.Infrastructure.Ibkr.Tax;
 using WealthIQ.Infrastructure.Ingest;
 using WealthIQ.Infrastructure.Persistence;
 using WealthIQ.Infrastructure.ReferenceData;
@@ -33,9 +39,20 @@ var auditDir = Path.Combine(appDataDir, "audit");
 var dbPath = Path.Combine(appDataDir, "wealthiq.db");
 Directory.CreateDirectory(auditDir);
 
+// --- Config options ---
+var marketDataOptions = builder.Configuration.GetSection("MarketData").Get<HistoricalPriceProviderOptions>() ?? new HistoricalPriceProviderOptions();
+var fxRateOptions = builder.Configuration.GetSection("FxRates").Get<FxRateProviderOptions>() ?? new FxRateProviderOptions();
+var basiszinsOptions = builder.Configuration.GetSection("Basiszins").Get<BasisInterestRateSourceOptions>() ?? new BasisInterestRateSourceOptions();
+builder.Services.AddSingleton(marketDataOptions);
+builder.Services.AddSingleton(fxRateOptions);
+builder.Services.AddSingleton(basiszinsOptions);
+
 // --- Blazor + MudBlazor ---
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddMudServices();
+
+// --- HTTP client factory ---
+builder.Services.AddHttpClient();
 
 // --- Persistence ---
 // Blazor Server: scoped == circuit-lifetime, so a single AddDbContext would be shared across
@@ -61,6 +78,42 @@ builder.Services.AddScoped<IReferenceDataSeeder, ReferenceDataSeeder>();
 builder.Services.AddScoped<IBasisInterestRateProvider, DbBasisInterestRateProvider>();
 builder.Services.AddScoped<IInstrumentProfileEnricher, DbInstrumentProfileEnricher>();
 builder.Services.AddScoped<IFxRateLookup, DbFxRateLookup>();
+builder.Services.AddScoped<IHistoricalPriceLookup, DbHistoricalPriceLookup>();
+builder.Services.AddScoped<IInstrumentMarketDataMap, DbInstrumentMarketDataMap>();
+builder.Services.AddScoped<IInstrumentPriceProvider, DerivedInstrumentPriceProvider>();
+
+// --- Network providers (use named HttpClients via IHttpClientFactory) ---
+builder.Services.AddScoped<IHistoricalPriceProvider>(sp =>
+    new YahooHistoricalPriceProvider(
+        sp.GetRequiredService<IHttpClientFactory>().CreateClient("Yahoo"),
+        sp.GetRequiredService<HistoricalPriceProviderOptions>()));
+builder.Services.AddScoped<IFxRateProvider>(sp =>
+    new EcbFxRateProvider(
+        sp.GetRequiredService<IHttpClientFactory>().CreateClient("ECB"),
+        sp.GetRequiredService<FxRateProviderOptions>()));
+builder.Services.AddScoped<IBasisInterestRateSource>(sp =>
+    new BmfBasisInterestRateSource(
+        sp.GetRequiredService<IHttpClientFactory>().CreateClient("BMF"),
+        sp.GetRequiredService<BasisInterestRateSourceOptions>()));
+
+// --- Stores ---
+builder.Services.AddScoped<IHistoricalPriceStore, DbHistoricalPriceStore>();
+builder.Services.AddScoped<IFxRateStore, DbFxRateStore>();
+builder.Services.AddScoped<IBasisInterestRateStore, DbBasisInterestRateStore>();
+
+// --- Refresh services ---
+builder.Services.AddScoped<HistoricalPriceRefreshService>();
+builder.Services.AddScoped<FxRateRefreshService>();
+builder.Services.AddScoped<BasisInterestRateRefreshService>();
+
+// --- Admin, clear, and log services ---
+builder.Services.AddScoped<IInstrumentReferenceAdmin, DbInstrumentReferenceAdmin>();
+builder.Services.AddScoped<ILedgerClearService>(sp =>
+    new DbLedgerClearService(
+        sp.GetRequiredService<WealthIqDbContext>(),
+        auditDirectory: auditDir));
+builder.Services.AddScoped<IReferenceDataClearService, DbReferenceDataClearService>();
+builder.Services.AddScoped<IDataRefreshLog, DbDataRefreshLog>();
 
 // --- Tax replay ---
 builder.Services.AddScoped<InstrumentCatalogBuilder>();
