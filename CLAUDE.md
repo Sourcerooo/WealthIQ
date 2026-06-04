@@ -9,6 +9,8 @@ WealthIQ is a **personal, single-user, local** wealth-management tool. v1 priori
 Authoritative docs in repo:
 - Spec: `docs/superpowers/specs/2026-05-29-wealthiq-neustart-design.md`
 - Plans: `docs/superpowers/plans/` (Plan 1 foundation/persistence, Plan 2 import→persist + seeding, Plan 3 tax-replay + dashboard) — **all implemented**.
+- Phase 2 spec: `docs/superpowers/specs/2026-05-31-phase2-data-administration-design.md`
+- Phase 2 plan: `docs/superpowers/plans/2026-06-03-phase2-data-administration.md`
 - Old docs (discussion basis, do not delete): `docs_old/`
 
 ## Stack
@@ -54,18 +56,18 @@ Rules: never depend from `Domain` outward; business rules live in `Domain`/`Appl
 - `--no-build` means the Release build must succeed first, and **everything the tests read must be committed to git** (CI clones a clean checkout).
 
 ## Data layout (`data/`)
-- `data/reference/` — **committed** seed reference data (`basiszins.csv`, `prices.csv`, `instruments.json`, `fx_rates.csv`, plus market-data tooling inputs `market_data_mappings.json`, `historical_prices.csv`). Seeded into SQLite on first run.
+- `data/reference/` — **committed** seed reference data (`basiszins.csv`, `instruments.json`, `fx_rates.csv`, `listings.json`, `historical_prices.csv`). Seeded into SQLite on first run. `prices.csv` and `market_data_mappings.json` are **retired**; year-start/year-end prices are derived from `HistoricalPrice` bars (`ProviderSymbol, Date`). New tables: `HistoricalPrice`, `InstrumentListing` (`Isin, Currency`), `DataRefreshLog` (`Dataset`). `InstrumentProfile` now carries `Type` and `SubjectToVorabpauschale` columns. Reference data is refreshable from the internet (Yahoo Finance / ECB / BMF) via the `/data-admin` page; committed files remain the offline bootstrap seed and CI fixtures. Python download scripts are **retired**; native C# providers replace them.
 - `data/test/` — **committed** golden test fixtures: `statements/*.xml` (IBKR samples 2021–2025) + `configuration/` (csv/json the regression test reads). **Must not be gitignored** — the end-to-end regression test reads them, so gitignoring them breaks CI.
 - `data/app/` — local runtime DB/raw files. **Gitignored.**
 - `data/design_template/` — local-only design notes. **Gitignored.**
 
 ## Tax-pipeline guardrails
 - Lot matching is **FIFO**; distinguish open lots from realized entries; partial closes preserve remaining quantity + pro-rata cost allocation; over-closes open an opposite-direction lot (short), never silently dropped.
-- **Vorabpauschale** = `Basiszins × 0.7` pro-rata months, capped at actual appreciation, minus same-year distributions; posted to year+1; previously-taxed Vorabpauschale is deducted at sale.
-- **Teilfreistellung** (e.g. 30% for equity funds) applies to sales, dividends, and Vorabpauschale; driven by instrument profile (default 30% when ISIN present but unknown).
+- **Vorabpauschale** (§18 InvStG) — only for instruments where `SubjectToVorabpauschale = true` (explicit profile required; no inference). Per year Y with `Basiszins(Y) > 0`, for each held long lot: `basisErtrag = yearStartRedemptionPrice × Basiszins × 0.7`; `cap = max(0, (yearEnd − yearStart) + distributionsPerShare)`; `vorabFull = max(0, min(basisErtrag, cap) − distributionsPerShare)`; `vorabPerShare = vorabFull × monthFactor` where `monthFactor = (13 − openMonth)/12` in the acquisition year, else 1. Posted to year+1 (Jan 1); previously-taxed Vorabpauschale deducted at sale. `Basiszins = null` for a held year → blocking error. `Basiszins ≤ 0` → skip year (no price lookup).
+- **Teilfreistellung** (e.g. 30% for equity funds) applies to sales, dividends, and Vorabpauschale; driven by the instrument profile. No defaults — a held instrument with no profile is a blocking error.
 - Importer accepts only `STK`/`FUND`; forex/cash/other asset classes → Info diagnostic + skip. Cancellation pairs ("(Ca.)") are matched and removed.
 - Golden baseline: `tests/.../Application/Tax/GermanTaxRegressionTests.cs` asserts exact 2024 disposal + Vorabpauschale figures against `data/test`. If tax logic changes, update expected values deliberately and explain why.
-- Known thin spots: short-position tax semantics; Teilfreistellung variants other than 30%/0% (no such instruments in data yet); Vorabpauschale for a position held *beyond* the last ledger entry still needs an explicit as-of/through-year parameter (calculator currently replays only up to the last entry year).
+- Known thin spots: short-position tax semantics; Teilfreistellung variants other than 30%/0% (no such instruments in data yet); Vorabpauschale for a position held *beyond* the last ledger entry still needs an explicit as-of/through-year parameter (calculator currently replays only up to the last entry year). Multi-year Vorabpauschale accumulation and the §18(2) acquisition-month pro-ration are fully implemented and tested as of Phase 2.
 - `AssetTransferEntry` / `PositionAdjustmentEntry` exist in the domain but tax replay fails fast with `NotSupportedException` if encountered — full transfer/adjustment semantics are unimplemented (no importer constructs them yet; YAGNI until IBKR data requires it).
 
 ## EF Core / migrations
