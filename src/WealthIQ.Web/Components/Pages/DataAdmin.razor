@@ -22,11 +22,13 @@
 
 <PageTitle>WealthIQ — Datenverwaltung</PageTitle>
 
-<MudText Typo="Typo.h4" GutterBottom="true">Datenverwaltung</MudText>
+<PageHeader Title="Marktdaten" Subtitle="Kurse, Wechselkurse und Basiszins verwalten" />
+
+<div class="wiq-rise">
 
 @if (_busy)
 {
-    <MudProgressLinear Indeterminate="true" Class="mb-4" />
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Rounded="true" Class="mb-4" />
 }
 
 @if (_message is not null)
@@ -34,10 +36,10 @@
     <MudAlert Severity="@_messageSeverity" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="DismissMessage">@_message</MudAlert>
 }
 
-<MudExpansionPanels MultiExpansion="true">
+<MudExpansionPanels MultiExpansion="true" Elevation="0">
 
     <!-- Ledger -->
-    <MudExpansionPanel Text="Ledger (Buchungen)">
+    <MudExpansionPanel Text="Ledger (Buchungen)" Icon="@Icons.Material.Outlined.Receipt">
         <MudText Typo="Typo.body2" Class="mb-3">
             Einträge: @_ledgerEntries | Konten: @_accounts | Batches: @_batches
         </MudText>
@@ -49,7 +51,7 @@
     </MudExpansionPanel>
 
     <!-- Historical Prices -->
-    <MudExpansionPanel Text="Historische Kurse (Yahoo Finance)">
+    <MudExpansionPanel Text="Historische Kurse (Yahoo Finance)" Icon="@Icons.Material.Outlined.ShowChart">
         <MudText Typo="Typo.body2" Class="mb-3">
             @if (_priceMin is not null && _priceMax is not null)
             {
@@ -99,7 +101,7 @@
     </MudExpansionPanel>
 
     <!-- FX Rates -->
-    <MudExpansionPanel Text="Wechselkurse (EZB)">
+    <MudExpansionPanel Text="Wechselkurse (EZB)" Icon="@Icons.Material.Outlined.CurrencyExchange">
         <MudText Typo="Typo.body2" Class="mb-3">
             @if (_fxMin is not null && _fxMax is not null)
             {
@@ -129,7 +131,7 @@
     </MudExpansionPanel>
 
     <!-- Basiszins -->
-    <MudExpansionPanel Text="Basiszins (BMF)">
+    <MudExpansionPanel Text="Basiszins (BMF)" Icon="@Icons.Material.Outlined.Percent">
         <MudText Typo="Typo.body2" Class="mb-3">
             @if (_basiszinsMin is not null && _basiszinsMax is not null)
             {
@@ -172,27 +174,26 @@
     </MudExpansionPanel>
 
     <!-- Instruments -->
-    <MudExpansionPanel Text="Instrumente">
+    <MudExpansionPanel Text="Instrumente" Icon="@Icons.Material.Outlined.Inventory2">
         <MudText Typo="Typo.body2" Class="mb-3">
             Profile: @_profileCount | Listings: @_listingCount
         </MudText>
-        <MudButton Variant="Variant.Outlined" Href="/data-admin/instruments" Color="Color.Primary">
-            Verwalten →
-        </MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="/data-admin/instruments" StartIcon="@Icons.Material.Outlined.OpenInNew">Instrumente verwalten</MudButton>
     </MudExpansionPanel>
 
 </MudExpansionPanels>
 
 @if (_lastResult is not null)
 {
-    <MudPaper Class="pa-4 mt-4">
-        <MudText Typo="Typo.subtitle1" GutterBottom="true">Ergebnis: @_lastResultLabel</MudText>
+    <div class="mt-4">
+    <SectionCard Title="Ergebnis">
+        <MudText Typo="Typo.subtitle1" GutterBottom="true">@_lastResultLabel</MudText>
         <MudText Typo="Typo.body2">
             Hinzugefügt: @_lastResult.Added, Aktualisiert: @_lastResult.Updated, Übersprungen: @_lastResult.Skipped
         </MudText>
         @if (_lastResult.Diagnostics.Count > 0)
         {
-            <MudTable Items="_lastResult.Diagnostics" Dense="true" Hover="true" Class="mt-3">
+            <MudTable Items="_lastResult.Diagnostics" Dense="true" Hover="true" Elevation="0" Class="mt-3">
                 <HeaderContent>
                     <MudTh>Severity</MudTh>
                     <MudTh>Code</MudTh>
@@ -209,8 +210,11 @@
                 </RowTemplate>
             </MudTable>
         }
-    </MudPaper>
+    </SectionCard>
+    </div>
 }
+
+</div>
 
 @code {
     private bool _busy;
