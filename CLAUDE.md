@@ -26,6 +26,16 @@ Authoritative docs in repo:
 - `src/WealthIQ.Web` — Blazor Server app; **composition root** (DI wiring) and the only project that references Infrastructure.
 - `tests/WealthIQ.Tests` — xUnit (Domain / Application / Infrastructure).
 
+### Web UI ("Midnight Ledger" design)
+The dashboard uses a dark-first emerald-on-navy theme with a left navigation drawer and a dark/light toggle. Key pieces (all under `src/WealthIQ.Web`):
+- Theme: central `MudTheme` in `Theme/WealthIqTheme.cs` (light + dark palettes), wired in `Components/Layout/MainLayout.razor` via `MudThemeProvider`.
+- Theme persistence: `Services/ThemePreferenceService.cs` stores the dark/light choice in `localStorage` (JS interop, loaded in `OnAfterRenderAsync(firstRender)`).
+- Shared presentational components in `Components/Shared/`: `PageHeader` (renders the page `<h1>` — keep it so `FocusOnNavigate Selector="h1"` works), `SectionCard`, `StatCard`.
+- Styling/motion: `wwwroot/wealthiq.css` (`.wiq-*` classes, tabular numerals, entrance animations, honors `prefers-reduced-motion`) and `wwwroot/wealthiq.js` (`window.wealthiq` — theme localStorage helpers + count-up enhancement; the static text is already the final value, JS only animates).
+- Navigation drawer groups pages as **Bericht** (Steuerreport), **Daten erfassen** (Import), **Stammdaten** (Marktdaten = `/data-admin`, Instrumente), and a bottom-pinned **Diagnose** (Diagnose = `/diagnostics`, Audit-Trail). Routes are unchanged; only labels/placement.
+- Charts use MudBlazor's built-in `MudChart`; the Steuerreport donut is one `ChartSeries<double>` whose `Data` array holds the per-category segment values (MudBlazor renders one segment per data point).
+- Note: `Components/Shared/` Razor components have no `Class`/`Style` parameter; apply outer spacing via a wrapper `div`. Icon-only `MudIconButton`s use `aria-label` (not `Title`, which trips the MUD0002 analyzer).
+
 ## Dependency direction (keep strict)
 - `Application → Domain`
 - `Infrastructure → Application, Domain`
