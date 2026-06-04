@@ -208,7 +208,7 @@ public sealed class VorabpauschaleCorrectionTests
         var calc = new GermanTaxCalculator(FixedRate(0.0229m), prices, new StubFxLookup());
         var result = calc.Calculate(ledger, [instrument]);
 
-        Assert.Empty(result.Entries.Where(e => e.Type == GermanTaxEntryType.Vorabpauschale));
+        Assert.DoesNotContain(result.Entries, e => e.Type == GermanTaxEntryType.Vorabpauschale);
     }
 
     // ── Test 5: Missing classification → blocking error ──────────────────────
@@ -261,7 +261,7 @@ public sealed class VorabpauschaleCorrectionTests
         var calc = new GermanTaxCalculator(ZeroRate(), prices, new StubFxLookup());
         var result = calc.Calculate(ledger, [instrument]);
 
-        Assert.Empty(result.Entries.Where(e => e.Type == GermanTaxEntryType.Vorabpauschale));
+        Assert.DoesNotContain(result.Entries, e => e.Type == GermanTaxEntryType.Vorabpauschale);
     }
 
     // ── Test 8: Non-EUR lot → converts year-start and year-end at own bar dates ──
