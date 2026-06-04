@@ -1,0 +1,32 @@
+@* KPI card: caption + figure, with optional emerald accent and count-up. *@
+<MudPaper Elevation="0" Class="@RootClass" Style="height:100%;padding:18px 18px 16px;">
+    <MudText Typo="Typo.caption" Style="text-transform:uppercase;letter-spacing:.06em;color:var(--mud-palette-text-secondary);">
+        @Caption
+    </MudText>
+    <div class="wiq-figure @FigureClass" style="font-size:1.6rem;margin-top:6px;">
+        @if (CountUp)
+        {
+            <span class="wiq-countup" data-target="@Value.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-suffix=" €">@Display</span>
+        }
+        else
+        {
+            @Display
+        }
+    </div>
+    @if (!string.IsNullOrWhiteSpace(Hint))
+    {
+        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">@Hint</MudText>
+    }
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public string Caption { get; set; } = "";
+    [Parameter] public decimal Value { get; set; }
+    [Parameter] public string? Hint { get; set; }
+    [Parameter] public bool Accent { get; set; }
+    [Parameter] public bool CountUp { get; set; }
+
+    private string Display => Value.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("de-DE")) + " €";
+    private string RootClass => "wiq-card" + (Accent ? " wiq-card--accent" : "");
+    private string FigureClass => Accent ? "wiq-hero-figure" : "";
+}

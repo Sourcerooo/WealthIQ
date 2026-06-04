@@ -1,0 +1,27 @@
+@* Titled container that replaces bare MudPaper for content sections. *@
+<MudPaper Elevation="0" Class="wiq-card" Style="padding:20px;">
+    @if (!string.IsNullOrWhiteSpace(Title) || HeaderActions is not null)
+    {
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;">
+            <div>
+                <MudText Typo="Typo.h6" Style="font-weight:600;">@Title</MudText>
+                @if (!string.IsNullOrWhiteSpace(Subtitle))
+                {
+                    <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">@Subtitle</MudText>
+                }
+            </div>
+            @if (HeaderActions is not null)
+            {
+                <div>@HeaderActions</div>
+            }
+        </div>
+    }
+    @ChildContent
+</MudPaper>
+
+@code {
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public RenderFragment? HeaderActions { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}
