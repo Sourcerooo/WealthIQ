@@ -1,22 +1,37 @@
 @page "/data-admin"
 @using Microsoft.EntityFrameworkCore
+@using MudBlazor
+@using WealthIQ.Application.Currency
+@using WealthIQ.Application.Import.Diagnostic
+@using WealthIQ.Application.MarketData
 @using WealthIQ.Application.ReferenceData
 @using WealthIQ.Application.ReferenceData.Interface
+@using WealthIQ.Application.Tax
 @using WealthIQ.Infrastructure.Persistence
 @inject WealthIqDbContext Db
+@inject HistoricalPriceRefreshService PriceRefresh
+@inject FxRateRefreshService FxRefresh
+@inject BasisInterestRateRefreshService BasisRefresh
 @inject ILedgerClearService LedgerClear
 @inject IReferenceDataClearService RefClear
-@inject IDataRefreshLog RefreshLog
 @inject IReferenceDataSeeder Seeder
+@inject ReferenceDataSources Sources
+@inject IDataRefreshLog RefreshLog
+@inject IDialogService DialogService
 @inject TimeProvider Clock
 
 <PageTitle>WealthIQ — Datenverwaltung</PageTitle>
 
 <MudText Typo="Typo.h4" GutterBottom="true">Datenverwaltung</MudText>
 
+@if (_busy)
+{
+    <MudProgressLinear Indeterminate="true" Class="mb-4" />
+}
+
 @if (_message is not null)
 {
-    <MudAlert Severity="@_messageSeverity" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="() => _message = null">@_message</MudAlert>
+    <MudAlert Severity="@_messageSeverity" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="DismissMessage">@_message</MudAlert>
 }
 
 <MudExpansionPanels MultiExpansion="true">
@@ -36,32 +51,79 @@
     <!-- Historical Prices -->
     <MudExpansionPanel Text="Historische Kurse (Yahoo Finance)">
         <MudText Typo="Typo.body2" Class="mb-3">
-            Bars: @_priceCount | Zuletzt aktualisiert: @(_priceLastRefreshed?.ToString("yyyy-MM-dd HH:mm") ?? "—")
+            @if (_priceMin is not null && _priceMax is not null)
+            {
+                <span>Zeitraum: @_priceMin?.ToString("yyyy-MM-dd") – @_priceMax?.ToString("yyyy-MM-dd") | @_priceSymbols Instrumente | @_priceCount Bars</span>
+            }
+            else
+            {
+                <span>keine Daten</span>
+            }
+            <span> | Zuletzt aktualisiert: @(_priceLastRefreshed?.ToString("yyyy-MM-dd HH:mm") ?? "—")</span>
         </MudText>
-        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mr-2"
-                   Disabled="_busy" OnClick="ShowYahooPlaceholder">
-            Inkrementell aktualisieren
+
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mr-2 mb-2"
+                   Disabled="_busy" OnClick="RefreshPricesIncremental">
+            Inkrementell aktualisieren (alle)
         </MudButton>
-        <MudButton Variant="Variant.Outlined" Color="Color.Warning" Class="mr-2"
+
+        <MudDivider Class="my-3" />
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Gezielter Download</MudText>
+
+        <MudSelect T="string" MultiSelection="true" @bind-SelectedValues="_selectedSymbols"
+                   Label="Instrumente" Variant="Variant.Outlined" Class="mb-3"
+                   SelectAll="true" SelectAllText="Alle auswählen">
+            @foreach (var sym in _availableSymbols)
+            {
+                <MudSelectItem T="string" Value="@sym.ProviderSymbol">@sym.ProviderSymbol (@sym.Currency)</MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudDateRangePicker @bind-DateRange="_priceRange" Label="Zeitraum" Variant="Variant.Outlined" Class="mb-3" />
+
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mr-2 mb-2"
+                   Disabled="_busy" OnClick="RefreshPricesRange">
+            Herunterladen
+        </MudButton>
+
+        <MudDivider Class="my-3" />
+
+        <MudButton Variant="Variant.Outlined" Color="Color.Warning" Class="mr-2 mb-2"
                    Disabled="_busy" OnClick="ClearHistoricalPrices">
             Löschen
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" Class="mb-2"
+                   Disabled="_busy" OnClick="ReseedHistoricalPrices">
+            Aus Datei neu laden
         </MudButton>
     </MudExpansionPanel>
 
     <!-- FX Rates -->
     <MudExpansionPanel Text="Wechselkurse (EZB)">
         <MudText Typo="Typo.body2" Class="mb-3">
-            Einträge: @_fxCount | Zuletzt aktualisiert: @(_fxLastRefreshed?.ToString("yyyy-MM-dd HH:mm") ?? "—")
+            @if (_fxMin is not null && _fxMax is not null)
+            {
+                <span>Zeitraum: @_fxMin?.ToString("yyyy-MM-dd") – @_fxMax?.ToString("yyyy-MM-dd") | @_fxCurrencies Währungen</span>
+            }
+            else
+            {
+                <span>keine Daten</span>
+            }
+            <span> | Zuletzt aktualisiert: @(_fxLastRefreshed?.ToString("yyyy-MM-dd HH:mm") ?? "—")</span>
         </MudText>
-        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mr-2"
-                   Disabled="_busy" OnClick="ShowEcbPlaceholder">
+
+        <MudDateRangePicker @bind-DateRange="_fxRange" Label="Zeitraum" Variant="Variant.Outlined" Class="mb-3" />
+
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mr-2 mb-2"
+                   Disabled="_busy" OnClick="RefreshFxRates">
             Von EZB aktualisieren
         </MudButton>
-        <MudButton Variant="Variant.Outlined" Color="Color.Warning" Class="mr-2"
+        <MudButton Variant="Variant.Outlined" Color="Color.Warning" Class="mr-2 mb-2"
                    Disabled="_busy" OnClick="ClearFxRates">
             Löschen
         </MudButton>
-        <MudButton Variant="Variant.Outlined" Disabled="_busy" OnClick="ReseedFxRates">
+        <MudButton Variant="Variant.Outlined" Class="mb-2"
+                   Disabled="_busy" OnClick="ReseedFxRates">
             Aus Datei neu laden
         </MudButton>
     </MudExpansionPanel>
@@ -69,17 +131,42 @@
     <!-- Basiszins -->
     <MudExpansionPanel Text="Basiszins (BMF)">
         <MudText Typo="Typo.body2" Class="mb-3">
-            Einträge: @_basiszinsCount | Zuletzt aktualisiert: @(_basiszinsLastRefreshed?.ToString("yyyy-MM-dd HH:mm") ?? "—")
+            @if (_basiszinsMin is not null && _basiszinsMax is not null)
+            {
+                <span>Jahre: @_basiszinsMin – @_basiszinsMax | @_basiszinsCount Einträge</span>
+            }
+            else
+            {
+                <span>keine Daten</span>
+            }
+            <span> | Zuletzt aktualisiert: @(_basiszinsLastRefreshed?.ToString("yyyy-MM-dd HH:mm") ?? "—")</span>
         </MudText>
-        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mr-2"
-                   Disabled="_busy" OnClick="ShowBmfPlaceholder">
+
+        <MudNumericField T="int" @bind-Value="_basisYear" Label="Jahr" Variant="Variant.Outlined" Class="mb-3" Style="max-width: 160px;" />
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mr-2 mb-2"
+                   Disabled="_busy" OnClick="RefreshBasiszins">
             Von BMF abrufen
         </MudButton>
-        <MudButton Variant="Variant.Outlined" Color="Color.Warning" Class="mr-2"
+
+        <MudDivider Class="my-3" />
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Manuell erfassen</MudText>
+        <div class="d-flex gap-3 align-center flex-wrap mb-3">
+            <MudNumericField T="int" @bind-Value="_manualYear" Label="Jahr" Variant="Variant.Outlined" Style="max-width: 160px;" />
+            <MudNumericField T="decimal" @bind-Value="_manualRate" Label="Zinssatz (z. B. 0,0253)" Variant="Variant.Outlined" Style="max-width: 220px;" Format="F4" />
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                       Disabled="_busy" OnClick="SaveManualBasiszins">
+                Speichern
+            </MudButton>
+        </div>
+
+        <MudDivider Class="my-3" />
+
+        <MudButton Variant="Variant.Outlined" Color="Color.Warning" Class="mr-2 mb-2"
                    Disabled="_busy" OnClick="ClearBasiszins">
             Löschen
         </MudButton>
-        <MudButton Variant="Variant.Outlined" Disabled="_busy" OnClick="ReseedBasiszins">
+        <MudButton Variant="Variant.Outlined" Class="mb-2"
+                   Disabled="_busy" OnClick="ReseedBasiszins">
             Aus Datei neu laden
         </MudButton>
     </MudExpansionPanel>
@@ -96,6 +183,35 @@
 
 </MudExpansionPanels>
 
+@if (_lastResult is not null)
+{
+    <MudPaper Class="pa-4 mt-4">
+        <MudText Typo="Typo.subtitle1" GutterBottom="true">Ergebnis: @_lastResultLabel</MudText>
+        <MudText Typo="Typo.body2">
+            Hinzugefügt: @_lastResult.Added, Aktualisiert: @_lastResult.Updated, Übersprungen: @_lastResult.Skipped
+        </MudText>
+        @if (_lastResult.Diagnostics.Count > 0)
+        {
+            <MudTable Items="_lastResult.Diagnostics" Dense="true" Hover="true" Class="mt-3">
+                <HeaderContent>
+                    <MudTh>Severity</MudTh>
+                    <MudTh>Code</MudTh>
+                    <MudTh>Meldung</MudTh>
+                    <MudTh>Sektion</MudTh>
+                    <MudTh>Referenz</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Severity">@context.Severity</MudTd>
+                    <MudTd DataLabel="Code">@context.Code</MudTd>
+                    <MudTd DataLabel="Meldung">@context.Message</MudTd>
+                    <MudTd DataLabel="Sektion">@context.Section</MudTd>
+                    <MudTd DataLabel="Referenz">@context.SourceReference</MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudPaper>
+}
+
 @code {
     private bool _busy;
     private bool _purgeAuditFiles;
@@ -104,33 +220,234 @@
 
     // status counts
     private int _ledgerEntries, _accounts, _batches;
-    private int _priceCount, _fxCount, _basiszinsCount, _profileCount, _listingCount;
+    private int _priceCount, _priceSymbols;
+    private DateOnly? _priceMin, _priceMax;
+    private int _fxCurrencies;
+    private DateOnly? _fxMin, _fxMax;
+    private int? _basiszinsMin, _basiszinsMax;
+    private int _basiszinsCount, _profileCount, _listingCount;
     private DateTimeOffset? _priceLastRefreshed, _fxLastRefreshed, _basiszinsLastRefreshed;
 
-    protected override async Task OnInitializedAsync() => await LoadStatusAsync();
+    // price multiselect
+    private IReadOnlyCollection<string> _selectedSymbols = Array.Empty<string>();
+    private List<(string ProviderSymbol, string Currency)> _availableSymbols = new();
+    private DateRange? _priceRange;
+
+    // fx range
+    private DateRange? _fxRange;
+
+    // basiszins inputs
+    private int _basisYear;
+    private int _manualYear;
+    private decimal _manualRate;
+
+    // last refresh result
+    private DataRefreshResult? _lastResult;
+    private string _lastResultLabel = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var today = DateTime.Today;
+        _priceRange = new DateRange(today.AddYears(-5), today);
+        _fxRange = new DateRange(today.AddYears(-5), today);
+        _basisYear = Clock.GetUtcNow().Year;
+        _manualYear = Clock.GetUtcNow().Year;
+        await LoadStatusAsync();
+    }
 
     private async Task LoadStatusAsync()
     {
         _ledgerEntries = await Db.PortfolioEntries.CountAsync();
         _accounts = await Db.Accounts.CountAsync();
         _batches = await Db.ImportBatches.CountAsync();
+
         _priceCount = await Db.HistoricalPrices.CountAsync();
-        _fxCount = await Db.FxRates.CountAsync();
+        if (_priceCount > 0)
+        {
+            _priceMin = await Db.HistoricalPrices.MinAsync(x => x.Date);
+            _priceMax = await Db.HistoricalPrices.MaxAsync(x => x.Date);
+            _priceSymbols = await Db.HistoricalPrices.Select(x => x.ProviderSymbol).Distinct().CountAsync();
+        }
+        else
+        {
+            _priceMin = null;
+            _priceMax = null;
+            _priceSymbols = 0;
+        }
+
+        var fxCount = await Db.FxRates.CountAsync();
+        if (fxCount > 0)
+        {
+            _fxMin = await Db.FxRates.MinAsync(x => x.Date);
+            _fxMax = await Db.FxRates.MaxAsync(x => x.Date);
+            _fxCurrencies = await Db.FxRates.Select(x => x.Currency).Distinct().CountAsync();
+        }
+        else
+        {
+            _fxMin = null;
+            _fxMax = null;
+            _fxCurrencies = 0;
+        }
+
         _basiszinsCount = await Db.BasisInterestRates.CountAsync();
+        if (_basiszinsCount > 0)
+        {
+            _basiszinsMin = await Db.BasisInterestRates.MinAsync(x => x.Year);
+            _basiszinsMax = await Db.BasisInterestRates.MaxAsync(x => x.Year);
+        }
+        else
+        {
+            _basiszinsMin = null;
+            _basiszinsMax = null;
+        }
+
         _profileCount = await Db.InstrumentProfiles.CountAsync();
         _listingCount = await Db.InstrumentListings.CountAsync();
+
         _priceLastRefreshed = await RefreshLog.GetLastRefreshedAsync("HistoricalPrices");
         _fxLastRefreshed = await RefreshLog.GetLastRefreshedAsync("FxRates");
         _basiszinsLastRefreshed = await RefreshLog.GetLastRefreshedAsync("Basiszins");
+
+        _availableSymbols = await Db.InstrumentListings
+            .Select(x => new { x.ProviderSymbol, x.Currency })
+            .Distinct()
+            .OrderBy(x => x.ProviderSymbol)
+            .ToListAsync()
+            .ContinueWith(t => t.Result.Select(x => (x.ProviderSymbol, x.Currency)).ToList());
     }
 
     private async Task ClearLedger()
     {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Ledger wirklich löschen?",
+            "Alle Buchungen, Konten, Import-Batches und Diagnosen werden unwiderruflich gelöscht. Referenz-/Marktdaten bleiben erhalten.",
+            yesText: "Endgültig löschen", cancelText: "Abbrechen");
+        if (confirmed != true) return;
+
         _busy = true;
         try
         {
             await LedgerClear.ClearLedgerAsync(_purgeAuditFiles);
             ShowSuccess("Ledger geleert.");
+            await LoadStatusAsync();
+        }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private async Task RefreshPricesIncremental()
+    {
+        _busy = true;
+        _lastResult = null;
+        try
+        {
+            var result = await PriceRefresh.RefreshAsync(Today(), false, default);
+            _lastResult = result;
+            _lastResultLabel = "Historische Kurse (inkrementell)";
+            if (!result.HasBlockingDiagnostics)
+            {
+                await RefreshLog.RecordAsync("HistoricalPrices", Clock.GetUtcNow(),
+                    $"{result.Added} neu, {result.Updated} aktualisiert");
+                ShowSuccess($"Kurse aktualisiert: {result.Added} neu, {result.Updated} aktualisiert.");
+            }
+            else
+            {
+                ShowError("Refresh abgeschlossen, aber mit Fehlern (siehe Diagnosetabelle).");
+            }
+            await LoadStatusAsync();
+        }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private async Task RefreshPricesRange()
+    {
+        _busy = true;
+        _lastResult = null;
+        try
+        {
+            var symbols = _selectedSymbols.ToList();
+            var result = await PriceRefresh.RefreshRangeAsync(
+                symbols.Count > 0 ? symbols : null,
+                From(_priceRange), To(_priceRange), false, default);
+            _lastResult = result;
+            _lastResultLabel = "Historische Kurse (gezielt)";
+            if (!result.HasBlockingDiagnostics)
+            {
+                await RefreshLog.RecordAsync("HistoricalPrices", Clock.GetUtcNow(),
+                    $"{result.Added} neu, {result.Updated} aktualisiert");
+                ShowSuccess($"Kurse heruntergeladen: {result.Added} neu, {result.Updated} aktualisiert.");
+            }
+            else
+            {
+                ShowError("Refresh abgeschlossen, aber mit Fehlern (siehe Diagnosetabelle).");
+            }
+            await LoadStatusAsync();
+        }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private async Task RefreshFxRates()
+    {
+        _busy = true;
+        _lastResult = null;
+        try
+        {
+            var result = await FxRefresh.RefreshAsync(From(_fxRange), To(_fxRange), default);
+            _lastResult = result;
+            _lastResultLabel = "Wechselkurse (EZB)";
+            if (!result.HasBlockingDiagnostics)
+            {
+                await RefreshLog.RecordAsync("FxRates", Clock.GetUtcNow(),
+                    $"{result.Added} neu, {result.Updated} aktualisiert");
+                ShowSuccess($"Wechselkurse aktualisiert: {result.Added} neu, {result.Updated} aktualisiert.");
+            }
+            else
+            {
+                ShowError("Refresh abgeschlossen, aber mit Fehlern (siehe Diagnosetabelle).");
+            }
+            await LoadStatusAsync();
+        }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private async Task RefreshBasiszins()
+    {
+        _busy = true;
+        _lastResult = null;
+        try
+        {
+            var result = await BasisRefresh.RefreshAsync(_basisYear, default);
+            _lastResult = result;
+            _lastResultLabel = $"Basiszins {_basisYear} (BMF)";
+            if (!result.HasBlockingDiagnostics)
+            {
+                await RefreshLog.RecordAsync("Basiszins", Clock.GetUtcNow(),
+                    $"Jahr {_basisYear}: {result.Added} neu, {result.Updated} aktualisiert");
+                ShowSuccess($"Basiszins {_basisYear} abgerufen.");
+            }
+            else
+            {
+                ShowError($"Basiszins {_basisYear} konnte nicht abgerufen werden (siehe Diagnosetabelle). Bitte manuell erfassen.");
+            }
+            await LoadStatusAsync();
+        }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private async Task SaveManualBasiszins()
+    {
+        _busy = true;
+        _lastResult = null;
+        try
+        {
+            await BasisRefresh.SetManualAsync(_manualYear, _manualRate, default);
+            await RefreshLog.RecordAsync("Basiszins", Clock.GetUtcNow(),
+                $"Manuell: Jahr {_manualYear} = {_manualRate:F4}");
+            ShowSuccess($"Basiszins {_manualYear} = {_manualRate:F4} gespeichert.");
             await LoadStatusAsync();
         }
         catch (Exception ex) { ShowError(ex.Message); }
@@ -154,36 +471,29 @@
         finally { _busy = false; }
     }
 
-    private async Task ReseedFxRates()
+    private async Task ReseedHistoricalPrices() => await Reseed(ReferenceDataset.HistoricalPrices, "Historische Kurse");
+    private async Task ReseedFxRates() => await Reseed(ReferenceDataset.FxRates, "Wechselkurse");
+    private async Task ReseedBasiszins() => await Reseed(ReferenceDataset.BasisInterestRates, "Basiszins");
+
+    private async Task Reseed(ReferenceDataset dataset, string label)
     {
         _busy = true;
         try
         {
-            await RefClear.ClearAsync(ReferenceDataset.FxRates);
-            // Seeder re-seeds only when the table is empty (which we just ensured)
-            ShowInfo("FX-Daten werden beim nächsten Neustart aus der Datei neu geladen (Seeder).");
+            await RefClear.ClearAsync(dataset);
+            await Seeder.SeedIfEmptyAsync(Sources);
+            ShowSuccess($"{label} aus Seed-Dateien neu geladen.");
+            await LoadStatusAsync();
         }
         catch (Exception ex) { ShowError(ex.Message); }
         finally { _busy = false; }
     }
 
-    private async Task ReseedBasiszins()
-    {
-        _busy = true;
-        try
-        {
-            await RefClear.ClearAsync(ReferenceDataset.BasisInterestRates);
-            ShowInfo("Basiszins wird beim nächsten Neustart aus der Datei neu geladen (Seeder).");
-        }
-        catch (Exception ex) { ShowError(ex.Message); }
-        finally { _busy = false; }
-    }
-
-    private void ShowYahooPlaceholder() => ShowInfo("Yahoo-Refresh wird in Task 30 verdrahtet.");
-    private void ShowEcbPlaceholder() => ShowInfo("EZB-Refresh wird in Task 30 verdrahtet.");
-    private void ShowBmfPlaceholder() => ShowInfo("BMF-Refresh wird in Task 30 verdrahtet.");
-
+    private void DismissMessage() => _message = null;
     private void ShowSuccess(string msg) { _message = msg; _messageSeverity = Severity.Success; }
     private void ShowError(string msg) { _message = msg; _messageSeverity = Severity.Error; }
-    private void ShowInfo(string msg) { _message = msg; _messageSeverity = Severity.Info; }
+
+    private DateOnly Today() => DateOnly.FromDateTime(Clock.GetUtcNow().UtcDateTime);
+    private static DateOnly From(DateRange? r) => DateOnly.FromDateTime(r?.Start ?? DateTime.UtcNow.AddYears(-5));
+    private static DateOnly To(DateRange? r) => DateOnly.FromDateTime(r?.End ?? DateTime.UtcNow);
 }
