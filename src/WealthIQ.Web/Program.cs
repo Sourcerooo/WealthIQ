@@ -58,6 +58,7 @@ builder.Services.AddSingleton(basiszinsOptions);
 // --- Blazor + MudBlazor ---
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddMudServices();
+builder.Services.AddScoped<WealthIQ.Web.Services.ThemePreferenceService>();
 
 // --- HTTP client factory ---
 builder.Services.AddHttpClient();
