@@ -1,0 +1,189 @@
+@page "/data-admin"
+@using Microsoft.EntityFrameworkCore
+@using WealthIQ.Application.ReferenceData
+@using WealthIQ.Application.ReferenceData.Interface
+@using WealthIQ.Infrastructure.Persistence
+@inject WealthIqDbContext Db
+@inject ILedgerClearService LedgerClear
+@inject IReferenceDataClearService RefClear
+@inject IDataRefreshLog RefreshLog
+@inject IReferenceDataSeeder Seeder
+@inject TimeProvider Clock
+
+<PageTitle>WealthIQ — Datenverwaltung</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Datenverwaltung</MudText>
+
+@if (_message is not null)
+{
+    <MudAlert Severity="@_messageSeverity" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="() => _message = null">@_message</MudAlert>
+}
+
+<MudExpansionPanels MultiExpansion="true">
+
+    <!-- Ledger -->
+    <MudExpansionPanel Text="Ledger (Buchungen)">
+        <MudText Typo="Typo.body2" Class="mb-3">
+            Einträge: @_ledgerEntries | Konten: @_accounts | Batches: @_batches
+        </MudText>
+        <MudCheckBox @bind-Value="_purgeAuditFiles" Label="Rohdateien (Audit) löschen" />
+        <MudButton Variant="Variant.Filled" Color="Color.Error" Class="mt-2"
+                   Disabled="_busy" OnClick="ClearLedger">
+            Ledger leeren (unwiderruflich)
+        </MudButton>
+    </MudExpansionPanel>
+
+    <!-- Historical Prices -->
+    <MudExpansionPanel Text="Historische Kurse (Yahoo Finance)">
+        <MudText Typo="Typo.body2" Class="mb-3">
+            Bars: @_priceCount | Zuletzt aktualisiert: @(_priceLastRefreshed?.ToString("yyyy-MM-dd HH:mm") ?? "—")
+        </MudText>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mr-2"
+                   Disabled="_busy" OnClick="ShowYahooPlaceholder">
+            Inkrementell aktualisieren
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Warning" Class="mr-2"
+                   Disabled="_busy" OnClick="ClearHistoricalPrices">
+            Löschen
+        </MudButton>
+    </MudExpansionPanel>
+
+    <!-- FX Rates -->
+    <MudExpansionPanel Text="Wechselkurse (EZB)">
+        <MudText Typo="Typo.body2" Class="mb-3">
+            Einträge: @_fxCount | Zuletzt aktualisiert: @(_fxLastRefreshed?.ToString("yyyy-MM-dd HH:mm") ?? "—")
+        </MudText>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mr-2"
+                   Disabled="_busy" OnClick="ShowEcbPlaceholder">
+            Von EZB aktualisieren
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Warning" Class="mr-2"
+                   Disabled="_busy" OnClick="ClearFxRates">
+            Löschen
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" Disabled="_busy" OnClick="ReseedFxRates">
+            Aus Datei neu laden
+        </MudButton>
+    </MudExpansionPanel>
+
+    <!-- Basiszins -->
+    <MudExpansionPanel Text="Basiszins (BMF)">
+        <MudText Typo="Typo.body2" Class="mb-3">
+            Einträge: @_basiszinsCount | Zuletzt aktualisiert: @(_basiszinsLastRefreshed?.ToString("yyyy-MM-dd HH:mm") ?? "—")
+        </MudText>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mr-2"
+                   Disabled="_busy" OnClick="ShowBmfPlaceholder">
+            Von BMF abrufen
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Warning" Class="mr-2"
+                   Disabled="_busy" OnClick="ClearBasiszins">
+            Löschen
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" Disabled="_busy" OnClick="ReseedBasiszins">
+            Aus Datei neu laden
+        </MudButton>
+    </MudExpansionPanel>
+
+    <!-- Instruments -->
+    <MudExpansionPanel Text="Instrumente">
+        <MudText Typo="Typo.body2" Class="mb-3">
+            Profile: @_profileCount | Listings: @_listingCount
+        </MudText>
+        <MudButton Variant="Variant.Outlined" Href="/data-admin/instruments" Color="Color.Primary">
+            Verwalten →
+        </MudButton>
+    </MudExpansionPanel>
+
+</MudExpansionPanels>
+
+@code {
+    private bool _busy;
+    private bool _purgeAuditFiles;
+    private string? _message;
+    private Severity _messageSeverity = Severity.Success;
+
+    // status counts
+    private int _ledgerEntries, _accounts, _batches;
+    private int _priceCount, _fxCount, _basiszinsCount, _profileCount, _listingCount;
+    private DateTimeOffset? _priceLastRefreshed, _fxLastRefreshed, _basiszinsLastRefreshed;
+
+    protected override async Task OnInitializedAsync() => await LoadStatusAsync();
+
+    private async Task LoadStatusAsync()
+    {
+        _ledgerEntries = await Db.PortfolioEntries.CountAsync();
+        _accounts = await Db.Accounts.CountAsync();
+        _batches = await Db.ImportBatches.CountAsync();
+        _priceCount = await Db.HistoricalPrices.CountAsync();
+        _fxCount = await Db.FxRates.CountAsync();
+        _basiszinsCount = await Db.BasisInterestRates.CountAsync();
+        _profileCount = await Db.InstrumentProfiles.CountAsync();
+        _listingCount = await Db.InstrumentListings.CountAsync();
+        _priceLastRefreshed = await RefreshLog.GetLastRefreshedAsync("HistoricalPrices");
+        _fxLastRefreshed = await RefreshLog.GetLastRefreshedAsync("FxRates");
+        _basiszinsLastRefreshed = await RefreshLog.GetLastRefreshedAsync("Basiszins");
+    }
+
+    private async Task ClearLedger()
+    {
+        _busy = true;
+        try
+        {
+            await LedgerClear.ClearLedgerAsync(_purgeAuditFiles);
+            ShowSuccess("Ledger geleert.");
+            await LoadStatusAsync();
+        }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private async Task ClearHistoricalPrices() => await ClearDataset(ReferenceDataset.HistoricalPrices, "Kursdaten geleert.");
+    private async Task ClearFxRates() => await ClearDataset(ReferenceDataset.FxRates, "Wechselkurse geleert.");
+    private async Task ClearBasiszins() => await ClearDataset(ReferenceDataset.BasisInterestRates, "Basiszins geleert.");
+
+    private async Task ClearDataset(ReferenceDataset dataset, string successMessage)
+    {
+        _busy = true;
+        try
+        {
+            await RefClear.ClearAsync(dataset);
+            ShowSuccess(successMessage);
+            await LoadStatusAsync();
+        }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private async Task ReseedFxRates()
+    {
+        _busy = true;
+        try
+        {
+            await RefClear.ClearAsync(ReferenceDataset.FxRates);
+            // Seeder re-seeds only when the table is empty (which we just ensured)
+            ShowInfo("FX-Daten werden beim nächsten Neustart aus der Datei neu geladen (Seeder).");
+        }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private async Task ReseedBasiszins()
+    {
+        _busy = true;
+        try
+        {
+            await RefClear.ClearAsync(ReferenceDataset.BasisInterestRates);
+            ShowInfo("Basiszins wird beim nächsten Neustart aus der Datei neu geladen (Seeder).");
+        }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private void ShowYahooPlaceholder() => ShowInfo("Yahoo-Refresh wird in Task 30 verdrahtet.");
+    private void ShowEcbPlaceholder() => ShowInfo("EZB-Refresh wird in Task 30 verdrahtet.");
+    private void ShowBmfPlaceholder() => ShowInfo("BMF-Refresh wird in Task 30 verdrahtet.");
+
+    private void ShowSuccess(string msg) { _message = msg; _messageSeverity = Severity.Success; }
+    private void ShowError(string msg) { _message = msg; _messageSeverity = Severity.Error; }
+    private void ShowInfo(string msg) { _message = msg; _messageSeverity = Severity.Info; }
+}
