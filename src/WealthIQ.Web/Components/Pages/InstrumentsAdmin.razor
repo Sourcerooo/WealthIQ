@@ -7,198 +7,199 @@
 
 <PageTitle>WealthIQ — Instrumente verwalten</PageTitle>
 
-<div class="d-flex align-center gap-3 mb-4">
-    <MudText Typo="Typo.h4">Instrumente verwalten</MudText>
-    <MudButton Variant="Variant.Text" Href="/data-admin" StartIcon="@Icons.Material.Filled.ArrowBack">
-        Zurück zur Datenverwaltung
-    </MudButton>
-</div>
+<PageHeader Title="Instrumente" Subtitle="Instrumentenprofile und Listings pflegen">
+    <Actions>
+        <MudButton Variant="Variant.Text" Href="/data-admin" StartIcon="@Icons.Material.Outlined.ArrowBack">Zurück zu Marktdaten</MudButton>
+    </Actions>
+</PageHeader>
 
-@if (_busy)
-{
-    <MudProgressLinear Indeterminate="true" Class="mb-4" />
-}
+<div class="wiq-rise">
 
-@if (_message is not null)
-{
-    <MudAlert Severity="@_messageSeverity" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="DismissMessage">@_message</MudAlert>
-}
-
-<!-- Instruments Table -->
-<MudPaper Class="pa-4 mb-4">
-    <div class="d-flex justify-space-between align-center mb-3">
-        <MudText Typo="Typo.h6">Instrumente (@_instruments.Count)</MudText>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-                   Disabled="_busy || _editing" OnClick="StartAddNew">
-            Neu hinzufügen
-        </MudButton>
-    </div>
-
-    <MudTable Items="_instruments" Dense="true" Hover="true" Striped="true">
-        <HeaderContent>
-            <MudTh>ISIN</MudTh>
-            <MudTh>Name</MudTh>
-            <MudTh>Typ</MudTh>
-            <MudTh>Teilfreistellung</MudTh>
-            <MudTh>Vorabpauschale</MudTh>
-            <MudTh># Listings</MudTh>
-            <MudTh>Aktionen</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="ISIN">@context.Isin</MudTd>
-            <MudTd DataLabel="Name">@context.Name</MudTd>
-            <MudTd DataLabel="Typ">@context.Type</MudTd>
-            <MudTd DataLabel="Teilfreistellung">@context.Teilfreistellungsquote.ToString("F2")</MudTd>
-            <MudTd DataLabel="Vorabpauschale">
-                @if (context.SubjectToVorabpauschale)
-                {
-                    <MudIcon Icon="@Icons.Material.Filled.Check" Color="Color.Success" Size="Size.Small" />
-                }
-                else
-                {
-                    <MudIcon Icon="@Icons.Material.Filled.Remove" Color="Color.Default" Size="Size.Small" />
-                }
-            </MudTd>
-            <MudTd DataLabel="# Listings">@context.Listings.Count</MudTd>
-            <MudTd DataLabel="Aktionen">
-                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
-                           Disabled="_busy || _editing" OnClick="() => StartEdit(context)">
-                    Bearbeiten
-                </MudButton>
-                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error"
-                           Disabled="_busy || _editing" OnClick="() => DeleteInstrument(context.Isin)">
-                    L&ouml;schen
-                </MudButton>
-            </MudTd>
-        </RowTemplate>
-        <NoRecordsContent>
-            <MudText>Keine Instrumente vorhanden.</MudText>
-        </NoRecordsContent>
-    </MudTable>
-</MudPaper>
-
-<!-- Inline Edit / Add Panel -->
-@if (_editing && _editModel is not null)
-{
-    <MudPaper Class="pa-4 mb-4">
-        <MudText Typo="Typo.h6" GutterBottom="true">
-            @(_isNew ? "Neues Instrument hinzufügen" : $"Bearbeiten: {_editModel.Isin}")
-        </MudText>
-
-        <div class="d-flex gap-3 flex-wrap mb-3">
-            <MudTextField @bind-Value="_editModel.Isin" Label="ISIN" Variant="Variant.Outlined"
-                          ReadOnly="@(!_isNew)" Style="min-width: 200px;" />
-            <MudTextField @bind-Value="_editModel.Name" Label="Name" Variant="Variant.Outlined"
-                          Style="min-width: 280px;" />
-            <MudTextField @bind-Value="_editModel.Type" Label="Typ (z. B. ETF_EQUITY)" Variant="Variant.Outlined"
-                          Style="min-width: 200px;" />
-        </div>
-
-        <div class="d-flex gap-3 flex-wrap align-center mb-3">
-            <MudNumericField T="decimal" @bind-Value="_editModel.Teilfreistellungsquote"
-                             Label="Teilfreistellungsquote" Variant="Variant.Outlined"
-                             Step="0.05m" Min="0m" Max="1m" Format="F2"
-                             Style="min-width: 200px;" />
-            <MudCheckBox @bind-Value="_editModel.SubjectToVorabpauschale"
-                         Label="Vorabpauschale" />
-        </div>
-
-        <!-- Listings sub-editor -->
-        <MudText Typo="Typo.subtitle2" Class="mb-2">Listings</MudText>
-        @for (int i = 0; i < _editModel.Listings.Count; i++)
-        {
-            var idx = i;
-            var listing = _editModel.Listings[idx];
-            <div class="d-flex gap-3 flex-wrap align-center mb-2">
-                <MudSelect T="CurrencyCode" @bind-Value="listing.Currency" Label="Währung"
-                           Variant="Variant.Outlined" Style="min-width: 120px;">
-                    @foreach (var cur in Enum.GetValues<CurrencyCode>())
-                    {
-                        <MudSelectItem T="CurrencyCode" Value="@cur">@cur</MudSelectItem>
-                    }
-                </MudSelect>
-                <MudTextField @bind-Value="listing.ProviderSymbol" Label="Provider-Symbol"
-                              Variant="Variant.Outlined" Style="min-width: 160px;" />
-                <MudTextField @bind-Value="listing.Provider" Label="Provider"
-                              Variant="Variant.Outlined" Style="min-width: 160px;" />
-                <MudTextField @bind-Value="listing.Exchange" Label="Exchange (optional)"
-                              Variant="Variant.Outlined" Style="min-width: 140px;" />
-                <MudTextField @bind-Value="listing.Notes" Label="Notizen (optional)"
-                              Variant="Variant.Outlined" Style="min-width: 160px;" />
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
-                               Size="Size.Small" OnClick="() => RemoveListing(idx)" />
-            </div>
-        }
-
-        <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-                   Class="mb-3" OnClick="AddListing">
-            Listing hinzuf&uuml;gen
-        </MudButton>
-
-        <MudDivider Class="my-3" />
-
-        <div class="d-flex gap-3">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy" OnClick="SaveEdit">
-                Speichern
-            </MudButton>
-            <MudButton Variant="Variant.Text" Disabled="_busy" OnClick="CancelEdit">
-                Abbrechen
-            </MudButton>
-        </div>
-    </MudPaper>
-}
-
-<!-- Upload Section -->
-<MudPaper Class="pa-4 mb-4">
-    <MudText Typo="Typo.h6" GutterBottom="true">JSON-Upload</MudText>
-    <MudText Typo="Typo.body2" Class="mb-3">
-        Instrumente und Listings aus JSON-Dateien hochladen (instruments.json / listings.json).
-    </MudText>
-
-    <div class="mb-3">
-        <MudText Typo="Typo.caption" Class="mb-1">instruments.json:</MudText>
-        <InputFile OnChange="OnInstrumentsFileSelected" accept=".json" />
-        @if (_instrumentsFileName is not null)
-        {
-            <MudText Typo="Typo.caption" Class="mt-1">Ausgewaehlt: @_instrumentsFileName</MudText>
-        }
-    </div>
-
-    <div class="mb-3">
-        <MudText Typo="Typo.caption" Class="mb-1">listings.json:</MudText>
-        <InputFile OnChange="OnListingsFileSelected" accept=".json" />
-        @if (_listingsFileName is not null)
-        {
-            <MudText Typo="Typo.caption" Class="mt-1">Ausgewaehlt: @_listingsFileName</MudText>
-        }
-    </div>
-
-    <MudRadioGroup T="UploadMode" @bind-Value="_uploadMode" Class="mb-3">
-        <MudRadio T="UploadMode" Value="UploadMode.Merge">Zusammenf&uuml;hren (Merge)</MudRadio>
-        <MudRadio T="UploadMode" Value="UploadMode.Replace">Ersetzen (Replace)</MudRadio>
-    </MudRadioGroup>
-
-    <MudButton Variant="Variant.Filled" Color="Color.Secondary"
-               Disabled="@(_busy || _instrumentsJson is null || _listingsJson is null)"
-               OnClick="RunUpload">
-        Hochladen
-    </MudButton>
-
-    @if (_uploadResult is not null)
+    @if (_busy)
     {
-        <MudAlert Severity="Severity.Info" Class="mt-3">
-            Profile: @_uploadResult.Profiles | Listings: @_uploadResult.Listings
-            @if (_uploadResult.Warnings.Count > 0)
-            {
-                <br />
-                @foreach (var w in _uploadResult.Warnings)
-                {
-                    <span>&#x26A0; @w<br /></span>
-                }
-            }
-        </MudAlert>
+        <MudProgressLinear Indeterminate="true" Class="mb-4" />
     }
-</MudPaper>
+
+    @if (_message is not null)
+    {
+        <MudAlert Severity="@_messageSeverity" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="DismissMessage">@_message</MudAlert>
+    }
+
+    <!-- Instruments Table -->
+    <SectionCard Title="@($"Instrumente ({_instruments.Count})")">
+        <HeaderActions>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add"
+                       Disabled="_busy || _editing" OnClick="StartAddNew">
+                Neu hinzufügen
+            </MudButton>
+        </HeaderActions>
+        <ChildContent>
+            <MudTable Items="_instruments" Dense="true" Hover="true" Striped="true" Elevation="0"
+                      FixedHeader="true" Height="520px">
+                    <HeaderContent>
+                        <MudTh>ISIN</MudTh>
+                        <MudTh>Name</MudTh>
+                        <MudTh>Typ</MudTh>
+                        <MudTh>Teilfreistellung</MudTh>
+                        <MudTh>Vorabpauschale</MudTh>
+                        <MudTh># Listings</MudTh>
+                        <MudTh>Aktionen</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="ISIN">@context.Isin</MudTd>
+                        <MudTd DataLabel="Name">@context.Name</MudTd>
+                        <MudTd DataLabel="Typ">@context.Type</MudTd>
+                        <MudTd DataLabel="Teilfreistellung">@context.Teilfreistellungsquote.ToString("F2")</MudTd>
+                        <MudTd DataLabel="Vorabpauschale">
+                            @if (context.SubjectToVorabpauschale)
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.Check" Color="Color.Success" Size="Size.Small" />
+                            }
+                            else
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.Remove" Color="Color.Default" Size="Size.Small" />
+                            }
+                        </MudTd>
+                        <MudTd DataLabel="# Listings">@context.Listings.Count</MudTd>
+                        <MudTd DataLabel="Aktionen">
+                            <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" aria-label="Bearbeiten"
+                                           Disabled="_busy || _editing" OnClick="() => StartEdit(context)" />
+                            <MudIconButton Icon="@Icons.Material.Outlined.Delete" Color="Color.Error" Size="Size.Small" aria-label="Löschen"
+                                           Disabled="_busy || _editing" OnClick="() => DeleteInstrument(context.Isin)" />
+                        </MudTd>
+                    </RowTemplate>
+                    <NoRecordsContent>
+                        <MudText>Keine Instrumente vorhanden.</MudText>
+                    </NoRecordsContent>
+                </MudTable>
+        </ChildContent>
+    </SectionCard>
+
+    <!-- Inline Edit / Add Panel -->
+    @if (_editing && _editModel is not null)
+    {
+        <SectionCard Title="@(_isNew ? "Neues Instrument hinzufügen" : $"Bearbeiten: {_editModel.Isin}")">
+            <ChildContent>
+                <div class="d-flex gap-3 flex-wrap mb-3">
+                    <MudTextField @bind-Value="_editModel.Isin" Label="ISIN" Variant="Variant.Outlined"
+                                  ReadOnly="@(!_isNew)" Style="min-width: 200px;" />
+                    <MudTextField @bind-Value="_editModel.Name" Label="Name" Variant="Variant.Outlined"
+                                  Style="min-width: 280px;" />
+                    <MudTextField @bind-Value="_editModel.Type" Label="Typ (z. B. ETF_EQUITY)" Variant="Variant.Outlined"
+                                  Style="min-width: 200px;" />
+                </div>
+
+                <div class="d-flex gap-3 flex-wrap align-center mb-3">
+                    <MudNumericField T="decimal" @bind-Value="_editModel.Teilfreistellungsquote"
+                                     Label="Teilfreistellungsquote" Variant="Variant.Outlined"
+                                     Step="0.05m" Min="0m" Max="1m" Format="F2"
+                                     Style="min-width: 200px;" />
+                    <MudCheckBox @bind-Value="_editModel.SubjectToVorabpauschale"
+                                 Label="Vorabpauschale" />
+                </div>
+
+                <!-- Listings sub-editor -->
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Listings</MudText>
+                @for (int i = 0; i < _editModel.Listings.Count; i++)
+                {
+                    var idx = i;
+                    var listing = _editModel.Listings[idx];
+                    <div style="border:1px solid var(--mud-palette-lines-default);border-radius:10px;padding:12px;margin-bottom:10px;">
+                        <div class="d-flex gap-3 flex-wrap align-center">
+                            <MudSelect T="CurrencyCode" @bind-Value="listing.Currency" Label="Währung"
+                                       Variant="Variant.Outlined" Style="min-width: 120px;">
+                                @foreach (var cur in Enum.GetValues<CurrencyCode>())
+                                {
+                                    <MudSelectItem T="CurrencyCode" Value="@cur">@cur</MudSelectItem>
+                                }
+                            </MudSelect>
+                            <MudTextField @bind-Value="listing.ProviderSymbol" Label="Provider-Symbol"
+                                          Variant="Variant.Outlined" Style="min-width: 160px;" />
+                            <MudTextField @bind-Value="listing.Provider" Label="Provider"
+                                          Variant="Variant.Outlined" Style="min-width: 160px;" />
+                            <MudTextField @bind-Value="listing.Exchange" Label="Exchange (optional)"
+                                          Variant="Variant.Outlined" Style="min-width: 140px;" />
+                            <MudTextField @bind-Value="listing.Notes" Label="Notizen (optional)"
+                                          Variant="Variant.Outlined" Style="min-width: 160px;" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" aria-label="Listing entfernen"
+                                           Size="Size.Small" OnClick="() => RemoveListing(idx)" />
+                        </div>
+                    </div>
+                }
+
+                <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add"
+                           Class="mb-3" OnClick="AddListing">
+                    Listing hinzuf&uuml;gen
+                </MudButton>
+
+                <MudDivider Class="my-3" />
+
+                <div class="d-flex gap-3">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy" OnClick="SaveEdit">
+                        Speichern
+                    </MudButton>
+                    <MudButton Variant="Variant.Text" Disabled="_busy" OnClick="CancelEdit">
+                        Abbrechen
+                    </MudButton>
+                </div>
+            </ChildContent>
+        </SectionCard>
+    }
+
+    <!-- Upload Section -->
+    <SectionCard Title="Import (JSON)">
+        <ChildContent>
+            <MudText Typo="Typo.body2" Class="mb-3">
+                Instrumente und Listings aus JSON-Dateien hochladen (instruments.json / listings.json).
+            </MudText>
+
+            <div class="mb-3">
+                <MudText Typo="Typo.caption" Class="mb-1">instruments.json:</MudText>
+                <InputFile OnChange="OnInstrumentsFileSelected" accept=".json" />
+                @if (_instrumentsFileName is not null)
+                {
+                    <MudText Typo="Typo.caption" Class="mt-1">Ausgewaehlt: @_instrumentsFileName</MudText>
+                }
+            </div>
+
+            <div class="mb-3">
+                <MudText Typo="Typo.caption" Class="mb-1">listings.json:</MudText>
+                <InputFile OnChange="OnListingsFileSelected" accept=".json" />
+                @if (_listingsFileName is not null)
+                {
+                    <MudText Typo="Typo.caption" Class="mt-1">Ausgewaehlt: @_listingsFileName</MudText>
+                }
+            </div>
+
+            <MudRadioGroup T="UploadMode" @bind-Value="_uploadMode" Class="mb-3">
+                <MudRadio T="UploadMode" Value="UploadMode.Merge">Zusammenf&uuml;hren (Merge)</MudRadio>
+                <MudRadio T="UploadMode" Value="UploadMode.Replace">Ersetzen (Replace)</MudRadio>
+            </MudRadioGroup>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary"
+                       Disabled="@(_busy || _instrumentsJson is null || _listingsJson is null)"
+                       OnClick="RunUpload">
+                Hochladen
+            </MudButton>
+
+            @if (_uploadResult is not null)
+            {
+                <MudAlert Severity="Severity.Info" Class="mt-3">
+                    Profile: @_uploadResult.Profiles | Listings: @_uploadResult.Listings
+                    @if (_uploadResult.Warnings.Count > 0)
+                    {
+                        <br />
+                        @foreach (var w in _uploadResult.Warnings)
+                        {
+                            <span>&#x26A0; @w<br /></span>
+                        }
+                    }
+                </MudAlert>
+            }
+        </ChildContent>
+    </SectionCard>
+
+</div>
 
 @code {
     // Mutable edit model for the inline editor
