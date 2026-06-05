@@ -136,10 +136,10 @@ else if (Current is not null)
                 Name = "Quellen der Steuer",
                 Data = new[]
                 {
-                    (double)Math.Max(0, Current.Summary.NetRealizedGainsTaxable),
-                    (double)Math.Max(0, Current.Summary.DividendsTaxable),
-                    (double)Math.Max(0, Current.Summary.VorabpauschaleTaxable),
-                    (double)Math.Max(0, Current.Summary.InterestTaxable),
+                    Math.Round((double)Math.Max(0, Current.Summary.NetRealizedGainsTaxable), 2),
+                    Math.Round((double)Math.Max(0, Current.Summary.DividendsTaxable), 2),
+                    Math.Round((double)Math.Max(0, Current.Summary.VorabpauschaleTaxable), 2),
+                    Math.Round((double)Math.Max(0, Current.Summary.InterestTaxable), 2),
                 },
             },
         };
