@@ -104,6 +104,13 @@ public sealed class GermanTaxCalculator(
             var rawProfit = saleProceeds.Amount - acquisitionCosts.Amount - usedVorabpauschale;
             var taxableProfit = rawProfit * (1m - instrument.Teilfreistellungsquote);
 
+            // Fees attributable to this slice, in EUR. Open-side fees convert at the open date and
+            // close-side fees at the close date — the same rates already required for cost/proceeds,
+            // so this adds no new FX-rate dependency.
+            var feesEur =
+                _fxConverter.Convert(consumption.AllocatedOpenFees, consumption.OpenTradeDate).Amount +
+                _fxConverter.Convert(consumption.AllocatedCloseFees, consumption.CloseTradeDate).Amount;
+
             ledger.Add(new GermanTaxEntry(
                 tradeEntry.OccurredAt.Year,
                 DateOnly.FromDateTime(tradeEntry.OccurredAt.UtcDateTime),
@@ -115,7 +122,9 @@ public sealed class GermanTaxCalculator(
                 usedVorabpauschale,
                 QuantitySold: consumption.MatchedQuantity.Value,
                 SaleProceeds: saleProceeds.Amount,
-                AcquisitionCosts: acquisitionCosts.Amount));
+                AcquisitionCosts: acquisitionCosts.Amount,
+                OpenedOn: consumption.OpenTradeDate,
+                Fees: feesEur));
         }
 
         openLots.Clear();
