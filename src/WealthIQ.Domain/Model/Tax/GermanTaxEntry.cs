@@ -14,4 +14,7 @@ public readonly record struct GermanTaxEntry(
     decimal ForeignWithholdingTax = 0m,
     decimal QuantitySold = 0m,
     decimal SaleProceeds = 0m,
-    decimal AcquisitionCosts = 0m);
+    decimal AcquisitionCosts = 0m,
+    DateOnly OpenedOn = default,
+    decimal Fees = 0m,
+    string Origin = "");
