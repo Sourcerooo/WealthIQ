@@ -194,6 +194,14 @@ public sealed class GermanTaxCalculator(
                 var withholdingInstrumentId = cashEntry.RelatedInstrumentId ?? cashEntry.CashInstrumentId;
                 var withholdingInstrument = GetInstrument(instrumentById, withholdingInstrumentId);
                 var withholdingTaxAmount = _fxConverter.Convert(cashEntry.GrossAmount, date).Amount;
+
+                // Origin: a security if the withholding references a related instrument with an ISIN;
+                // otherwise it stems from an interest payment (no security) → label "Zinsen".
+                var withholdingOrigin = cashEntry.RelatedInstrumentId.HasValue
+                    && !string.IsNullOrWhiteSpace(withholdingInstrument.ISIN)
+                        ? withholdingInstrument.Symbol
+                        : "Zinsen";
+
                 ledger.Add(new GermanTaxEntry(
                     cashEntry.OccurredAt.Year,
                     date,
@@ -202,7 +210,8 @@ public sealed class GermanTaxCalculator(
                     withholdingInstrument.ISIN,
                     withholdingTaxAmount,
                     0m,
-                    ForeignWithholdingTax: Math.Abs(withholdingTaxAmount)));
+                    ForeignWithholdingTax: Math.Abs(withholdingTaxAmount),
+                    Origin: withholdingOrigin));
                 break;
         }
     }
