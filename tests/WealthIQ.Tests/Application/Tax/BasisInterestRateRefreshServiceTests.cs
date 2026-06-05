@@ -14,6 +14,7 @@ public sealed class BasisInterestRateRefreshServiceTests
     {
         public Dictionary<int, decimal> Saved = new();
         public void Upsert(int year, decimal rate) => Saved[year] = rate;
+        public void Delete(int year) => Saved.Remove(year);
         public Task SaveChangesAsync(CancellationToken ct) => Task.CompletedTask;
     }
 

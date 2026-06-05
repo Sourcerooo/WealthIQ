@@ -31,4 +31,10 @@ public sealed class BasisInterestRateRefreshService(IBasisInterestRateSource sou
         store.Upsert(year, rate);
         await store.SaveChangesAsync(ct);
     }
+
+    public async Task DeleteAsync(int year, CancellationToken ct)
+    {
+        store.Delete(year);
+        await store.SaveChangesAsync(ct);
+    }
 }
