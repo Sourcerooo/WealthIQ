@@ -16,5 +16,7 @@ public readonly record struct GermanTaxEntry(
     decimal SaleProceeds = 0m,
     decimal AcquisitionCosts = 0m,
     DateOnly OpenedOn = default,
+    // Total transaction fees (open + close) in EUR, for display only. Fees are already embedded in
+    // AcquisitionCosts (cost basis) and SaleProceeds — do NOT add Fees to those again.
     decimal Fees = 0m,
     string Origin = "");
