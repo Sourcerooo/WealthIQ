@@ -162,6 +162,43 @@
         </div>
 
         <MudDivider Class="my-3" />
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Gespeicherte Werte</MudText>
+        @if (_basiszinsRows.Count == 0)
+        {
+            <MudText Typo="Typo.body2">Keine Einträge.</MudText>
+        }
+        else
+        {
+            <MudTable Items="_basiszinsRows" Dense="true" Hover="true" Elevation="0"
+                      CanCancelEdit="true" RowEditCommit="@(async (obj) => await CommitBasiszinsEdit(obj))" T="BasiszinsRow"
+                      Class="mb-2" Style="max-width:480px;">
+                <HeaderContent>
+                    <MudTh>Jahr</MudTh>
+                    <MudTh Style="text-align:right">Zinssatz</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Jahr">@context.Year</MudTd>
+                    <MudTd DataLabel="Zinssatz" Style="text-align:right">@context.Rate.ToString("F4")</MudTd>
+                    <MudTd Style="text-align:right">
+                        <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" Color="Color.Error"
+                                       Disabled="_busy" OnClick="() => DeleteBasiszins(context.Year)" aria-label="Löschen" />
+                    </MudTd>
+                </RowTemplate>
+                <RowEditingTemplate>
+                    <MudTd DataLabel="Jahr">@context.Year</MudTd>
+                    <MudTd DataLabel="Zinssatz">
+                        <MudNumericField @bind-Value="context.Rate" Format="F4" Variant="Variant.Text" Style="max-width:160px;" />
+                    </MudTd>
+                    <MudTd></MudTd>
+                </RowEditingTemplate>
+            </MudTable>
+            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                Zeile anklicken zum Bearbeiten des Zinssatzes. Neue Jahre über „Manuell erfassen" oder „Von BMF abrufen".
+            </MudText>
+        }
+
+        <MudDivider Class="my-3" />
 
         <MudButton Variant="Variant.Outlined" Color="Color.Warning" Class="mr-2 mb-2"
                    Disabled="_busy" OnClick="ClearBasiszins">
@@ -245,6 +282,14 @@
     private int _manualYear;
     private decimal _manualRate;
 
+    public sealed class BasiszinsRow
+    {
+        public int Year { get; set; }
+        public decimal Rate { get; set; }
+    }
+
+    private List<BasiszinsRow> _basiszinsRows = new();
+
     // last refresh result
     private DataRefreshResult? _lastResult;
     private string _lastResultLabel = "";
@@ -304,6 +349,11 @@
             _basiszinsMin = null;
             _basiszinsMax = null;
         }
+
+        _basiszinsRows = await Db.BasisInterestRates
+            .OrderByDescending(x => x.Year)
+            .Select(x => new BasiszinsRow { Year = x.Year, Rate = x.Rate })
+            .ToListAsync();
 
         _profileCount = await Db.InstrumentProfiles.CountAsync();
         _listingCount = await Db.InstrumentListings.CountAsync();
@@ -452,6 +502,35 @@
             await RefreshLog.RecordAsync("Basiszins", Clock.GetUtcNow(),
                 $"Manuell: Jahr {_manualYear} = {_manualRate:F4}");
             ShowSuccess($"Basiszins {_manualYear} = {_manualRate:F4} gespeichert.");
+            await LoadStatusAsync();
+        }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private async Task CommitBasiszinsEdit(object element)
+    {
+        var row = (BasiszinsRow)element;
+        _busy = true;
+        try
+        {
+            await BasisRefresh.SetManualAsync(row.Year, row.Rate, default);
+            await RefreshLog.RecordAsync("Basiszins", Clock.GetUtcNow(), $"Bearbeitet: Jahr {row.Year} = {row.Rate:F4}");
+            ShowSuccess($"Basiszins {row.Year} = {row.Rate:F4} gespeichert.");
+            await LoadStatusAsync();
+        }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private async Task DeleteBasiszins(int year)
+    {
+        _busy = true;
+        try
+        {
+            await BasisRefresh.DeleteAsync(year, default);
+            await RefreshLog.RecordAsync("Basiszins", Clock.GetUtcNow(), $"Gelöscht: Jahr {year}");
+            ShowSuccess($"Basiszins {year} gelöscht.");
             await LoadStatusAsync();
         }
         catch (Exception ex) { ShowError(ex.Message); }
