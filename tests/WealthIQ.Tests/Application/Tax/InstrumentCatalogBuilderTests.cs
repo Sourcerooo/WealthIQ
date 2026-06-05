@@ -1,6 +1,7 @@
 using WealthIQ.Application.Tax;
 using WealthIQ.Application.Tax.Interface;
 using WealthIQ.Domain.Model.General;
+using WealthIQ.Infrastructure.Ibkr.Tax;
 using Xunit;
 
 namespace WealthIQ.Tests.Application.Tax;
@@ -58,4 +59,25 @@ public sealed class InstrumentCatalogBuilderTests
     [Fact]
     public void Build_NullInput_Throws()
         => Assert.Throws<ArgumentNullException>(() => new InstrumentCatalogBuilder(new StampingEnricher()).Build(null!));
+
+    [Fact]
+    public void Build_KnownIsin_EnrichesClassificationFields()
+    {
+        var dir = Path.GetTempPath();
+        var jsonPath = Path.Combine(dir, $"inst_{Guid.NewGuid():N}.json");
+        File.WriteAllText(jsonPath, """{"IE00B3XXRP09":{"name":"Vanguard S&P 500","type":"ETF_EQUITY","tfs_quote":0.30,"subject_to_vorabpauschale":true}}""");
+
+        var enricher = new JsonInstrumentProfileEnricher(jsonPath);
+        var builder = new InstrumentCatalogBuilder(enricher);
+
+        var instrument = new Instrument(
+            InstrumentId.NewId(),
+            "IE00B3XXRP09", "VUSA", "Unknown", 0m);
+
+        var result = builder.Build([instrument]);
+
+        Assert.Single(result);
+        Assert.Equal("ETF_EQUITY", result[0].Type);
+        Assert.True(result[0].SubjectToVorabpauschale);
+    }
 }

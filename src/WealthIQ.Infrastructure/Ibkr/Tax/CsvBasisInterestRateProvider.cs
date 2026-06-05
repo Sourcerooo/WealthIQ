@@ -35,5 +35,5 @@ public sealed class CsvBasisInterestRateProvider : IBasisInterestRateProvider
         }
     }
 
-    public decimal GetRate(int year) => _rates.GetValueOrDefault(year);
+    public decimal? GetRate(int year) => _rates.TryGetValue(year, out var rate) ? rate : null;
 }

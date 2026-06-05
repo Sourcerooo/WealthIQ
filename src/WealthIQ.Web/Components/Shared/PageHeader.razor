@@ -1,0 +1,20 @@
+@* Page title (renders an <h1> so FocusOnNavigate's "h1" selector keeps working) plus optional actions. *@
+<div class="wiq-rise" style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:24px;flex-wrap:wrap;">
+    <div>
+        <h1 style="margin:0;font-size:1.6rem;font-weight:700;color:var(--mud-palette-text-primary);">@Title</h1>
+        @if (!string.IsNullOrWhiteSpace(Subtitle))
+        {
+            <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);margin-top:4px;">@Subtitle</MudText>
+        }
+    </div>
+    @if (Actions is not null)
+    {
+        <div style="display:flex;gap:10px;align-items:center;">@Actions</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
+}

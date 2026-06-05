@@ -35,7 +35,8 @@ public sealed class PortfolioValuationService(
                      .GroupBy(x => new { x.AccountId, x.InstrumentId, x.Direction }))
         {
             var instrument = instrumentById[instrumentLots.Key.InstrumentId];
-            var marketDataProfile = instrumentMarketDataMap.GetProfile(instrument);
+            var lotCurrency = instrumentLots.First().OpenUnitPrice.Currency;
+            var marketDataProfile = instrumentMarketDataMap.GetProfile(instrument.ISIN ?? "", lotCurrency);
             var priceBar = historicalPriceLookup.GetPriceBar(
                 valuationDate,
                 marketDataProfile.ProviderSymbol,

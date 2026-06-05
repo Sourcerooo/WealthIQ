@@ -1,0 +1,89 @@
+/* Midnight Ledger — custom layer on top of MudBlazor.
+   Scoped to .wiq-* helper classes so it does not fight the component library. */
+
+:root {
+    --wiq-ease: cubic-bezier(.22, .61, .36, 1);
+}
+
+/* Tabular numerals wherever we mark figures, so currency columns align. */
+.wiq-num {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+}
+
+.wiq-figure {
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+}
+
+.wiq-pos { color: var(--mud-palette-success); }
+.wiq-neg { color: var(--mud-palette-error); }
+
+/* Card hover: subtle lift + accent ring. Applied to StatCard / SectionCard roots. */
+.wiq-card {
+    transition: transform .18s var(--wiq-ease), box-shadow .18s var(--wiq-ease), border-color .18s var(--wiq-ease);
+    border: 1px solid var(--mud-palette-lines-default);
+}
+.wiq-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--mud-palette-primary);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+}
+
+/* Emerald-highlighted KPI (e.g. estimated tax). */
+.wiq-card--accent {
+    background: linear-gradient(135deg,
+        color-mix(in srgb, var(--mud-palette-primary) 14%, var(--mud-palette-surface)),
+        var(--mud-palette-surface));
+    border-color: color-mix(in srgb, var(--mud-palette-primary) 45%, transparent);
+}
+
+/* Hero headline gradient text. */
+.wiq-hero-figure {
+    background: linear-gradient(135deg, var(--mud-palette-primary), var(--mud-palette-success));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* Entrance animations. */
+@keyframes wiq-rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.wiq-rise { animation: wiq-rise .45s var(--wiq-ease) both; }
+.wiq-rise-2 { animation: wiq-rise .45s var(--wiq-ease) .08s both; }
+.wiq-rise-3 { animation: wiq-rise .45s var(--wiq-ease) .16s both; }
+
+/* Route transition: fade body content on navigation. */
+.wiq-page { animation: wiq-rise .35s var(--wiq-ease) both; }
+
+/* Nav section label inside the drawer. */
+.wiq-nav-label {
+    font-size: .68rem;
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    color: var(--mud-palette-text-secondary);
+    padding: 14px 16px 6px;
+}
+
+/* Push the bottom nav group (Diagnose) to the foot of the drawer. */
+.wiq-nav-spacer { flex: 1 1 auto; }
+
+/* Slimmer, themed scrollbars. */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--mud-palette-lines-default) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb {
+    background: var(--mud-palette-lines-default);
+    border-radius: 6px;
+}
+
+/* Respect reduced-motion. */
+@media (prefers-reduced-motion: reduce) {
+    .wiq-card, .wiq-rise, .wiq-rise-2, .wiq-rise-3, .wiq-page { animation: none !important; transition: none !important; }
+}

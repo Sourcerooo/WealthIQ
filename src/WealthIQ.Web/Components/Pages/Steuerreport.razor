@@ -1,12 +1,27 @@
 @page "/"
 @using WealthIQ.Application.Tax.Report
 @using WealthIQ.Domain.Model.Tax
+@using MudBlazor.Charts
 @inject AnnualTaxReportService ReportService
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <PageTitle>WealthIQ — Steuerreport</PageTitle>
 
-<MudText Typo="Typo.h4" GutterBottom="true">Steuerreport</MudText>
+<PageHeader Title="Steuerreport" Subtitle="Deutsche Jahres-Steuerübersicht (Finanzamt-grade)">
+    <Actions>
+        @if (_reports.Count > 0)
+        {
+            <MudSelect T="int" Value="_selectedYear" ValueChanged="OnYearChanged" Label="Jahr"
+                       Variant="Variant.Outlined" Dense="true" Style="min-width:130px;">
+                @foreach (var report in _reports)
+                {
+                    <MudSelectItem T="int" Value="report.Year">@report.Year</MudSelectItem>
+                }
+            </MudSelect>
+        }
+    </Actions>
+</PageHeader>
 
 @if (_error is not null)
 {
@@ -15,66 +30,66 @@
 
 @if (_loading)
 {
-    <MudProgressCircular Indeterminate="true" />
+    <div style="display:flex;justify-content:center;padding:64px;">
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+    </div>
 }
 else if (_reports.Count == 0)
 {
-    <MudAlert Severity="Severity.Info">Noch keine Daten. Importiere zuerst ein Broker-Statement auf der Import-Seite.</MudAlert>
+    <SectionCard>
+        <MudAlert Severity="Severity.Info" Variant="Variant.Text">
+            Noch keine Daten. Importiere zuerst ein Broker-Statement auf der Import-Seite.
+        </MudAlert>
+    </SectionCard>
 }
-else
+else if (Current is not null)
 {
-    <MudPaper Class="pa-4 mb-4">
-        <MudSelect T="int" Value="_selectedYear" ValueChanged="OnYearChanged" Label="Jahr" Variant="Variant.Outlined" Dense="true" Style="max-width: 200px;">
-            @foreach (var report in _reports)
-            {
-                <MudSelectItem T="int" Value="report.Year">@report.Year</MudSelectItem>
-            }
-        </MudSelect>
-    </MudPaper>
+    @* Hero: headline estimated tax (count-up) + composition donut.
+       Keyed on the year so switching produces fresh DOM (no stale count-up guard) and re-animates.
+       The key is prefixed because sibling MudGrids must have distinct @key values. *@
+    <MudGrid Class="mb-4 wiq-rise" @key="@($"hero-{_selectedYear}")">
+        <MudItem xs="12" md="7">
+            <MudPaper Elevation="0" Class="wiq-card wiq-card--accent" Style="height:100%;padding:24px;">
+                <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);">Geschätzte Steuer @Current.Year</MudText>
+                <div class="wiq-figure wiq-hero-figure" style="font-size:2.8rem;margin:6px 0;">
+                    <span class="wiq-countup" data-target="@Current.Summary.EstimatedTax.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-suffix=" €">@Eur(Current.Summary.EstimatedTax)</span>
+                </div>
+                <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+                    Steuerpflichtige Erträge abzüglich anrechenbarer Quellensteuer.
+                </MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="5">
+            <MudPaper Elevation="0" Class="wiq-card" Style="height:100%;padding:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);align-self:flex-start;">Quellen der Steuer</MudText>
+                @if (CompositionTotal > 0)
+                {
+                    <MudChart T="double" ChartType="ChartType.Donut" Width="200px" Height="200px"
+                              ChartSeries="@CompositionSeries" ChartLabels="@CompositionLabels"
+                              ChartOptions="@_chartOptions" />
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);padding:32px 0;">Keine steuerpflichtigen Erträge.</MudText>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
 
-    @if (Current is not null)
-    {
-        <MudGrid Class="mb-4">
-            <MudItem xs="12" sm="6" md="4">
-                <MudPaper Class="pa-4" Elevation="2">
-                    <MudText Typo="Typo.caption">Verkäufe (steuerpflichtig)</MudText>
-                    <MudText Typo="Typo.h6">@Eur(Current.Summary.NetRealizedGainsTaxable)</MudText>
-                </MudPaper>
-            </MudItem>
-            <MudItem xs="12" sm="6" md="4">
-                <MudPaper Class="pa-4" Elevation="2">
-                    <MudText Typo="Typo.caption">Dividenden (steuerpflichtig)</MudText>
-                    <MudText Typo="Typo.h6">@Eur(Current.Summary.DividendsTaxable)</MudText>
-                </MudPaper>
-            </MudItem>
-            <MudItem xs="12" sm="6" md="4">
-                <MudPaper Class="pa-4" Elevation="2">
-                    <MudText Typo="Typo.caption">Zinsen (steuerpflichtig)</MudText>
-                    <MudText Typo="Typo.h6">@Eur(Current.Summary.InterestTaxable)</MudText>
-                </MudPaper>
-            </MudItem>
-            <MudItem xs="12" sm="6" md="4">
-                <MudPaper Class="pa-4" Elevation="2">
-                    <MudText Typo="Typo.caption">Vorabpauschale (steuerpflichtig)</MudText>
-                    <MudText Typo="Typo.h6">@Eur(Current.Summary.VorabpauschaleTaxable)</MudText>
-                </MudPaper>
-            </MudItem>
-            <MudItem xs="12" sm="6" md="4">
-                <MudPaper Class="pa-4" Elevation="2">
-                    <MudText Typo="Typo.caption">Anrechenbare Quellensteuer</MudText>
-                    <MudText Typo="Typo.h6">@Eur(Current.Summary.ForeignWithholdingTax)</MudText>
-                </MudPaper>
-            </MudItem>
-            <MudItem xs="12" sm="6" md="4">
-                <MudPaper Class="pa-4" Elevation="2">
-                    <MudText Typo="Typo.caption">Geschätzte Steuer</MudText>
-                    <MudText Typo="Typo.h6">@Eur(Current.Summary.EstimatedTax)</MudText>
-                </MudPaper>
-            </MudItem>
-        </MudGrid>
+    @* KPI grid. Keyed on the year so the StatCard count-ups re-animate on year switch.
+       Distinct key prefix from the hero grid (sibling @key values must be unique). *@
+    <MudGrid Class="mb-4 wiq-rise-2" @key="@($"kpi-{_selectedYear}")">
+        <MudItem xs="12" sm="6" md="4"><StatCard Caption="Verkäufe (steuerpflichtig)" Value="@Current.Summary.NetRealizedGainsTaxable" CountUp="true" /></MudItem>
+        <MudItem xs="12" sm="6" md="4"><StatCard Caption="Dividenden (steuerpflichtig)" Value="@Current.Summary.DividendsTaxable" CountUp="true" /></MudItem>
+        <MudItem xs="12" sm="6" md="4"><StatCard Caption="Zinsen (steuerpflichtig)" Value="@Current.Summary.InterestTaxable" CountUp="true" /></MudItem>
+        <MudItem xs="12" sm="6" md="4"><StatCard Caption="Vorabpauschale (steuerpflichtig)" Value="@Current.Summary.VorabpauschaleTaxable" CountUp="true" /></MudItem>
+        <MudItem xs="12" sm="6" md="4"><StatCard Caption="Anrechenbare Quellensteuer" Value="@Current.Summary.ForeignWithholdingTax" CountUp="true" /></MudItem>
+        <MudItem xs="12" sm="6" md="4"><StatCard Caption="Geschätzte Steuer" Value="@Current.Summary.EstimatedTax" Accent="true" CountUp="true" /></MudItem>
+    </MudGrid>
 
-        @* MudExpansionPanel must be a direct child of MudExpansionPanels for cascade registration to work *@
-        <MudExpansionPanels MultiExpansion="true">
+    @* Drill-down detail. *@
+    <div class="wiq-rise-3">
+        <MudExpansionPanels MultiExpansion="true" Elevation="0">
             <MudExpansionPanel Text="@($"Verkäufe (realisierter PnL) ({Current.Sells.Count})")">
                 @EntryTable(Current.Sells)
             </MudExpansionPanel>
@@ -91,7 +106,7 @@ else
                 @EntryTable(Current.WithholdingTaxes)
             </MudExpansionPanel>
         </MudExpansionPanels>
-    }
+    </div>
 }
 
 @code {
@@ -101,6 +116,41 @@ else
     private int _selectedYear;
 
     private AnnualTaxReport? Current => _reports.FirstOrDefault(r => r.Year == _selectedYear);
+
+    private readonly DonutChartOptions _chartOptions = new()
+    {
+        ChartPalette = new[] { "#34D399", "#60A5FA", "#A78BFA", "#FBBF24", "#F472B6" },
+        ShowLegend = true,
+    };
+
+    // Composition of the tax base: only positive contributors (a donut can't render negatives).
+    // Withholding tax is a credit, not a source, so it is intentionally excluded here.
+    // MudBlazor's Donut renders one segment PER DATA POINT of a SINGLE series (it aggregates
+    // across multiple series), so the four categories are the Data of one series, not four series.
+    private List<ChartSeries<double>> CompositionSeries => Current is null
+        ? new List<ChartSeries<double>>()
+        : new List<ChartSeries<double>>
+        {
+            new ChartSeries<double>
+            {
+                Name = "Quellen der Steuer",
+                Data = new[]
+                {
+                    (double)Math.Max(0, Current.Summary.NetRealizedGainsTaxable),
+                    (double)Math.Max(0, Current.Summary.DividendsTaxable),
+                    (double)Math.Max(0, Current.Summary.VorabpauschaleTaxable),
+                    (double)Math.Max(0, Current.Summary.InterestTaxable),
+                },
+            },
+        };
+
+    private static readonly string[] CompositionLabels = { "Verkäufe", "Dividenden", "Vorabpauschale", "Zinsen" };
+
+    private double CompositionTotal => Current is null ? 0 :
+        (double)Math.Max(0, Current.Summary.NetRealizedGainsTaxable) +
+        (double)Math.Max(0, Current.Summary.DividendsTaxable) +
+        (double)Math.Max(0, Current.Summary.VorabpauschaleTaxable) +
+        (double)Math.Max(0, Current.Summary.InterestTaxable);
 
     protected override async Task OnInitializedAsync()
     {
@@ -119,9 +169,31 @@ else
         }
     }
 
-    private void OnYearChanged(int year) => _selectedYear = year;
+    // Set on first load and whenever the year changes; consumed once by OnAfterRenderAsync so we
+    // only cross the JS-interop boundary when there is freshly-rendered content to animate.
+    private bool _animatePending = true;
 
-    private static string Eur(decimal amount) => amount.ToString("N2") + " €";
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Only consume the flag once the figures are actually in the DOM. The first render shows
+        // the loading spinner (no count-up spans yet); consuming it there would skip the initial
+        // animation. Guarding on "data present" lets the post-load render animate, and year
+        // switches re-arm the flag in OnYearChanged.
+        if (_animatePending && !_loading && Current is not null)
+        {
+            _animatePending = false;
+            await JS.InvokeVoidAsync("wealthiq.runCountUps");
+        }
+    }
+
+    private void OnYearChanged(int year)
+    {
+        _selectedYear = year;
+        _animatePending = true;
+    }
+
+    private static string Eur(decimal amount)
+        => amount.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("de-DE")) + " €";
 
     private RenderFragment EntryTable(IReadOnlyList<GermanTaxEntry> entries) => __builder =>
     {

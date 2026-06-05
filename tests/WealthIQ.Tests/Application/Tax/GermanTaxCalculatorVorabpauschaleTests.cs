@@ -21,12 +21,15 @@ public sealed class GermanTaxCalculatorVorabpauschaleTests
 
     private static readonly Instrument[] Catalog =
     [
-        new(Equity, Isin, "VUSA", "Vanguard S&P 500", 0.30m)
+        new(Equity, Isin, "VUSA", "Vanguard S&P 500", 0.30m) { SubjectToVorabpauschale = true }
     ];
 
+    /// <summary>Creates a calculator with year-start price = 100 (matching the buy price) and the
+    /// given year-end price. Since start=buy price, the new §18 year-start-based algorithm produces
+    /// the same Basisertrag as the old acquisition-cost-based formula for these tests.</summary>
     private static GermanTaxCalculator Calculator(decimal basisRate, decimal yearEndPrice) => new(
         new FakeBasisInterestRateProvider((2024, basisRate)),
-        new FakeYearEndPriceProvider((Isin, 2024, yearEndPrice)),
+        new FakeYearStartAndEndPriceProvider().AddStart(Isin, 2024, 100m).AddEnd(Isin, 2024, yearEndPrice),
         new FakeFxRateLookup());
 
     private static GermanTaxEntry? SingleVorab(GermanTaxCalculationResult result)
@@ -127,9 +130,14 @@ public sealed class GermanTaxCalculatorVorabpauschaleTests
     {
         // Buy 2023, no entries at all in 2024, sale would be later. The 2024 year-end closing must still
         // run, posting a Vorabpauschale deemed received 2025-01-01.
+        // year-start prices are used as the Basisertrag base; year-end prices set the appreciation cap.
+        // BUY-2 is in 2025, so the replay extends through 2025 year-end — Basiszins + prices for 2025 needed too.
         var calculator = new GermanTaxCalculator(
-            new FakeBasisInterestRateProvider((2023, 0.05m), (2024, 0.05m)),
-            new FakeYearEndPriceProvider((Isin, 2023, 150m), (Isin, 2024, 200m)),
+            new FakeBasisInterestRateProvider((2023, 0.05m), (2024, 0.05m), (2025, 0.05m)),
+            new FakeYearStartAndEndPriceProvider()
+                .AddStart(Isin, 2023, 100m).AddEnd(Isin, 2023, 150m)
+                .AddStart(Isin, 2024, 150m).AddEnd(Isin, 2024, 200m)
+                .AddStart(Isin, 2025, 200m).AddEnd(Isin, 2025, 220m),
             new FakeFxRateLookup());
 
         var ledger = new PortfolioLedger([

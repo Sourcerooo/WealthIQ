@@ -5,6 +5,8 @@ using WealthIQ.Domain.Enumeration;
 using WealthIQ.Domain.Model.General;
 using WealthIQ.Domain.Model.Ledger;
 
+using CurrencyCode = WealthIQ.Domain.Enumeration.Currency;
+
 namespace WealthIQ.Tests.Application.Tax;
 
 public sealed class GermanTaxCalculatorTests
@@ -16,12 +18,15 @@ public sealed class GermanTaxCalculatorTests
         var instrumentId = InstrumentId.NewId();
         var instruments = new[]
         {
-            new Instrument(instrumentId, "IE00B6R52259", "ACWI", "ACWI", 0.30m)
+            new Instrument(instrumentId, "IE00B6R52259", "ACWI", "ACWI", 0.30m) { SubjectToVorabpauschale = true }
         };
 
+        // year-start price = 100 (= acquisition price); year-end = 120
+        // With new §18 algorithm: basisErtrag = 100×0.025×0.7 = 1.75; dist/sh = 5/10 = 0.50;
+        // cap = (120-100)+0.50 = 20.50; capped = 1.75; vorabFull = 1.75-0.50 = 1.25; ×10 = 12.5
         var calculator = new GermanTaxCalculator(
             new StubInterestRateProvider((2024, 0.025m)),
-            new StubYearEndPriceProvider(("IE00B6R52259", 2024, 120m)),
+            new StubYearStartAndEndPriceProvider(("IE00B6R52259", 2024, 100m, 120m)),
             new StubFxRateLookup());
 
         var result = calculator.Calculate(new PortfolioLedger([
@@ -34,9 +39,9 @@ public sealed class GermanTaxCalculatorTests
                 instrumentId,
                 TradeSide.Buy,
                 new Quantity(10m),
-                new Money(100m, Currency.EUR),
-                new Money(0m, Currency.EUR),
-                new Money(0m, Currency.EUR)),
+                new Money(100m, CurrencyCode.EUR),
+                new Money(0m, CurrencyCode.EUR),
+                new Money(0m, CurrencyCode.EUR)),
             new CashEntry(
                 PortfolioEntryId.NewId(),
                 accountId,
@@ -45,9 +50,9 @@ public sealed class GermanTaxCalculatorTests
                 CreateSourceProvenance("DIV-1"),
                 InstrumentId.NewId(),
                 CashFlowType.Dividend,
-                new Money(5m, Currency.EUR),
-                new Money(0m, Currency.EUR),
-                new Money(0m, Currency.EUR),
+                new Money(5m, CurrencyCode.EUR),
+                new Money(0m, CurrencyCode.EUR),
+                new Money(0m, CurrencyCode.EUR),
                 instrumentId),
             new TradeEntry(
                 PortfolioEntryId.NewId(),
@@ -58,9 +63,9 @@ public sealed class GermanTaxCalculatorTests
                 instrumentId,
                 TradeSide.Sell,
                 new Quantity(10m),
-                new Money(130m, Currency.EUR),
-                new Money(0m, Currency.EUR),
-                new Money(0m, Currency.EUR))
+                new Money(130m, CurrencyCode.EUR),
+                new Money(0m, CurrencyCode.EUR),
+                new Money(0m, CurrencyCode.EUR))
         ]), instruments);
 
         Assert.Equal(3, result.Entries.Count);
@@ -107,9 +112,9 @@ public sealed class GermanTaxCalculatorTests
                 CreateSourceProvenance("INT-1"),
                 instrumentId,
                 CashFlowType.Interest,
-                new Money(17.42m, Currency.EUR),
-                new Money(0m, Currency.EUR),
-                new Money(0m, Currency.EUR)),
+                new Money(17.42m, CurrencyCode.EUR),
+                new Money(0m, CurrencyCode.EUR),
+                new Money(0m, CurrencyCode.EUR)),
             new CashEntry(
                 PortfolioEntryId.NewId(),
                 accountId,
@@ -118,9 +123,9 @@ public sealed class GermanTaxCalculatorTests
                 CreateSourceProvenance("WHT-1"),
                 instrumentId,
                 CashFlowType.WithholdingTax,
-                new Money(-3.11m, Currency.EUR),
-                new Money(0m, Currency.EUR),
-                new Money(0m, Currency.EUR),
+                new Money(-3.11m, CurrencyCode.EUR),
+                new Money(0m, CurrencyCode.EUR),
+                new Money(0m, CurrencyCode.EUR),
                 instrumentId)
         ]), instruments);
 
@@ -137,20 +142,35 @@ public sealed class GermanTaxCalculatorTests
     {
         private readonly Dictionary<int, decimal> _rates = rates.ToDictionary(x => x.Year, x => x.Rate);
 
-        public decimal GetRate(int year) => _rates.GetValueOrDefault(year);
+        public decimal? GetRate(int year) => _rates.TryGetValue(year, out var rate) ? rate : null;
     }
 
-    private sealed class StubYearEndPriceProvider(params (string Isin, int Year, decimal Price)[] prices) : IYearEndPriceProvider
+    private sealed class StubYearEndPriceProvider(params (string Isin, int Year, decimal Price)[] prices) : IInstrumentPriceProvider
     {
         private readonly Dictionary<(string Isin, int Year), decimal> _prices = prices.ToDictionary(x => (x.Isin, x.Year), x => x.Price);
 
-        public decimal? GetPrice(string isin, int year) => _prices.TryGetValue((isin, year), out var price) ? price : null;
+        public InstrumentQuote? GetQuote(string isin, CurrencyCode currency, DateOnly pricingDate, PriceQuoteHandling handling)
+            => _prices.TryGetValue((isin, pricingDate.Year), out var price)
+                ? new InstrumentQuote(price, CurrencyCode.EUR, pricingDate)
+                : null;
+    }
+
+    /// <summary>Returns a distinct start price (EarliestOnOrAfter) and end price (LatestOnOrBefore) per ISIN+year.</summary>
+    private sealed class StubYearStartAndEndPriceProvider(params (string Isin, int Year, decimal Start, decimal End)[] prices) : IInstrumentPriceProvider
+    {
+        public InstrumentQuote? GetQuote(string isin, CurrencyCode currency, DateOnly pricingDate, PriceQuoteHandling handling)
+        {
+            var entry = prices.FirstOrDefault(p => p.Isin == isin && p.Year == pricingDate.Year);
+            if (entry == default) return null;
+            var price = handling == PriceQuoteHandling.EarliestOnOrAfter ? entry.Start : entry.End;
+            return new InstrumentQuote(price, CurrencyCode.EUR, pricingDate);
+        }
     }
 
     private sealed class StubFxRateLookup : IFxRateLookup
     {
-        public decimal GetRate(DateOnly conversionDate, Currency sourceCurrency, Currency targetCurrency, FxRateLookupDateHandling dateHandling = FxRateLookupDateHandling.ExactDate)
-            => sourceCurrency == targetCurrency && targetCurrency == Currency.EUR ? 1m : throw new InvalidOperationException("Unexpected FX lookup in unit test.");
+        public decimal GetRate(DateOnly conversionDate, CurrencyCode sourceCurrency, CurrencyCode targetCurrency, FxRateLookupDateHandling dateHandling = FxRateLookupDateHandling.ExactDate)
+            => sourceCurrency == targetCurrency && targetCurrency == CurrencyCode.EUR ? 1m : throw new InvalidOperationException("Unexpected FX lookup in unit test.");
     }
 
     private static SourceProvenance CreateSourceProvenance(string sourceReference)

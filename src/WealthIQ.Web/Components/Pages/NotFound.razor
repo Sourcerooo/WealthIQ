@@ -1,5 +1,13 @@
-﻿@page "/not-found"
+@page "/not-found"
 @layout MainLayout
 
-<h3>Not Found</h3>
-<p>Sorry, the content you are looking for does not exist.</p>
+<PageTitle>WealthIQ — Seite nicht gefunden</PageTitle>
+
+<div style="display:flex;justify-content:center;padding:48px 0;">
+    <SectionCard Title="Seite nicht gefunden">
+        <MudText Typo="Typo.body1" Class="mb-4">
+            Die angeforderte Seite existiert nicht.
+        </MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/" StartIcon="@Icons.Material.Outlined.Home">Zur Startseite</MudButton>
+    </SectionCard>
+</div>

@@ -6,6 +6,8 @@ using WealthIQ.Domain.Enumeration;
 using WealthIQ.Domain.Model.General;
 using WealthIQ.Domain.Model.Ledger;
 
+using CurrencyCode = WealthIQ.Domain.Enumeration.Currency;
+
 namespace WealthIQ.Tests.Application.Valuation;
 
 public sealed class PortfolioValuationServiceTests
@@ -18,7 +20,7 @@ public sealed class PortfolioValuationServiceTests
         var instrument = new Instrument(instrumentId, "IE00TEST1234", "TEST", "Test ETF", 0.30m);
 
         var service = new PortfolioValuationService(
-            new StubHistoricalPriceLookup(new PriceBar(new DateOnly(2025, 5, 2), "TEST.AS", Currency.EUR, 100m, 102m, 99m, 101m, 101m, 1000)),
+            new StubHistoricalPriceLookup(new PriceBar(new DateOnly(2025, 5, 2), "TEST.AS", CurrencyCode.EUR, 100m, 102m, 99m, 101m, 101m, 1000)),
             new StubInstrumentMarketDataMap(new InstrumentMarketDataProfile("YahooFinance", "TEST.AS")),
             new StubFxRateLookup());
 
@@ -32,9 +34,9 @@ public sealed class PortfolioValuationServiceTests
                 instrumentId,
                 TradeSide.Buy,
                 new Quantity(2m),
-                new Money(90m, Currency.EUR),
-                new Money(1m, Currency.EUR),
-                new Money(0m, Currency.EUR)),
+                new Money(90m, CurrencyCode.EUR),
+                new Money(1m, CurrencyCode.EUR),
+                new Money(0m, CurrencyCode.EUR)),
             new CashEntry(
                 PortfolioEntryId.NewId(),
                 accountId,
@@ -43,9 +45,9 @@ public sealed class PortfolioValuationServiceTests
                 CreateSourceProvenance("INT-1"),
                 InstrumentId.NewId(),
                 CashFlowType.Interest,
-                new Money(10m, Currency.EUR),
-                new Money(0m, Currency.EUR),
-                new Money(0m, Currency.EUR))
+                new Money(10m, CurrencyCode.EUR),
+                new Money(0m, CurrencyCode.EUR),
+                new Money(0m, CurrencyCode.EUR))
         ], [instrument]);
 
         var snapshot = service.Calculate(ledger, [instrument], new DateOnly(2025, 5, 4));
@@ -66,7 +68,7 @@ public sealed class PortfolioValuationServiceTests
         var instrument = new Instrument(instrumentId, "IE00TEST9999", "TEST", "Test ETF", 0.30m);
 
         var service = new PortfolioValuationService(
-            new StubHistoricalPriceLookup(new PriceBar(new DateOnly(2025, 5, 2), "TEST.AS", Currency.EUR, 100m, 102m, 99m, 101m, 101m, 1000)),
+            new StubHistoricalPriceLookup(new PriceBar(new DateOnly(2025, 5, 2), "TEST.AS", CurrencyCode.EUR, 100m, 102m, 99m, 101m, 101m, 1000)),
             new MissingInstrumentMarketDataMap(),
             new StubFxRateLookup());
 
@@ -80,9 +82,9 @@ public sealed class PortfolioValuationServiceTests
                 instrumentId,
                 TradeSide.Buy,
                 new Quantity(1m),
-                new Money(90m, Currency.EUR),
-                new Money(0m, Currency.EUR),
-                new Money(0m, Currency.EUR))
+                new Money(90m, CurrencyCode.EUR),
+                new Money(0m, CurrencyCode.EUR),
+                new Money(0m, CurrencyCode.EUR))
         ], [instrument]);
 
         Assert.Throws<InvalidOperationException>(() => service.Calculate(ledger, [instrument], new DateOnly(2025, 5, 4)));
@@ -105,18 +107,18 @@ public sealed class PortfolioValuationServiceTests
 
     private sealed class StubInstrumentMarketDataMap(InstrumentMarketDataProfile profile) : IInstrumentMarketDataMap
     {
-        public InstrumentMarketDataProfile GetProfile(Instrument instrument) => profile;
+        public InstrumentMarketDataProfile GetProfile(string isin, CurrencyCode currency) => profile;
     }
 
     private sealed class MissingInstrumentMarketDataMap : IInstrumentMarketDataMap
     {
-        public InstrumentMarketDataProfile GetProfile(Instrument instrument)
+        public InstrumentMarketDataProfile GetProfile(string isin, CurrencyCode currency)
             => throw new InvalidOperationException("Missing market-data mapping.");
     }
 
     private sealed class StubFxRateLookup : IFxRateLookup
     {
-        public decimal GetRate(DateOnly conversionDate, Currency sourceCurrency, Currency targetCurrency, FxRateLookupDateHandling dateHandling = FxRateLookupDateHandling.ExactDate)
+        public decimal GetRate(DateOnly conversionDate, CurrencyCode sourceCurrency, CurrencyCode targetCurrency, FxRateLookupDateHandling dateHandling = FxRateLookupDateHandling.ExactDate)
             => sourceCurrency == targetCurrency ? 1m : throw new InvalidOperationException("Unexpected FX conversion in valuation test.");
     }
 }

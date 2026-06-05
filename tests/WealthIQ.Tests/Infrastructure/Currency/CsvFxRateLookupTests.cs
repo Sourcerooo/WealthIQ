@@ -3,6 +3,8 @@ using WealthIQ.Domain.Enumeration;
 using WealthIQ.Infrastructure.Ibkr.Currency;
 using Xunit;
 
+using CurrencyCode = WealthIQ.Domain.Enumeration.Currency;
+
 namespace WealthIQ.Tests.Infrastructure.CurrencyTests;
 
 public sealed class CsvFxRateLookupTests : IDisposable
@@ -31,14 +33,14 @@ public sealed class CsvFxRateLookupTests : IDisposable
     [Fact]
     public void GetRate_SameCurrency_ReturnsOne()
     {
-        var rate = Lookup().GetRate(new DateOnly(2099, 1, 1), Currency.EUR, Currency.EUR);
+        var rate = Lookup().GetRate(new DateOnly(2099, 1, 1), CurrencyCode.EUR, CurrencyCode.EUR);
         Assert.Equal(1m, rate);
     }
 
     [Fact]
     public void GetRate_ExactDate_ReturnsConfiguredRate()
     {
-        var rate = Lookup().GetRate(new DateOnly(2021, 3, 26), Currency.USD, Currency.EUR);
+        var rate = Lookup().GetRate(new DateOnly(2021, 3, 26), CurrencyCode.USD, CurrencyCode.EUR);
         Assert.Equal(0.8487523341m, rate);
     }
 
@@ -48,21 +50,21 @@ public sealed class CsvFxRateLookupTests : IDisposable
         // 2021-03-27 is a Saturday with no published rate; ExactDate must not silently substitute.
         var lookup = Lookup();
         Assert.Throws<InvalidOperationException>(() =>
-            lookup.GetRate(new DateOnly(2021, 3, 27), Currency.USD, Currency.EUR, FxRateLookupDateHandling.ExactDate));
+            lookup.GetRate(new DateOnly(2021, 3, 27), CurrencyCode.USD, CurrencyCode.EUR, FxRateLookupDateHandling.ExactDate));
     }
 
     [Fact]
     public void GetRate_MissingDate_NextAvailableOnOrAfter_RollsForwardToNextTradingDay()
     {
         // 2021-03-27 (Sat) and 2021-03-28 (Sun) have no rate → roll forward to Monday 2021-03-29.
-        var rate = Lookup().GetRate(new DateOnly(2021, 3, 27), Currency.USD, Currency.EUR, FxRateLookupDateHandling.NextAvailableOnOrAfter);
+        var rate = Lookup().GetRate(new DateOnly(2021, 3, 27), CurrencyCode.USD, CurrencyCode.EUR, FxRateLookupDateHandling.NextAvailableOnOrAfter);
         Assert.Equal(0.8501000000m, rate);
     }
 
     [Fact]
     public void GetRate_ExactDatePresent_NextAvailableHandling_ReturnsExactNotRolled()
     {
-        var rate = Lookup().GetRate(new DateOnly(2021, 3, 26), Currency.USD, Currency.EUR, FxRateLookupDateHandling.NextAvailableOnOrAfter);
+        var rate = Lookup().GetRate(new DateOnly(2021, 3, 26), CurrencyCode.USD, CurrencyCode.EUR, FxRateLookupDateHandling.NextAvailableOnOrAfter);
         Assert.Equal(0.8487523341m, rate);
     }
 
@@ -71,7 +73,7 @@ public sealed class CsvFxRateLookupTests : IDisposable
     {
         var lookup = Lookup();
         Assert.Throws<InvalidOperationException>(() =>
-            lookup.GetRate(new DateOnly(2021, 4, 1), Currency.USD, Currency.EUR, FxRateLookupDateHandling.NextAvailableOnOrAfter));
+            lookup.GetRate(new DateOnly(2021, 4, 1), CurrencyCode.USD, CurrencyCode.EUR, FxRateLookupDateHandling.NextAvailableOnOrAfter));
     }
 
     [Fact]
@@ -79,7 +81,7 @@ public sealed class CsvFxRateLookupTests : IDisposable
     {
         var lookup = Lookup();
         Assert.Throws<InvalidOperationException>(() =>
-            lookup.GetRate(new DateOnly(2021, 3, 26), Currency.GBP, Currency.USD));
+            lookup.GetRate(new DateOnly(2021, 3, 26), CurrencyCode.GBP, CurrencyCode.USD));
     }
 
     [Fact]
@@ -88,7 +90,7 @@ public sealed class CsvFxRateLookupTests : IDisposable
         // All three JPY rows are invalid (negative, non-numeric, missing column) → no JPY rate exists.
         var lookup = Lookup();
         Assert.Throws<InvalidOperationException>(() =>
-            lookup.GetRate(new DateOnly(2021, 1, 4), Currency.JPY, Currency.EUR, FxRateLookupDateHandling.NextAvailableOnOrAfter));
+            lookup.GetRate(new DateOnly(2021, 1, 4), CurrencyCode.JPY, CurrencyCode.EUR, FxRateLookupDateHandling.NextAvailableOnOrAfter));
     }
 
     [Fact]

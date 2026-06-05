@@ -1,0 +1,8 @@
+{
+  "IE00B3XXRP09": [
+    { "currency": "GBP", "provider": "YahooFinance", "provider_symbol": "VUSA.L", "notes": "London listing in GBP." }
+  ],
+  "IE00B4ND3602": [
+    { "currency": "USD", "provider": "YahooFinance", "provider_symbol": "IGLN.L", "notes": "London listing in USD." }
+  ]
+}

@@ -24,14 +24,19 @@ public sealed class ReferenceDataSeeder(WealthIqDbContext db) : IReferenceDataSe
             db.BasisInterestRates.AddRange(ReadBasisInterestRates(sources.BasisInterestRateCsvPath));
         }
 
-        if (!await db.YearEndPrices.AnyAsync(ct))
+        if (!await db.HistoricalPrices.AnyAsync(ct))
         {
-            db.YearEndPrices.AddRange(ReadYearEndPrices(sources.YearEndPriceCsvPath));
+            db.HistoricalPrices.AddRange(ReadHistoricalPrices(sources.HistoricalPriceCsvPath));
         }
 
         if (!await db.InstrumentProfiles.AnyAsync(ct))
         {
             db.InstrumentProfiles.AddRange(ReadInstrumentProfiles(sources.InstrumentProfileJsonPath));
+        }
+
+        if (!await db.InstrumentListings.AnyAsync(ct))
+        {
+            db.InstrumentListings.AddRange(ReadInstrumentListings(sources.InstrumentListingJsonPath));
         }
 
         if (!await db.FxRates.AnyAsync(ct))
@@ -44,8 +49,9 @@ public sealed class ReferenceDataSeeder(WealthIqDbContext db) : IReferenceDataSe
 
         return new ReferenceDataSeedResult(
             await db.BasisInterestRates.CountAsync(ct),
-            await db.YearEndPrices.CountAsync(ct),
+            await db.HistoricalPrices.CountAsync(ct),
             await db.InstrumentProfiles.CountAsync(ct),
+            await db.InstrumentListings.CountAsync(ct),
             await db.FxRates.CountAsync(ct));
     }
 
@@ -63,17 +69,26 @@ public sealed class ReferenceDataSeeder(WealthIqDbContext db) : IReferenceDataSe
         }
     }
 
-    private static IEnumerable<YearEndPriceRow> ReadYearEndPrices(string path)
+    private static IEnumerable<HistoricalPriceRow> ReadHistoricalPrices(string path)
     {
-        foreach (var (lineNumber, parts) in ReadCsv(path, "Year-end price file not found.", minColumns: 3))
+        foreach (var (_, parts) in ReadCsv(path, "Historical price file not found.", minColumns: 9))
         {
-            if (!int.TryParse(parts[0], out var year)
-                || !decimal.TryParse(parts[2], NumberStyles.Any, CultureInfo.InvariantCulture, out var price))
+            if (!DateOnly.TryParseExact(parts[0].Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
+                || !decimal.TryParse(parts[3].Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var open)
+                || !decimal.TryParse(parts[4].Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var high)
+                || !decimal.TryParse(parts[5].Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var low)
+                || !decimal.TryParse(parts[6].Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var close)
+                || !decimal.TryParse(parts[7].Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var adj)
+                || !long.TryParse(parts[8].Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var volume))
             {
-                throw new FormatException($"Malformed row in '{Path.GetFileName(path)}' line {lineNumber}: invalid year or price.");
+                continue;
             }
 
-            yield return new YearEndPriceRow { Year = year, Isin = parts[1].Trim(), PriceEur = price };
+            yield return new HistoricalPriceRow
+            {
+                ProviderSymbol = parts[1].Trim(), Date = date, Currency = parts[2].Trim(),
+                Open = open, High = high, Low = low, Close = close, AdjustedClose = adj, Volume = volume
+            };
         }
     }
 
@@ -110,7 +125,44 @@ public sealed class ReferenceDataSeeder(WealthIqDbContext db) : IReferenceDataSe
                 throw new InvalidOperationException($"Invalid tfs_quote for instrument '{isin}'.");
             }
 
-            yield return new InstrumentProfileRow { Isin = isin, Name = dto.Name, Teilfreistellungsquote = tfs };
+            yield return new InstrumentProfileRow
+            {
+                Isin = isin, Name = dto.Name, Type = dto.Type,
+                Teilfreistellungsquote = tfs, SubjectToVorabpauschale = dto.SubjectToVorabpauschale
+            };
+        }
+    }
+
+    private static IEnumerable<InstrumentListingRow> ReadInstrumentListings(string path)
+    {
+        if (!File.Exists(path))
+        {
+            throw new FileNotFoundException("Instrument listings file not found.", path);
+        }
+
+        var json = File.ReadAllText(path);
+        var raw = JsonSerializer.Deserialize<Dictionary<string, List<ListingDto>>>(json)
+            ?? throw new InvalidOperationException("Instrument listings file could not be parsed.");
+
+        foreach (var (isin, listings) in raw)
+        {
+            foreach (var dto in listings)
+            {
+                if (string.IsNullOrWhiteSpace(dto.ProviderSymbol))
+                {
+                    continue;
+                }
+
+                yield return new InstrumentListingRow
+                {
+                    Isin = isin,
+                    Currency = dto.Currency,
+                    Provider = dto.Provider,
+                    ProviderSymbol = dto.ProviderSymbol,
+                    Exchange = dto.Exchange,
+                    Notes = dto.Notes
+                };
+            }
         }
     }
 
@@ -146,7 +198,22 @@ public sealed class ReferenceDataSeeder(WealthIqDbContext db) : IReferenceDataSe
         [JsonPropertyName("name")]
         public string Name { get; init; } = string.Empty;
 
+        [JsonPropertyName("type")]
+        public string Type { get; init; } = "";
+
         [JsonPropertyName("tfs_quote")]
         public object? TeilfreistellungsquoteRaw { get; init; }
+
+        [JsonPropertyName("subject_to_vorabpauschale")]
+        public bool SubjectToVorabpauschale { get; init; }
+    }
+
+    private sealed class ListingDto
+    {
+        [JsonPropertyName("currency")] public string Currency { get; init; } = "";
+        [JsonPropertyName("provider")] public string Provider { get; init; } = "YahooFinance";
+        [JsonPropertyName("provider_symbol")] public string ProviderSymbol { get; init; } = "";
+        [JsonPropertyName("exchange")] public string? Exchange { get; init; }
+        [JsonPropertyName("notes")] public string? Notes { get; init; }
     }
 }

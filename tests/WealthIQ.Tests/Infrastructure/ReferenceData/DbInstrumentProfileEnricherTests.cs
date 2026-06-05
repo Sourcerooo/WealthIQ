@@ -53,13 +53,15 @@ public sealed class DbInstrumentProfileEnricherTests
     }
 
     [Fact]
-    public void Enrich_UnknownIsin_WithIsin_DefaultsToThirtyPercentAndAutoName()
+    public void Enrich_UnknownIsin_WithIsin_ReturnsAsIs()
     {
+        // No profile on file: enricher returns the instrument unchanged (spec §2, §4).
+        // Stage B will turn "held over year-end with no profile" into a blocking error.
         using var db = SeededDb();
         using var ctx = db.NewContext();
         var enriched = new DbInstrumentProfileEnricher(ctx).Enrich(Raw("XX0000000000", "ABC", name: ""));
-        Assert.Equal(0.30m, enriched.Teilfreistellungsquote);
-        Assert.Equal("Auto-Generated", enriched.Name);
+        Assert.Equal(0m, enriched.Teilfreistellungsquote);
+        Assert.Equal("", enriched.Name);
     }
 
     [Fact]

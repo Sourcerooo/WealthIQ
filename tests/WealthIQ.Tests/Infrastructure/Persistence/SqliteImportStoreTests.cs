@@ -4,6 +4,8 @@ using WealthIQ.Application.Import.Enumeration;
 using WealthIQ.Application.Persistence;
 using WealthIQ.Domain.Enumeration;
 using WealthIQ.Domain.Model.General;
+
+using CurrencyCode = WealthIQ.Domain.Enumeration.Currency;
 using WealthIQ.Domain.Model.Ledger;
 using WealthIQ.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -26,7 +28,7 @@ public sealed class SqliteImportStoreTests
             new DateTimeOffset(2024, 3, day, 12, 0, 0, TimeSpan.Zero),
             new DateOnly(2024, 3, day), Provenance(reference), instrument,
             TradeSide.Buy, new Quantity(5m),
-            new Money(100m, Currency.USD), new Money(1m, Currency.USD), new Money(0m, Currency.USD));
+            new Money(100m, CurrencyCode.USD), new Money(1m, CurrencyCode.USD), new Money(0m, CurrencyCode.USD));
 
     private static ImportBatch Batch(AccountId account, Guid batchId) =>
         new(batchId, Broker.InteractiveBrokers, Format.XML, account, "audit/file.xml",

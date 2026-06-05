@@ -46,6 +46,22 @@ namespace WealthIQ.Infrastructure.Persistence.Migrations
                     b.ToTable("BasisInterestRates");
                 });
 
+            modelBuilder.Entity("WealthIQ.Infrastructure.Persistence.Rows.DataRefreshLogRow", b =>
+                {
+                    b.Property<string>("Dataset")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("LastRefreshedUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Dataset");
+
+                    b.ToTable("DataRefreshLog");
+                });
+
             modelBuilder.Entity("WealthIQ.Infrastructure.Persistence.Rows.FxRateRow", b =>
                 {
                     b.Property<DateOnly>("Date")
@@ -60,6 +76,41 @@ namespace WealthIQ.Infrastructure.Persistence.Migrations
                     b.HasKey("Date", "Currency");
 
                     b.ToTable("FxRates");
+                });
+
+            modelBuilder.Entity("WealthIQ.Infrastructure.Persistence.Rows.HistoricalPriceRow", b =>
+                {
+                    b.Property<string>("ProviderSymbol")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("AdjustedClose")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("Close")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("High")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("Low")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("Open")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Volume")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ProviderSymbol", "Date");
+
+                    b.ToTable("HistoricalPrices");
                 });
 
             modelBuilder.Entity("WealthIQ.Infrastructure.Persistence.Rows.ImportBatchRow", b =>
@@ -140,6 +191,33 @@ namespace WealthIQ.Infrastructure.Persistence.Migrations
                     b.ToTable("ImportDiagnostics");
                 });
 
+            modelBuilder.Entity("WealthIQ.Infrastructure.Persistence.Rows.InstrumentListingRow", b =>
+                {
+                    b.Property<string>("Isin")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Currency")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Exchange")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProviderSymbol")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Isin", "Currency");
+
+                    b.ToTable("InstrumentListings");
+                });
+
             modelBuilder.Entity("WealthIQ.Infrastructure.Persistence.Rows.InstrumentProfileRow", b =>
                 {
                     b.Property<string>("Isin")
@@ -149,7 +227,14 @@ namespace WealthIQ.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("SubjectToVorabpauschale")
+                        .HasColumnType("INTEGER");
+
                     b.Property<decimal>("Teilfreistellungsquote")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.HasKey("Isin");
@@ -220,22 +305,6 @@ namespace WealthIQ.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("PortfolioEntries");
-                });
-
-            modelBuilder.Entity("WealthIQ.Infrastructure.Persistence.Rows.YearEndPriceRow", b =>
-                {
-                    b.Property<int>("Year")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Isin")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("PriceEur")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Year", "Isin");
-
-                    b.ToTable("YearEndPrices");
                 });
 #pragma warning restore 612, 618
         }

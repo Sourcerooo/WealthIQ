@@ -52,12 +52,14 @@ public sealed class JsonInstrumentProfileEnricherTests : IDisposable
     }
 
     [Fact]
-    public void Enrich_UnknownIsin_WithIsin_DefaultsToThirtyPercentAndAutoName()
+    public void Enrich_UnknownIsin_WithIsin_ReturnsAsIs()
     {
+        // No profile on file: enricher returns the instrument unchanged (spec §2, §4).
+        // Stage B will turn "held over year-end with no profile" into a blocking error.
         var enriched = Enricher().Enrich(new Instrument(InstrumentId.NewId(), "XX0000000000", "ABC", "", 0m));
 
-        Assert.Equal(0.30m, enriched.Teilfreistellungsquote); // unknown ISIN'd fund defaults to equity 30 %
-        Assert.Equal("Auto-Generated", enriched.Name);
+        Assert.Equal(0m, enriched.Teilfreistellungsquote);
+        Assert.Equal("", enriched.Name);
     }
 
     [Fact]

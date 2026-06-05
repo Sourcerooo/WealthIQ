@@ -12,7 +12,7 @@ namespace WealthIQ.Application.Tax;
 
 public sealed class GermanTaxCalculator(
     IBasisInterestRateProvider interestRateProvider,
-    IYearEndPriceProvider yearEndPriceProvider,
+    IInstrumentPriceProvider priceProvider,
     IFxRateLookup fxRateLookup)
 {
     private readonly FiFoMatcher _matcher = new();
@@ -205,44 +205,60 @@ public sealed class GermanTaxCalculator(
         List<Distribution> distributions,
         IReadOnlyDictionary<InstrumentId, Instrument> instrumentById)
     {
-        var basisInterestRate = interestRateProvider.GetRate(year);
-        if (basisInterestRate <= 0m)
+        // Guard: if no long lots are held this year, skip even the Basiszins lookup.
+        var hasHeldLongLot = openLots.Any(x => x.Direction == PositionDirection.Long && x.RemainingQuantity.Value > 0m);
+        if (!hasHeldLongLot)
         {
             return;
         }
 
-        var basisFactor = basisInterestRate * 0.7m;
+        var basisInterestRate = interestRateProvider.GetRate(year);
+        if (basisInterestRate is null)
+        {
+            throw new InvalidOperationException(
+                $"Basiszins for {year} is missing but a lot is held over that year-end. " +
+                $"Add the rate before computing Vorabpauschale.");
+        }
+
+        if (basisInterestRate.Value <= 0m)
+        {
+            return; // official zero/negative rate → no Vorabpauschale this year (spec §6.4)
+        }
+
+        var basisFactor = basisInterestRate.Value * 0.7m;
 
         foreach (var instrumentGroup in openLots
                      .Where(x => x.Direction == PositionDirection.Long && x.RemainingQuantity.Value > 0m)
                      .GroupBy(x => x.InstrumentId))
         {
             var instrument = GetInstrument(instrumentById, instrumentGroup.Key);
-            if (string.IsNullOrWhiteSpace(instrument.ISIN))
-            {
-                continue;
-            }
 
-            var yearEndPrice = yearEndPriceProvider.GetPrice(instrument.ISIN, year);
-            if (!yearEndPrice.HasValue)
+            if (instrument.SubjectToVorabpauschale is null)
             {
                 throw new InvalidOperationException(
-                    $"Year-end price for ISIN '{instrument.ISIN}' in {year} is required to compute Vorabpauschale " +
-                    $"but is missing. Add it to the reference price data.");
+                    $"Instrument '{instrument.ISIN}' is held over {year} year-end but has no classification profile. " +
+                    $"Add an instrument profile (incl. SubjectToVorabpauschale) before computing Vorabpauschale.");
+            }
+
+            if (instrument.SubjectToVorabpauschale != true)
+            {
+                continue; // §18 applies only to investment funds (spec §6.2)
             }
 
             foreach (var lot in instrumentGroup.ToList())
             {
-                var acquisitionPrice = CalculateRemainingAcquisitionPriceInEur(lot);
-                var months = 12m;
-                if (lot.OpenTradeDate.Year == year)
+                var lotCurrency = lot.OpenUnitPrice.Currency;
+
+                var startQuote = priceProvider.GetQuote(instrument.ISIN, lotCurrency, new DateOnly(year, 1, 1), PriceQuoteHandling.EarliestOnOrAfter);
+                var endQuote = priceProvider.GetQuote(instrument.ISIN, lotCurrency, new DateOnly(year, 12, 31), PriceQuoteHandling.LatestOnOrBefore);
+                if (startQuote is null || endQuote is null)
                 {
-                    months = 12m - lot.OpenTradeDate.Month + 1m;
+                    throw new InvalidOperationException(
+                        $"Year-start or year-end redemption price for '{instrument.ISIN}' ({lotCurrency}) in {year} is required but missing.");
                 }
 
-                var basisYield = acquisitionPrice * basisFactor * (months / 12m);
-                var appreciation = Math.Max(0m, yearEndPrice.Value - acquisitionPrice);
-                var maxVorabpauschale = Math.Min(basisYield, appreciation);
+                var startValueEur = _fxConverter.Convert(new Money(startQuote.Value.Close, startQuote.Value.Currency), startQuote.Value.AsOf).Amount;
+                var endValueEur = _fxConverter.Convert(new Money(endQuote.Value.Close, endQuote.Value.Currency), endQuote.Value.AsOf).Amount;
 
                 // Only distributions paid into THIS lot's account, on THIS instrument, while the lot
                 // was already held (paid on/after the lot's open date), reduce its Vorabpauschale.
@@ -253,13 +269,21 @@ public sealed class GermanTaxCalculator(
                         && d.Date >= lot.OpenTradeDate)
                     .Sum(d => d.PerShare);
 
-                var actualVorabpauschalePerShare = Math.Max(0m, maxVorabpauschale - distributionPerShare);
-                if (actualVorabpauschalePerShare <= 0m)
+                var basisErtrag = startValueEur * basisFactor;                                         // §18(1) Satz 2
+                var cap = Math.Max(0m, (endValueEur - startValueEur) + distributionPerShare);          // §18(1) Satz 3: Mehrbetrag + Ausschüttungen
+                var cappedBasisErtrag = Math.Min(basisErtrag, cap);
+                var vorabFull = Math.Max(0m, cappedBasisErtrag - distributionPerShare);                // §18(1) Satz 1: Basisertrag übersteigt Ausschüttungen
+
+                var monthFactor = lot.OpenTradeDate.Year == year
+                    ? (13m - lot.OpenTradeDate.Month) / 12m                                            // §18(2): 1/12 per full month before purchase month
+                    : 1m;
+                var vorabPerShare = vorabFull * monthFactor;                                           // §18(2): reduction applied to die Vorabpauschale
+                if (vorabPerShare <= 0m)
                 {
                     continue;
                 }
 
-                var totalVorabpauschale = actualVorabpauschalePerShare * lot.RemainingQuantity.Value;
+                var totalVorabpauschale = vorabPerShare * lot.RemainingQuantity.Value;
                 ReplaceLot(openLots, lot with
                 {
                     AccumulatedVorabpauschale = new Money(lot.AccumulatedVorabpauschale.Amount + totalVorabpauschale, WealthIQ.Domain.Enumeration.Currency.EUR)
@@ -368,16 +392,7 @@ public sealed class GermanTaxCalculator(
         return _fxConverter.Convert(sourceMoney, conversionDate);
     }
 
-    private decimal CalculateRemainingAcquisitionPriceInEur(OpenLot lot)
-    {
-        var sourceAcquisitionTotal = (lot.OpenUnitPrice * lot.RemainingQuantity.Value)
-            + lot.RemainingOpenFees + lot.RemainingOpenTaxes;
-
-        var acquisitionTotalInEur = _fxConverter.Convert(sourceAcquisitionTotal, lot.OpenTradeDate);
-        return acquisitionTotalInEur.Amount / lot.RemainingQuantity.Value;
-    }
-
-    /// <summary>A per-share distribution recorded for Vorabpauschale reduction, scoped to the account,
+/// <summary>A per-share distribution recorded for Vorabpauschale reduction, scoped to the account,
     /// instrument and the date it was paid (so only lots held at that date are reduced).</summary>
     private readonly record struct Distribution(
         int Year,

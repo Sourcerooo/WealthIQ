@@ -1,0 +1,23 @@
+{
+  "IE00B3XXRP09": [
+    { "currency": "GBP", "provider": "YahooFinance", "provider_symbol": "VUSA.L", "notes": "London listing in GBP used to match broker-export trades in GBP." }
+  ],
+  "IE00B4ND3602": [
+    { "currency": "USD", "provider": "YahooFinance", "provider_symbol": "IGLN.L", "notes": "London listing in USD used to match broker-export trades in USD." }
+  ],
+  "IE00BSKRJZ44": [
+    { "currency": "USD", "provider": "YahooFinance", "provider_symbol": "IDTL.L", "notes": "London listing in USD used to match broker-export trades in USD." }
+  ],
+  "IE00B53SZB19": [
+    { "currency": "EUR", "provider": "YahooFinance", "provider_symbol": "CNDX.AS", "notes": "EUR listing used to match broker-export trades in EUR." }
+  ],
+  "IE00B5BMR087": [
+    { "currency": "EUR", "provider": "YahooFinance", "provider_symbol": "CSPX.AS", "notes": "EUR listing used to match broker-export trades in EUR." }
+  ],
+  "LU0411078552": [
+    { "currency": "EUR", "provider": "YahooFinance", "provider_symbol": "DBPG.DE", "notes": "Broker symbol is XS2L, but Yahoo Finance exposes the Xetra listing under DBPG.DE in EUR." }
+  ],
+  "LU0290358497": [
+    { "currency": "EUR", "provider": "YahooFinance", "provider_symbol": "XEON.DE", "notes": "EUR listing used to match broker-export trades in EUR." }
+  ]
+}

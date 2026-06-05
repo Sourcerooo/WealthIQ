@@ -1,22 +1,81 @@
 @inherits LayoutComponentBase
+@inject ThemePreferenceService ThemePreference
 
-<MudThemeProvider />
+<MudThemeProvider Theme="WealthIqTheme.Instance" @bind-IsDarkMode="_isDark" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
 <MudLayout>
-    <MudAppBar Elevation="1">
-        <MudText Typo="Typo.h6">WealthIQ</MudText>
-        <MudSpacer />
-        <MudButton Href="/" Color="Color.Inherit">Steuerreport</MudButton>
-        <MudButton Href="/import" Color="Color.Inherit">Import</MudButton>
-        <MudButton Href="/audit" Color="Color.Inherit">Audit</MudButton>
-        <MudButton Href="/diagnostics" Color="Color.Inherit">Diagnostics</MudButton>
-    </MudAppBar>
+    <MudDrawer Open="true" Variant="DrawerVariant.Persistent" Anchor="Anchor.Left"
+               Elevation="0" ClipMode="DrawerClipMode.Never">
+        <div style="display:flex;flex-direction:column;height:100%;">
+            <!-- Brand -->
+            <div style="display:flex;align-items:center;gap:10px;padding:18px 16px 8px;">
+                <div style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#34D399,#10B981);"></div>
+                <div>
+                    <MudText Typo="Typo.subtitle1" Style="font-weight:700;line-height:1;">WealthIQ</MudText>
+                    <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">Steuer &amp; Vermögen</MudText>
+                </div>
+            </div>
+
+            <MudNavMenu>
+                <div class="wiq-nav-label">Bericht</div>
+                <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Outlined.ReceiptLong">Steuerreport</MudNavLink>
+
+                <div class="wiq-nav-label">Daten erfassen</div>
+                <MudNavLink Href="/import" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Outlined.UploadFile">Import</MudNavLink>
+
+                <div class="wiq-nav-label">Stammdaten</div>
+                <MudNavLink Href="/data-admin" Match="NavLinkMatch.All" Icon="@Icons.Material.Outlined.ShowChart">Marktdaten</MudNavLink>
+                <MudNavLink Href="/data-admin/instruments" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Outlined.Inventory2">Instrumente</MudNavLink>
+            </MudNavMenu>
+
+            <div class="wiq-nav-spacer"></div>
+
+            <MudNavMenu>
+                <div class="wiq-nav-label">Diagnose</div>
+                <MudNavLink Href="/diagnostics" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Outlined.BugReport">Diagnose</MudNavLink>
+                <MudNavLink Href="/audit" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Outlined.History">Audit-Trail</MudNavLink>
+            </MudNavMenu>
+
+            <!-- Theme toggle -->
+            <div style="border-top:1px solid var(--mud-palette-lines-default);padding:10px 12px;display:flex;align-items:center;justify-content:space-between;">
+                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                    @(_isDark ? "Dunkel" : "Hell")
+                </MudText>
+                <MudIconButton Icon="@(_isDark ? Icons.Material.Outlined.LightMode : Icons.Material.Outlined.DarkMode)"
+                               Color="Color.Primary" Size="Size.Small"
+                               OnClick="ToggleThemeAsync" aria-label="Theme umschalten" />
+            </div>
+        </div>
+    </MudDrawer>
+
     <MudMainContent>
         <MudContainer MaxWidth="MaxWidth.Large" Class="my-6">
-            @Body
+            <div class="wiq-page" @key="_body">
+                @Body
+            </div>
         </MudContainer>
     </MudMainContent>
 </MudLayout>
+
+@code {
+    private bool _isDark = true; // default to the primary dark mode until localStorage loads
+    private readonly object _body = new();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _isDark = await ThemePreference.LoadIsDarkAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task ToggleThemeAsync()
+    {
+        _isDark = !_isDark;
+        await ThemePreference.SaveAsync(_isDark);
+    }
+}

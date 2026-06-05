@@ -3,19 +3,21 @@
 
 <PageTitle>WealthIQ — Fehler</PageTitle>
 
-<MudContainer Class="mt-8">
-    <MudAlert Severity="Severity.Error" Variant="Variant.Filled">
-        Ein unerwarteter Fehler ist aufgetreten.
-    </MudAlert>
-    <MudText Typo="Typo.body2" Class="mt-4">
-        Bitte lade die Seite neu. Tritt der Fehler erneut auf, prüfe die Logs der Anwendung.
-    </MudText>
-    @if (!string.IsNullOrEmpty(RequestId))
-    {
-        <MudText Typo="Typo.caption" Class="mt-2">Request-ID: <code>@RequestId</code></MudText>
-    }
-    <MudButton Href="/" Variant="Variant.Filled" Color="Color.Primary" Class="mt-4">Zur Startseite</MudButton>
-</MudContainer>
+<div style="display:flex;justify-content:center;padding:48px 0;">
+    <SectionCard Title="Es ist ein Fehler aufgetreten">
+        <MudAlert Severity="Severity.Error" Variant="Variant.Filled">
+            Ein unerwarteter Fehler ist aufgetreten.
+        </MudAlert>
+        <MudText Typo="Typo.body2" Class="mt-4">
+            Bitte lade die Seite neu. Tritt der Fehler erneut auf, prüfe die Logs der Anwendung.
+        </MudText>
+        @if (!string.IsNullOrEmpty(RequestId))
+        {
+            <MudText Typo="Typo.caption" Class="mt-2">Request-ID: <code>@RequestId</code></MudText>
+        }
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/" StartIcon="@Icons.Material.Outlined.Home" Class="mt-4">Zur Startseite</MudButton>
+    </SectionCard>
+</div>
 
 @code {
     [CascadingParameter]

@@ -4,6 +4,8 @@ using WealthIQ.Domain.Model.Ledger;
 using WealthIQ.Infrastructure.Persistence.Mapping;
 using Xunit;
 
+using CurrencyCode = WealthIQ.Domain.Enumeration.Currency;
+
 namespace WealthIQ.Tests.Infrastructure.Persistence;
 
 public sealed class PortfolioEntryMapperTests
@@ -28,9 +30,9 @@ public sealed class PortfolioEntryMapperTests
             InstrumentId.NewId(),
             TradeSide.Buy,
             new Quantity(10m),
-            new Money(100.50m, Currency.USD),
-            new Money(1.25m, Currency.USD),
-            new Money(0m, Currency.USD));
+            new Money(100.50m, CurrencyCode.USD),
+            new Money(1.25m, CurrencyCode.USD),
+            new Money(0m, CurrencyCode.USD));
 
         var row = PortfolioEntryMapper.ToRow(original);
         var restored = PortfolioEntryMapper.ToDomain(row);
@@ -52,9 +54,9 @@ public sealed class PortfolioEntryMapperTests
             Provenance("CT-9"),
             InstrumentId.NewId(),
             CashFlowType.Dividend,
-            new Money(42m, Currency.USD),
-            new Money(0m, Currency.USD),
-            new Money(6.30m, Currency.USD));
+            new Money(42m, CurrencyCode.USD),
+            new Money(0m, CurrencyCode.USD),
+            new Money(6.30m, CurrencyCode.USD));
 
         var row = PortfolioEntryMapper.ToRow(original);
         var restored = PortfolioEntryMapper.ToDomain(row);

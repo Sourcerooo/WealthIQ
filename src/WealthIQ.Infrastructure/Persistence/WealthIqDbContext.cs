@@ -11,9 +11,11 @@ public sealed class WealthIqDbContext(DbContextOptions<WealthIqDbContext> option
     public DbSet<ImportBatchRow> ImportBatches => Set<ImportBatchRow>();
     public DbSet<ImportDiagnosticRow> ImportDiagnostics => Set<ImportDiagnosticRow>();
     public DbSet<BasisInterestRateRow> BasisInterestRates => Set<BasisInterestRateRow>();
-    public DbSet<YearEndPriceRow> YearEndPrices => Set<YearEndPriceRow>();
     public DbSet<InstrumentProfileRow> InstrumentProfiles => Set<InstrumentProfileRow>();
     public DbSet<FxRateRow> FxRates => Set<FxRateRow>();
+    public DbSet<HistoricalPriceRow> HistoricalPrices => Set<HistoricalPriceRow>();
+    public DbSet<InstrumentListingRow> InstrumentListings => Set<InstrumentListingRow>();
+    public DbSet<DataRefreshLogRow> DataRefreshLog => Set<DataRefreshLogRow>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -52,16 +54,23 @@ public sealed class WealthIqDbContext(DbContextOptions<WealthIqDbContext> option
 
         modelBuilder.Entity<BasisInterestRateRow>(e => e.HasKey(x => x.Year));
 
-        modelBuilder.Entity<YearEndPriceRow>(e =>
-        {
-            e.HasKey(x => new { x.Year, x.Isin });
-        });
-
         modelBuilder.Entity<InstrumentProfileRow>(e => e.HasKey(x => x.Isin));
 
         modelBuilder.Entity<FxRateRow>(e =>
         {
             e.HasKey(x => new { x.Date, x.Currency });
         });
+
+        modelBuilder.Entity<HistoricalPriceRow>(e =>
+        {
+            e.HasKey(x => new { x.ProviderSymbol, x.Date });
+        });
+
+        modelBuilder.Entity<InstrumentListingRow>(e =>
+        {
+            e.HasKey(x => new { x.Isin, x.Currency });
+        });
+
+        modelBuilder.Entity<DataRefreshLogRow>(e => e.HasKey(x => x.Dataset));
     }
 }

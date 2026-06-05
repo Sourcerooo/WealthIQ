@@ -5,6 +5,8 @@ using WealthIQ.Infrastructure.ReferenceData;
 using WealthIQ.Tests.Infrastructure.Persistence;
 using Xunit;
 
+using CurrencyCode = WealthIQ.Domain.Enumeration.Currency;
+
 namespace WealthIQ.Tests.Infrastructure.ReferenceData;
 
 public sealed class DbFxRateLookupTests
@@ -27,14 +29,14 @@ public sealed class DbFxRateLookupTests
     public void GetRate_SameCurrency_ReturnsOne()
     {
         using var db = SeededDb();
-        Assert.Equal(1m, Lookup(db).GetRate(new DateOnly(2099, 1, 1), Currency.EUR, Currency.EUR));
+        Assert.Equal(1m, Lookup(db).GetRate(new DateOnly(2099, 1, 1), CurrencyCode.EUR, CurrencyCode.EUR));
     }
 
     [Fact]
     public void GetRate_ExactDate_ReturnsConfiguredRate()
     {
         using var db = SeededDb();
-        Assert.Equal(0.8487523341m, Lookup(db).GetRate(new DateOnly(2021, 3, 26), Currency.USD, Currency.EUR));
+        Assert.Equal(0.8487523341m, Lookup(db).GetRate(new DateOnly(2021, 3, 26), CurrencyCode.USD, CurrencyCode.EUR));
     }
 
     [Fact]
@@ -43,14 +45,14 @@ public sealed class DbFxRateLookupTests
         using var db = SeededDb();
         var lookup = Lookup(db);
         Assert.Throws<InvalidOperationException>(() =>
-            lookup.GetRate(new DateOnly(2021, 3, 27), Currency.USD, Currency.EUR, FxRateLookupDateHandling.ExactDate));
+            lookup.GetRate(new DateOnly(2021, 3, 27), CurrencyCode.USD, CurrencyCode.EUR, FxRateLookupDateHandling.ExactDate));
     }
 
     [Fact]
     public void GetRate_MissingDate_NextAvailableOnOrAfter_RollsForwardToNextTradingDay()
     {
         using var db = SeededDb();
-        var rate = Lookup(db).GetRate(new DateOnly(2021, 3, 27), Currency.USD, Currency.EUR, FxRateLookupDateHandling.NextAvailableOnOrAfter);
+        var rate = Lookup(db).GetRate(new DateOnly(2021, 3, 27), CurrencyCode.USD, CurrencyCode.EUR, FxRateLookupDateHandling.NextAvailableOnOrAfter);
         Assert.Equal(0.8501000000m, rate);
     }
 
@@ -58,7 +60,7 @@ public sealed class DbFxRateLookupTests
     public void GetRate_ExactDatePresent_NextAvailableHandling_ReturnsExactNotRolled()
     {
         using var db = SeededDb();
-        var rate = Lookup(db).GetRate(new DateOnly(2021, 3, 26), Currency.USD, Currency.EUR, FxRateLookupDateHandling.NextAvailableOnOrAfter);
+        var rate = Lookup(db).GetRate(new DateOnly(2021, 3, 26), CurrencyCode.USD, CurrencyCode.EUR, FxRateLookupDateHandling.NextAvailableOnOrAfter);
         Assert.Equal(0.8487523341m, rate);
     }
 
@@ -68,7 +70,7 @@ public sealed class DbFxRateLookupTests
         using var db = SeededDb();
         var lookup = Lookup(db);
         Assert.Throws<InvalidOperationException>(() =>
-            lookup.GetRate(new DateOnly(2021, 4, 1), Currency.USD, Currency.EUR, FxRateLookupDateHandling.NextAvailableOnOrAfter));
+            lookup.GetRate(new DateOnly(2021, 4, 1), CurrencyCode.USD, CurrencyCode.EUR, FxRateLookupDateHandling.NextAvailableOnOrAfter));
     }
 
     [Fact]
@@ -77,6 +79,6 @@ public sealed class DbFxRateLookupTests
         using var db = SeededDb();
         var lookup = Lookup(db);
         Assert.Throws<InvalidOperationException>(() =>
-            lookup.GetRate(new DateOnly(2021, 3, 26), Currency.GBP, Currency.USD));
+            lookup.GetRate(new DateOnly(2021, 3, 26), CurrencyCode.GBP, CurrencyCode.USD));
     }
 }

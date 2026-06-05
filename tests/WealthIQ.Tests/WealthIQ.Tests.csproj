@@ -25,7 +25,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="**\Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Each path is anchored to a specific source folder — no leading "**\" — so the glob
+         cannot match the copied output in bin/ and recursively re-copy it deeper on every build.
+         (A leading "**\Fixtures" previously caused ~880k nested files in bin/.) -->
+    <Content Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Infrastructure\Import\Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Infrastructure\ReferenceData\Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
