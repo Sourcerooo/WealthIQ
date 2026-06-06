@@ -14,6 +14,7 @@ public sealed class BasisInterestRateRefreshServiceTests
     {
         public Dictionary<int, decimal> Saved = new();
         public void Upsert(int year, decimal rate) => Saved[year] = rate;
+        public void Delete(int year) => Saved.Remove(year);
         public Task SaveChangesAsync(CancellationToken ct) => Task.CompletedTask;
     }
 
@@ -54,5 +55,18 @@ public sealed class BasisInterestRateRefreshServiceTests
         await service.SetManualAsync(2025, 0.0253m, CancellationToken.None);
 
         Assert.Equal(0.0253m, store.Saved[2025]);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RemovesYear()
+    {
+        var source = new FakeSource(null);
+        var store = new FakeStore();
+        store.Upsert(2025, 0.0253m);
+
+        var service = new BasisInterestRateRefreshService(source, store);
+        await service.DeleteAsync(2025, CancellationToken.None);
+
+        Assert.False(store.Saved.ContainsKey(2025));
     }
 }

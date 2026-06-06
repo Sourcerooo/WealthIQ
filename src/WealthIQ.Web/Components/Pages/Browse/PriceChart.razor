@@ -1,0 +1,140 @@
+@page "/browse/prices"
+@using Microsoft.EntityFrameworkCore
+@using WealthIQ.Application.MarketData
+@using WealthIQ.Infrastructure.Persistence
+@using WealthIQ.Web.Services
+@inject WealthIqDbContext Db
+@inject ThemePreferenceService ThemePreference
+@inject WealthIQ.Web.Services.ChartSelectionState ChartSelection
+@using CurrencyCode = WealthIQ.Domain.Enumeration.Currency
+
+<PageTitle>WealthIQ — Kurschart</PageTitle>
+
+<PageHeader Title="Kurschart" Subtitle="Bereinigte Tageskerzen (OHLC)">
+    <Actions>
+        <MudSelect T="ListingOption" Value="_selected" ValueChanged="OnSymbolChanged"
+                   ToStringFunc="o => o is null ? string.Empty : o.Label"
+                   Label="Instrument" Variant="Variant.Outlined" Dense="true" Style="min-width:320px;">
+            @foreach (var listing in _listings)
+            {
+                <MudSelectItem T="ListingOption" Value="@listing">@listing.Label</MudSelectItem>
+            }
+        </MudSelect>
+    </Actions>
+</PageHeader>
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+
+<div class="wiq-rise">
+    <SectionCard>
+        <ChildContent>
+            @if (_selected is null)
+            {
+                <MudText Typo="Typo.body2">Instrument oben auswählen.</MudText>
+            }
+            else if (_candles.Count == 0)
+            {
+                <MudText Typo="Typo.body2">Keine Kursdaten für @_selected.Label. Auf der Marktdaten-Seite herunterladen.</MudText>
+            }
+            else
+            {
+                <LightweightChart Kind="candlestick" Candles="_candles" Dark="_dark" InitialRangeDays="365" />
+            }
+        </ChildContent>
+    </SectionCard>
+</div>
+
+@code {
+    public sealed record ListingOption(string ProviderSymbol, string Isin, string Currency)
+    {
+        public string Label => $"{ProviderSymbol} — {Isin} ({Currency})";
+    }
+
+    private List<ListingOption> _listings = new();
+    private ListingOption? _selected;
+    private List<LightweightChart.Candle> _candles = new();
+    private bool _dark = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Filter on the entity before projection so EF can translate the WHERE clause.
+            var rows = await Db.InstrumentListings
+                .Where(x => x.ProviderSymbol != "")
+                .OrderBy(x => x.ProviderSymbol)
+                .Select(x => new { x.ProviderSymbol, x.Isin, x.Currency })
+                .ToListAsync();
+
+            _listings = rows
+                .Select(x => new ListingOption(x.ProviderSymbol, x.Isin, x.Currency))
+                .ToList();
+
+            // Restore the remembered selection, else preselect the first listing.
+            var remembered = ChartSelection.SelectedPriceSymbol;
+            var initial = (remembered is not null
+                ? _listings.FirstOrDefault(o => o.ProviderSymbol == remembered)
+                : null) ?? _listings.FirstOrDefault();
+
+            if (initial is not null)
+            {
+                await OnSymbolChanged(initial);
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Instrumente konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dark = await ThemePreference.LoadIsDarkAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnSymbolChanged(ListingOption? option)
+    {
+        _selected = option;
+        ChartSelection.SelectedPriceSymbol = option?.ProviderSymbol;
+        _candles = new();
+        _error = null;
+        if (option is not null)
+        {
+            try
+            {
+                var currency = Enum.TryParse<CurrencyCode>(option.Currency, out var c) ? c : CurrencyCode.EUR;
+
+                // Fetch raw rows from DB, then project in-memory to avoid EF translation issues
+                // with DateOnly.ToString(format) and the PriceBar record constructor.
+                var rows = await Db.HistoricalPrices
+                    .Where(x => x.ProviderSymbol == option.ProviderSymbol)
+                    .OrderBy(x => x.Date)
+                    .ToListAsync();
+
+                var priceBars = rows
+                    .Select(x => new PriceBar(x.Date, x.ProviderSymbol, currency,
+                        x.Open, x.High, x.Low, x.Close, x.AdjustedClose, x.Volume))
+                    .ToList();
+
+                _candles = AdjustedPriceCalculator.ToAdjusted(priceBars)
+                    .Select(b => new LightweightChart.Candle(
+                        b.Date.ToString("yyyy-MM-dd"),
+                        decimal.Round(b.Open, 4), decimal.Round(b.High, 4),
+                        decimal.Round(b.Low, 4), decimal.Round(b.Close, 4)))
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                _error = $"Kursdaten konnten nicht geladen werden: {ex.Message}";
+            }
+        }
+    }
+}

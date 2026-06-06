@@ -12,12 +12,10 @@
 @inject HistoricalPriceRefreshService PriceRefresh
 @inject FxRateRefreshService FxRefresh
 @inject BasisInterestRateRefreshService BasisRefresh
-@inject ILedgerClearService LedgerClear
 @inject IReferenceDataClearService RefClear
 @inject IReferenceDataSeeder Seeder
 @inject ReferenceDataSources Sources
 @inject IDataRefreshLog RefreshLog
-@inject IDialogService DialogService
 @inject TimeProvider Clock
 
 <PageTitle>WealthIQ — Datenverwaltung</PageTitle>
@@ -37,18 +35,6 @@
 }
 
 <MudExpansionPanels MultiExpansion="true" Elevation="0">
-
-    <!-- Ledger -->
-    <MudExpansionPanel Text="Ledger (Buchungen)" Icon="@Icons.Material.Outlined.Receipt">
-        <MudText Typo="Typo.body2" Class="mb-3">
-            Einträge: @_ledgerEntries | Konten: @_accounts | Batches: @_batches
-        </MudText>
-        <MudCheckBox @bind-Value="_purgeAuditFiles" Label="Rohdateien (Audit) löschen" />
-        <MudButton Variant="Variant.Filled" Color="Color.Error" Class="mt-2"
-                   Disabled="_busy" OnClick="ClearLedger">
-            Ledger leeren (unwiderruflich)
-        </MudButton>
-    </MudExpansionPanel>
 
     <!-- Historical Prices -->
     <MudExpansionPanel Text="Historische Kurse (Yahoo Finance)" Icon="@Icons.Material.Outlined.ShowChart">
@@ -114,8 +100,29 @@
             <span> | Zuletzt aktualisiert: @(_fxLastRefreshed?.ToString("yyyy-MM-dd HH:mm") ?? "—")</span>
         </MudText>
 
-        <MudDateRangePicker @bind-DateRange="_fxRange" Label="Zeitraum" Variant="Variant.Outlined" Class="mb-3" />
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mr-2 mb-2"
+                   Disabled="_busy" OnClick="RefreshFxIncremental">
+            Inkrementell aktualisieren
+        </MudButton>
 
+        <MudDivider Class="my-3" />
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Währung hinzufügen (Backfill)</MudText>
+        <div class="d-flex gap-3 align-center flex-wrap mb-3">
+            <MudSelect T="string" @bind-Value="_newCurrency" Label="Währung" Variant="Variant.Outlined" Style="max-width: 200px;">
+                @foreach (var ccy in EcbCurrencies)
+                {
+                    <MudSelectItem T="string" Value="@ccy">@ccy</MudSelectItem>
+                }
+            </MudSelect>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                       Disabled="_busy || string.IsNullOrWhiteSpace(_newCurrency)" OnClick="AddFxCurrency">
+                Hinzufügen + Backfill
+            </MudButton>
+        </div>
+
+        <MudDivider Class="my-3" />
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Gezielter Zeitraum</MudText>
+        <MudDateRangePicker @bind-DateRange="_fxRange" Label="Zeitraum" Variant="Variant.Outlined" Class="mb-3" />
         <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mr-2 mb-2"
                    Disabled="_busy" OnClick="RefreshFxRates">
             Von EZB aktualisieren
@@ -141,17 +148,45 @@
             {
                 <span>keine Daten</span>
             }
-            <span> | Zuletzt aktualisiert: @(_basiszinsLastRefreshed?.ToString("yyyy-MM-dd HH:mm") ?? "—")</span>
         </MudText>
 
-        <MudNumericField T="int" @bind-Value="_basisYear" Label="Jahr" Variant="Variant.Outlined" Class="mb-3" Style="max-width: 160px;" />
-        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mr-2 mb-2"
-                   Disabled="_busy" OnClick="RefreshBasiszins">
-            Von BMF abrufen
-        </MudButton>
+        @if (_basiszinsRows.Count > 0)
+        {
+            <MudTable Items="_basiszinsRows" Dense="true" Hover="true" Elevation="0"
+                      CanCancelEdit="true" RowEditCommit="@(async (obj) => await CommitBasiszinsEdit(obj))" T="BasiszinsRow"
+                      Class="mb-2" Style="max-width:480px;">
+                <HeaderContent>
+                    <MudTh>Jahr</MudTh>
+                    <MudTh Style="text-align:right">Zinssatz</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Jahr">@context.Year</MudTd>
+                    <MudTd DataLabel="Zinssatz" Style="text-align:right">@context.Rate.ToString("F4")</MudTd>
+                    <MudTd Style="text-align:right">
+                        <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" Color="Color.Error"
+                                       Disabled="_busy" OnClick="() => DeleteBasiszins(context.Year)" aria-label="Löschen" />
+                    </MudTd>
+                </RowTemplate>
+                <RowEditingTemplate>
+                    <MudTd DataLabel="Jahr">@context.Year</MudTd>
+                    <MudTd DataLabel="Zinssatz">
+                        <MudNumericField @bind-Value="context.Rate" Format="F4" Variant="Variant.Text" Style="max-width:160px;" />
+                    </MudTd>
+                    <MudTd></MudTd>
+                </RowEditingTemplate>
+            </MudTable>
+            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                Zeile anklicken zum Bearbeiten des Zinssatzes.
+            </MudText>
+        }
+        else
+        {
+            <MudText Typo="Typo.body2" Class="mb-2">Keine Einträge.</MudText>
+        }
 
         <MudDivider Class="my-3" />
-        <MudText Typo="Typo.subtitle2" Class="mb-2">Manuell erfassen</MudText>
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Jahr hinzufügen</MudText>
         <div class="d-flex gap-3 align-center flex-wrap mb-3">
             <MudNumericField T="int" @bind-Value="_manualYear" Label="Jahr" Variant="Variant.Outlined" Style="max-width: 160px;" />
             <MudNumericField T="decimal" @bind-Value="_manualRate" Label="Zinssatz (z. B. 0,0253)" Variant="Variant.Outlined" Style="max-width: 220px;" Format="F4" />
@@ -162,7 +197,6 @@
         </div>
 
         <MudDivider Class="my-3" />
-
         <MudButton Variant="Variant.Outlined" Color="Color.Warning" Class="mr-2 mb-2"
                    Disabled="_busy" OnClick="ClearBasiszins">
             Löschen
@@ -171,14 +205,6 @@
                    Disabled="_busy" OnClick="ReseedBasiszins">
             Aus Datei neu laden
         </MudButton>
-    </MudExpansionPanel>
-
-    <!-- Instruments -->
-    <MudExpansionPanel Text="Instrumente" Icon="@Icons.Material.Outlined.Inventory2">
-        <MudText Typo="Typo.body2" Class="mb-3">
-            Profile: @_profileCount | Listings: @_listingCount
-        </MudText>
-        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="/data-admin/instruments" StartIcon="@Icons.Material.Outlined.OpenInNew">Instrumente verwalten</MudButton>
     </MudExpansionPanel>
 
 </MudExpansionPanels>
@@ -218,19 +244,17 @@
 
 @code {
     private bool _busy;
-    private bool _purgeAuditFiles;
     private string? _message;
     private Severity _messageSeverity = Severity.Success;
 
     // status counts
-    private int _ledgerEntries, _accounts, _batches;
     private int _priceCount, _priceSymbols;
     private DateOnly? _priceMin, _priceMax;
     private int _fxCurrencies;
     private DateOnly? _fxMin, _fxMax;
     private int? _basiszinsMin, _basiszinsMax;
-    private int _basiszinsCount, _profileCount, _listingCount;
-    private DateTimeOffset? _priceLastRefreshed, _fxLastRefreshed, _basiszinsLastRefreshed;
+    private int _basiszinsCount;
+    private DateTimeOffset? _priceLastRefreshed, _fxLastRefreshed;
 
     // price multiselect
     private IReadOnlyCollection<string> _selectedSymbols = Array.Empty<string>();
@@ -240,10 +264,27 @@
     // fx range
     private DateRange? _fxRange;
 
+    private string _newCurrency = "";
+
+    // ECB eurofxref-hist publishes this set (EUR is the base). Static = deterministic dropdown.
+    private static readonly string[] EcbCurrencies =
+    [
+        "USD", "JPY", "BGN", "CZK", "DKK", "GBP", "HUF", "PLN", "RON", "SEK",
+        "CHF", "ISK", "NOK", "TRY", "AUD", "BRL", "CAD", "CNY", "HKD", "IDR",
+        "ILS", "INR", "KRW", "MXN", "MYR", "NZD", "PHP", "SGD", "THB", "ZAR"
+    ];
+
     // basiszins inputs
-    private int _basisYear;
     private int _manualYear;
     private decimal _manualRate;
+
+    public sealed class BasiszinsRow
+    {
+        public int Year { get; set; }
+        public decimal Rate { get; set; }
+    }
+
+    private List<BasiszinsRow> _basiszinsRows = new();
 
     // last refresh result
     private DataRefreshResult? _lastResult;
@@ -254,17 +295,12 @@
         var today = DateTime.Today;
         _priceRange = new DateRange(today.AddYears(-5), today);
         _fxRange = new DateRange(today.AddYears(-5), today);
-        _basisYear = Clock.GetUtcNow().Year;
         _manualYear = Clock.GetUtcNow().Year;
         await LoadStatusAsync();
     }
 
     private async Task LoadStatusAsync()
     {
-        _ledgerEntries = await Db.PortfolioEntries.CountAsync();
-        _accounts = await Db.Accounts.CountAsync();
-        _batches = await Db.ImportBatches.CountAsync();
-
         _priceCount = await Db.HistoricalPrices.CountAsync();
         if (_priceCount > 0)
         {
@@ -305,12 +341,13 @@
             _basiszinsMax = null;
         }
 
-        _profileCount = await Db.InstrumentProfiles.CountAsync();
-        _listingCount = await Db.InstrumentListings.CountAsync();
+        _basiszinsRows = await Db.BasisInterestRates
+            .OrderBy(x => x.Year)
+            .Select(x => new BasiszinsRow { Year = x.Year, Rate = x.Rate })
+            .ToListAsync();
 
         _priceLastRefreshed = await RefreshLog.GetLastRefreshedAsync("HistoricalPrices");
         _fxLastRefreshed = await RefreshLog.GetLastRefreshedAsync("FxRates");
-        _basiszinsLastRefreshed = await RefreshLog.GetLastRefreshedAsync("Basiszins");
 
         _availableSymbols = await Db.InstrumentListings
             .Select(x => new { x.ProviderSymbol, x.Currency })
@@ -318,25 +355,6 @@
             .OrderBy(x => x.ProviderSymbol)
             .ToListAsync()
             .ContinueWith(t => t.Result.Select(x => (x.ProviderSymbol, x.Currency)).ToList());
-    }
-
-    private async Task ClearLedger()
-    {
-        var confirmed = await DialogService.ShowMessageBoxAsync(
-            "Ledger wirklich löschen?",
-            "Alle Buchungen, Konten, Import-Batches und Diagnosen werden unwiderruflich gelöscht. Referenz-/Marktdaten bleiben erhalten.",
-            yesText: "Endgültig löschen", cancelText: "Abbrechen");
-        if (confirmed != true) return;
-
-        _busy = true;
-        try
-        {
-            await LedgerClear.ClearLedgerAsync(_purgeAuditFiles);
-            ShowSuccess("Ledger geleert.");
-            await LoadStatusAsync();
-        }
-        catch (Exception ex) { ShowError(ex.Message); }
-        finally { _busy = false; }
     }
 
     private async Task RefreshPricesIncremental()
@@ -417,25 +435,37 @@
         finally { _busy = false; }
     }
 
-    private async Task RefreshBasiszins()
+    private async Task RefreshFxIncremental()
     {
         _busy = true;
         _lastResult = null;
         try
         {
-            var result = await BasisRefresh.RefreshAsync(_basisYear, default);
+            var result = await FxRefresh.RefreshIncrementalAsync(Today(), default);
             _lastResult = result;
-            _lastResultLabel = $"Basiszins {_basisYear} (BMF)";
-            if (!result.HasBlockingDiagnostics)
-            {
-                await RefreshLog.RecordAsync("Basiszins", Clock.GetUtcNow(),
-                    $"Jahr {_basisYear}: {result.Added} neu, {result.Updated} aktualisiert");
-                ShowSuccess($"Basiszins {_basisYear} abgerufen.");
-            }
-            else
-            {
-                ShowError($"Basiszins {_basisYear} konnte nicht abgerufen werden (siehe Diagnosetabelle). Bitte manuell erfassen.");
-            }
+            _lastResultLabel = "Wechselkurse (inkrementell)";
+            await RefreshLog.RecordAsync("FxRates", Clock.GetUtcNow(),
+                $"{result.Added} neu, {result.Updated} aktualisiert");
+            ShowSuccess($"Wechselkurse aktualisiert: {result.Added} neu, {result.Updated} aktualisiert.");
+            await LoadStatusAsync();
+        }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private async Task AddFxCurrency()
+    {
+        _busy = true;
+        _lastResult = null;
+        try
+        {
+            var result = await FxRefresh.AddCurrencyAsync(_newCurrency, Today().AddYears(-25), Today(), default);
+            _lastResult = result;
+            _lastResultLabel = $"Wechselkurse {_newCurrency} (Backfill)";
+            await RefreshLog.RecordAsync("FxRates", Clock.GetUtcNow(),
+                $"{_newCurrency} Backfill: {result.Added} neu");
+            ShowSuccess($"{_newCurrency} hinzugefügt: {result.Added} Kurse geladen.");
+            _newCurrency = "";
             await LoadStatusAsync();
         }
         catch (Exception ex) { ShowError(ex.Message); }
@@ -452,6 +482,37 @@
             await RefreshLog.RecordAsync("Basiszins", Clock.GetUtcNow(),
                 $"Manuell: Jahr {_manualYear} = {_manualRate:F4}");
             ShowSuccess($"Basiszins {_manualYear} = {_manualRate:F4} gespeichert.");
+            await LoadStatusAsync();
+        }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private async Task CommitBasiszinsEdit(object element)
+    {
+        var row = (BasiszinsRow)element;
+        _busy = true;
+        _lastResult = null;
+        try
+        {
+            await BasisRefresh.SetManualAsync(row.Year, row.Rate, default);
+            await RefreshLog.RecordAsync("Basiszins", Clock.GetUtcNow(), $"Bearbeitet: Jahr {row.Year} = {row.Rate:F4}");
+            ShowSuccess($"Basiszins {row.Year} = {row.Rate:F4} gespeichert.");
+            await LoadStatusAsync();
+        }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private async Task DeleteBasiszins(int year)
+    {
+        _busy = true;
+        _lastResult = null;
+        try
+        {
+            await BasisRefresh.DeleteAsync(year, default);
+            await RefreshLog.RecordAsync("Basiszins", Clock.GetUtcNow(), $"Gelöscht: Jahr {year}");
+            ShowSuccess($"Basiszins {year} gelöscht.");
             await LoadStatusAsync();
         }
         catch (Exception ex) { ShowError(ex.Message); }

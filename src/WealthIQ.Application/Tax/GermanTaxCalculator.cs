@@ -104,6 +104,14 @@ public sealed class GermanTaxCalculator(
             var rawProfit = saleProceeds.Amount - acquisitionCosts.Amount - usedVorabpauschale;
             var taxableProfit = rawProfit * (1m - instrument.Teilfreistellungsquote);
 
+            // Fees attributable to this slice, in EUR. Each allocated-fee leg converts at its own trade
+            // date (AllocatedOpenFees↔OpenTradeDate, AllocatedCloseFees↔CloseTradeDate) — correct for both
+            // long and short lots, and the same rates already required for cost/proceeds, so this adds no
+            // new FX-rate dependency.
+            var feesEur =
+                _fxConverter.Convert(consumption.AllocatedOpenFees, consumption.OpenTradeDate).Amount +
+                _fxConverter.Convert(consumption.AllocatedCloseFees, consumption.CloseTradeDate).Amount;
+
             ledger.Add(new GermanTaxEntry(
                 tradeEntry.OccurredAt.Year,
                 DateOnly.FromDateTime(tradeEntry.OccurredAt.UtcDateTime),
@@ -115,7 +123,12 @@ public sealed class GermanTaxCalculator(
                 usedVorabpauschale,
                 QuantitySold: consumption.MatchedQuantity.Value,
                 SaleProceeds: saleProceeds.Amount,
-                AcquisitionCosts: acquisitionCosts.Amount));
+                AcquisitionCosts: acquisitionCosts.Amount,
+                OpenedOn: consumption.OpenTradeDate,
+                Fees: feesEur,
+                SourceReference: originalLot.OpenSourceReference,
+                CloseReference: tradeEntry.SourceProvenance.SourceRecordReference,
+                SourceFile: tradeEntry.SourceProvenance.SourceLocation));
         }
 
         openLots.Clear();
@@ -148,7 +161,11 @@ public sealed class GermanTaxCalculator(
                     dividendInstrument.Symbol,
                     dividendInstrument.ISIN,
                     rawDividend,
-                    rawDividend * (1m - dividendInstrument.Teilfreistellungsquote)));
+                    rawDividend * (1m - dividendInstrument.Teilfreistellungsquote),
+                    SourceReference: cashEntry.SourceProvenance.SourceRecordReference,
+                    SourceFile: cashEntry.SourceProvenance.SourceLocation,
+                    OriginalAmount: cashEntry.GrossAmount.Amount,
+                    OriginalCurrency: cashEntry.GrossAmount.Currency.ToString()));
 
                 var heldLots = openLots
                     .Where(x => x.AccountId == cashEntry.AccountId
@@ -178,13 +195,25 @@ public sealed class GermanTaxCalculator(
                     interestInstrument.Symbol,
                     interestInstrument.ISIN,
                     _fxConverter.Convert(cashEntry.GrossAmount, date).Amount,
-                    _fxConverter.Convert(cashEntry.GrossAmount, date).Amount));
+                    _fxConverter.Convert(cashEntry.GrossAmount, date).Amount,
+                    SourceReference: cashEntry.SourceProvenance.SourceRecordReference,
+                    SourceFile: cashEntry.SourceProvenance.SourceLocation,
+                    OriginalAmount: cashEntry.GrossAmount.Amount,
+                    OriginalCurrency: cashEntry.GrossAmount.Currency.ToString()));
                 break;
 
             case CashFlowType.WithholdingTax:
                 var withholdingInstrumentId = cashEntry.RelatedInstrumentId ?? cashEntry.CashInstrumentId;
                 var withholdingInstrument = GetInstrument(instrumentById, withholdingInstrumentId);
                 var withholdingTaxAmount = _fxConverter.Convert(cashEntry.GrossAmount, date).Amount;
+
+                // Origin: a security if the withholding references a related instrument with an ISIN;
+                // otherwise it stems from an interest payment (no security) → label "Zinsen".
+                var withholdingOrigin = cashEntry.RelatedInstrumentId.HasValue
+                    && !string.IsNullOrWhiteSpace(withholdingInstrument.ISIN)
+                        ? withholdingInstrument.Symbol
+                        : "Zinsen";
+
                 ledger.Add(new GermanTaxEntry(
                     cashEntry.OccurredAt.Year,
                     date,
@@ -193,7 +222,12 @@ public sealed class GermanTaxCalculator(
                     withholdingInstrument.ISIN,
                     withholdingTaxAmount,
                     0m,
-                    ForeignWithholdingTax: Math.Abs(withholdingTaxAmount)));
+                    ForeignWithholdingTax: Math.Abs(withholdingTaxAmount),
+                    Origin: withholdingOrigin,
+                    SourceReference: cashEntry.SourceProvenance.SourceRecordReference,
+                    SourceFile: cashEntry.SourceProvenance.SourceLocation,
+                    OriginalAmount: cashEntry.GrossAmount.Amount,
+                    OriginalCurrency: cashEntry.GrossAmount.Currency.ToString()));
                 break;
         }
     }
@@ -296,7 +330,13 @@ public sealed class GermanTaxCalculator(
                     instrument.Symbol,
                     instrument.ISIN,
                     totalVorabpauschale,
-                    totalVorabpauschale * (1m - instrument.Teilfreistellungsquote)));
+                    totalVorabpauschale * (1m - instrument.Teilfreistellungsquote),
+                    YearStartPrice: startValueEur,
+                    YearEndPrice: endValueEur,
+                    BasisRate: basisInterestRate.Value,
+                    HeldQuantity: lot.RemainingQuantity.Value,
+                    DistributionPerShare: distributionPerShare,
+                    MonthFactor: monthFactor));
             }
         }
     }
@@ -392,7 +432,7 @@ public sealed class GermanTaxCalculator(
         return _fxConverter.Convert(sourceMoney, conversionDate);
     }
 
-/// <summary>A per-share distribution recorded for Vorabpauschale reduction, scoped to the account,
+    /// <summary>A per-share distribution recorded for Vorabpauschale reduction, scoped to the account,
     /// instrument and the date it was paid (so only lots held at that date are reduced).</summary>
     private readonly record struct Distribution(
         int Year,

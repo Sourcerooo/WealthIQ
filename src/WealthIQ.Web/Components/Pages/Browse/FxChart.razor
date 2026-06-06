@@ -1,0 +1,108 @@
+@page "/browse/fx"
+@using Microsoft.EntityFrameworkCore
+@using WealthIQ.Infrastructure.Persistence
+@using WealthIQ.Web.Services
+@inject WealthIqDbContext Db
+@inject ThemePreferenceService ThemePreference
+
+<PageTitle>WealthIQ — Wechselkurse</PageTitle>
+
+<PageHeader Title="Wechselkurse" Subtitle="Tageskurse (X / EUR)">
+    <Actions>
+        @if (_currencies.Count > 0)
+        {
+            <MudSelect T="string" Value="_selected" ValueChanged="OnCurrencyChanged" Label="Währung"
+                       Variant="Variant.Outlined" Dense="true" Style="min-width:200px;">
+                @foreach (var ccy in _currencies)
+                {
+                    <MudSelectItem T="string" Value="@ccy">@($"{ccy} / EUR")</MudSelectItem>
+                }
+            </MudSelect>
+        }
+    </Actions>
+</PageHeader>
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+
+<div class="wiq-rise">
+    <SectionCard>
+        <ChildContent>
+            @if (_currencies.Count == 0)
+            {
+                <MudText Typo="Typo.body2">Keine Wechselkurse vorhanden. Auf der Marktdaten-Seite aktualisieren.</MudText>
+            }
+            else if (_points.Count == 0)
+            {
+                <MudText Typo="Typo.body2">Keine Daten für @_selected.</MudText>
+            }
+            else
+            {
+                <LightweightChart Kind="line" Line="_points" Dark="_dark" />
+            }
+        </ChildContent>
+    </SectionCard>
+</div>
+
+@code {
+    private List<string> _currencies = new();
+    private string _selected = "";
+    private List<LightweightChart.LinePoint> _points = new();
+    private bool _dark = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _currencies = await Db.FxRates.Select(x => x.Currency).Distinct().OrderBy(x => x).ToListAsync();
+            if (_currencies.Count > 0)
+            {
+                _selected = _currencies[0];
+                await LoadSeriesAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Wechselkurse konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dark = await ThemePreference.LoadIsDarkAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnCurrencyChanged(string ccy)
+    {
+        _selected = ccy;
+        await LoadSeriesAsync();
+    }
+
+    private async Task LoadSeriesAsync()
+    {
+        try
+        {
+            // Fetch raw rows first; format DateOnly in-memory to avoid EF SQLite translation issues
+            // with DateOnly.ToString(format).
+            var rows = await Db.FxRates
+                .Where(x => x.Currency == _selected)
+                .OrderBy(x => x.Date)
+                .ToListAsync();
+
+            _points = rows
+                .Select(x => new LightweightChart.LinePoint(x.Date.ToString("yyyy-MM-dd"), decimal.Round(x.RateToEur, 6)))
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Wechselkurse konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+}

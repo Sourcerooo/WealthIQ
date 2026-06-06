@@ -87,3 +87,25 @@
 @media (prefers-reduced-motion: reduce) {
     .wiq-card, .wiq-rise, .wiq-rise-2, .wiq-rise-3, .wiq-page { animation: none !important; transition: none !important; }
 }
+
+.wiq-flash { animation: wiq-flash 1.2s ease-out; }
+@keyframes wiq-flash {
+    0% { background-color: var(--mud-palette-primary); }
+    100% { background-color: transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .wiq-flash { animation: none; } }
+
+/* Transient highlight when jumping from a Verkäufe row to its detail row. */
+@keyframes wiq-row-flash {
+    0%   { background-color: rgba(52, 211, 153, 0.35); }
+    100% { background-color: transparent; }
+}
+.wiq-row-highlight > td {
+    animation: wiq-row-flash 2.2s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+    .wiq-row-highlight > td {
+        animation: none;
+        background-color: rgba(52, 211, 153, 0.18);
+    }
+}

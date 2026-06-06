@@ -14,4 +14,23 @@ public readonly record struct GermanTaxEntry(
     decimal ForeignWithholdingTax = 0m,
     decimal QuantitySold = 0m,
     decimal SaleProceeds = 0m,
-    decimal AcquisitionCosts = 0m);
+    decimal AcquisitionCosts = 0m,
+    DateOnly OpenedOn = default,
+    // Total transaction fees (open + close) in EUR, for display only. Fees are already embedded in
+    // AcquisitionCosts (cost basis) and SaleProceeds — do NOT add Fees to those again.
+    decimal Fees = 0m,
+    string Origin = "",
+    // --- Display-only source/explanation fields (item 9). Not used by tax math. ---
+    // Cash + sell: broker references and source file for the in-place "Quelle" expander.
+    string SourceReference = "",     // cash: txn ref; sell: OPEN trade ref
+    string CloseReference = "",      // sell: CLOSE trade ref (empty for cash)
+    string SourceFile = "",          // originating statement file
+    decimal OriginalAmount = 0m,     // cash: gross amount in original currency
+    string OriginalCurrency = "",    // cash: original currency code
+                                     // Vorabpauschale: the §18 calculation inputs for the "warum?" expander.
+    decimal YearStartPrice = 0m,     // year-start redemption price, EUR
+    decimal YearEndPrice = 0m,       // year-end redemption price, EUR
+    decimal BasisRate = 0m,          // Basiszins used
+    decimal HeldQuantity = 0m,       // shares held in the lot
+    decimal DistributionPerShare = 0m,
+    decimal MonthFactor = 0m);

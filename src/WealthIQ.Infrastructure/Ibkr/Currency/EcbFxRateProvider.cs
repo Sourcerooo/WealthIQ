@@ -11,7 +11,8 @@ public sealed class EcbFxRateProvider(HttpClient httpClient, FxRateProviderOptio
 {
     private static readonly XNamespace Def = "http://www.ecb.int/vocabulary/2002-08-01/eurofxref";
 
-    public async Task<IReadOnlyList<FxRateRecord>> FetchAsync(DateOnly from, DateOnly to, CancellationToken ct)
+    public async Task<IReadOnlyList<FxRateRecord>> FetchAsync(
+        DateOnly from, DateOnly to, IReadOnlyCollection<string>? currencies, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, options.HistoricalUrl);
         request.Headers.UserAgent.ParseAdd(options.UserAgent);
@@ -19,7 +20,8 @@ public sealed class EcbFxRateProvider(HttpClient httpClient, FxRateProviderOptio
         response.EnsureSuccessStatusCode();
         var xml = await response.Content.ReadAsStringAsync(ct);
 
-        var supported = options.SupportedCurrencies.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var supported = (currencies is { Count: > 0 } ? currencies : options.SupportedCurrencies)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var root = XDocument.Parse(xml);
         var rows = new List<FxRateRecord>();
 

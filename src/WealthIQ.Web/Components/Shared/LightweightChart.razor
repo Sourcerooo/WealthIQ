@@ -1,0 +1,72 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div id="@_id" style="width:100%;height:@Height;"></div>
+
+@code {
+    /// <summary>"candlestick" (default) or "line".</summary>
+    [Parameter] public string Kind { get; set; } = "candlestick";
+
+    /// <summary>Candlestick points: Time "yyyy-MM-dd", Open/High/Low/Close. Ignored in line mode.</summary>
+    [Parameter] public IReadOnlyList<Candle>? Candles { get; set; }
+
+    /// <summary>Line points: Time "yyyy-MM-dd", Value. Ignored in candlestick mode.</summary>
+    [Parameter] public IReadOnlyList<LinePoint>? Line { get; set; }
+
+    [Parameter] public bool Dark { get; set; } = true;
+
+    [Parameter] public string Height { get; set; } = "460px";
+
+    /// <summary>When set, the chart opens showing only the last N days of data (else fits all).</summary>
+    [Parameter] public int? InitialRangeDays { get; set; }
+
+    public sealed record Candle(string Time, decimal Open, decimal High, decimal Low, decimal Close);
+    public sealed record LinePoint(string Time, decimal Value);
+
+    private readonly string _id = $"wiq-chart-{Guid.NewGuid():N}";
+    private bool _created;
+
+    private object Theme => Dark
+        ? new { textColor = "#7D8AA3", gridColor = "#232D40", upColor = "#34D399", downColor = "#F87171", lineColor = "#34D399" }
+        : new { textColor = "#5A6678", gridColor = "#E6EAF0", upColor = "#059669", downColor = "#DC2626", lineColor = "#059669" };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("wiqCharts.create", _id, Kind, Theme);
+            _created = true;
+            await PushDataAsync();
+        }
+        else if (_created)
+        {
+            await JS.InvokeVoidAsync("wiqCharts.applyTheme", _id, Theme);
+            await PushDataAsync();
+        }
+    }
+
+    private async Task PushDataAsync()
+    {
+        if (Kind == "line")
+        {
+            var data = (Line ?? Array.Empty<LinePoint>())
+                .Select(p => new { time = p.Time, value = p.Value });
+            await JS.InvokeVoidAsync("wiqCharts.setData", _id, data, InitialRangeDays);
+        }
+        else
+        {
+            var data = (Candles ?? Array.Empty<Candle>())
+                .Select(c => new { time = c.Time, open = c.Open, high = c.High, low = c.Low, close = c.Close });
+            await JS.InvokeVoidAsync("wiqCharts.setData", _id, data, InitialRangeDays);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        // No JS chart was created (e.g. the static prerender pass, where OnAfterRenderAsync never
+        // runs) — there is nothing to dispose, and JS interop is unavailable during static rendering.
+        if (!_created) return;
+        try { await JS.InvokeVoidAsync("wiqCharts.dispose", _id); }
+        catch (JSDisconnectedException) { /* circuit gone — nothing to clean up */ }
+    }
+}

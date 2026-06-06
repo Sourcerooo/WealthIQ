@@ -59,6 +59,7 @@ builder.Services.AddSingleton(basiszinsOptions);
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddMudServices();
 builder.Services.AddScoped<WealthIQ.Web.Services.ThemePreferenceService>();
+builder.Services.AddScoped<WealthIQ.Web.Services.ChartSelectionState>();
 
 // --- HTTP client factory ---
 builder.Services.AddHttpClient();

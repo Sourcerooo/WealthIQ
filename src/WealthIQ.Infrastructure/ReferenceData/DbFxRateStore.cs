@@ -30,5 +30,15 @@ public sealed class DbFxRateStore(WealthIqDbContext db) : IFxRateStore
         return (added, updated);
     }
 
+    public IReadOnlyList<string> GetStoredCurrencies() =>
+        db.FxRates.Select(x => x.Currency)
+            .Where(c => c != "EUR")
+            .Distinct()
+            .OrderBy(c => c)
+            .ToList();
+
+    public DateOnly? GetMaxStoredDate() =>
+        db.FxRates.Any() ? db.FxRates.Max(x => x.Date) : (DateOnly?)null;
+
     public Task SaveChangesAsync(CancellationToken ct) => db.SaveChangesAsync(ct).ContinueWith(_ => { }, ct);
 }

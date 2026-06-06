@@ -20,5 +20,14 @@ public sealed class DbBasisInterestRateStore(WealthIqDbContext db) : IBasisInter
         }
     }
 
+    public void Delete(int year)
+    {
+        var existing = db.BasisInterestRates.Find(year);
+        if (existing is not null)
+        {
+            db.BasisInterestRates.Remove(existing);
+        }
+    }
+
     public Task SaveChangesAsync(CancellationToken ct) => db.SaveChangesAsync(ct).ContinueWith(_ => { }, ct);
 }
