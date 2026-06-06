@@ -1,14 +1,29 @@
 @page "/browse/ledger"
 @using WealthIQ.Application.Persistence.Interface
+@using WealthIQ.Application.ReferenceData.Interface
 @using WealthIQ.Domain.Enumeration
 @using WealthIQ.Domain.Model.General
 @using WealthIQ.Domain.Model.Ledger
 @inject ILedgerStore LedgerStore
-@inject NavigationManager Navigation
+@inject ILedgerClearService LedgerClear
+@inject IDialogService DialogService
 
 <PageTitle>WealthIQ — Ledger</PageTitle>
 
-<PageHeader Title="Ledger" Subtitle="Importierte Buchungen (Originalwährung)" />
+<PageHeader Title="Ledger" Subtitle="Importierte Buchungen (Originalwährung)">
+    <Actions>
+        @if (_accounts.Count > 0)
+        {
+            <MudSelect T="string" Value="_selectedAccountId" ValueChanged="OnAccountChanged" Label="Konto"
+                       Variant="Variant.Outlined" Dense="true" Style="min-width:220px;">
+                @foreach (var acc in _accounts)
+                {
+                    <MudSelectItem T="string" Value="@acc.Id">@acc.Number</MudSelectItem>
+                }
+            </MudSelect>
+        }
+    </Actions>
+</PageHeader>
 
 @if (_error is not null)
 {
@@ -34,7 +49,7 @@ else
                             <MudTh>Datum</MudTh><MudTh>Seite</MudTh><MudTh>Symbol</MudTh><MudTh>ISIN</MudTh>
                             <MudTh Style="text-align:right">Menge</MudTh><MudTh Style="text-align:right">Kurs</MudTh>
                             <MudTh Style="text-align:right">Gebühren</MudTh><MudTh Style="text-align:right">Steuern</MudTh>
-                            <MudTh>Whg.</MudTh><MudTh></MudTh>
+                            <MudTh>Whg.</MudTh>
                         </HeaderContent>
                         <RowTemplate>
                             <MudTd DataLabel="Datum">@context.Date.ToString("yyyy-MM-dd")</MudTd>
@@ -46,7 +61,6 @@ else
                             <MudTd DataLabel="Gebühren" Style="text-align:right">@context.Fees.ToString("N2")</MudTd>
                             <MudTd DataLabel="Steuern" Style="text-align:right">@context.Taxes.ToString("N2")</MudTd>
                             <MudTd DataLabel="Whg.">@context.Currency</MudTd>
-                            <MudTd>@SourceLink(context.Isin)</MudTd>
                         </RowTemplate>
                     </MudTable>
                 }
@@ -65,6 +79,20 @@ else
                 @CashTable(_other, showIsin: true)
             </MudExpansionPanel>
         </MudExpansionPanels>
+
+        <div class="mt-6">
+            <SectionCard Title="Ledger verwalten">
+                <ChildContent>
+                    <MudCheckBox @bind-Value="_purgeAuditFiles" Label="Rohdateien (Audit) löschen" />
+                    <div class="mt-2">
+                        <MudButton Variant="Variant.Filled" Color="Color.Error"
+                                   Disabled="_busy" OnClick="ClearLedger">
+                            Ledger leeren (unwiderruflich)
+                        </MudButton>
+                    </div>
+                </ChildContent>
+            </SectionCard>
+        </div>
     </div>
 }
 
@@ -72,10 +100,17 @@ else
     private bool _loading = true;
     private string? _error;
 
+    private sealed record AccountOption(string Id, string Number);
     private sealed record TradeView(DateOnly Date, TradeSide Side, string Symbol, string Isin,
-        decimal Quantity, decimal UnitPrice, decimal Fees, decimal Taxes, Currency Currency);
+        decimal Quantity, decimal UnitPrice, decimal Fees, decimal Taxes, Currency Currency, Guid AccountId);
     private sealed record CashView(DateOnly Date, string Symbol, string Isin, CashFlowType Type,
-        decimal GrossAmount, decimal Fees, decimal Taxes, Currency Currency);
+        decimal GrossAmount, decimal Fees, decimal Taxes, Currency Currency, Guid AccountId);
+
+    private List<AccountOption> _accounts = new();
+    private string _selectedAccountId = "";
+
+    private List<TradeView> _allTrades = new();
+    private List<CashView> _allCash = new();
 
     private List<TradeView> _trades = new();
     private List<CashView> _dividends = new();
@@ -83,12 +118,22 @@ else
     private List<CashView> _withholding = new();
     private List<CashView> _other = new();
 
-    protected override async Task OnInitializedAsync()
+    private bool _busy;
+    private bool _purgeAuditFiles;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
     {
         try
         {
+            _loading = true;
+            _allTrades = new();
+            _allCash = new();
+
             var ledger = await LedgerStore.LoadLedgerAsync();
             var byId = ledger.Instruments.ToDictionary(i => i.InstrumentId);
+            var accountNumberById = ledger.Accounts.ToDictionary(a => a.AccountId.Value, a => a.AccountNumber);
 
             foreach (var entry in ledger.Entries)
             {
@@ -96,24 +141,32 @@ else
                 {
                     case TradeEntry t:
                         var (ts, ti) = Resolve(t.InstrumentId, byId);
-                        _trades.Add(new TradeView(t.EffectiveDate, t.Side, ts, ti,
-                            t.Quantity.Value, t.UnitPrice.Amount, t.Fees.Amount, t.Taxes.Amount, t.UnitPrice.Currency));
+                        _allTrades.Add(new TradeView(t.EffectiveDate, t.Side, ts, ti,
+                            t.Quantity.Value, t.UnitPrice.Amount, t.Fees.Amount, t.Taxes.Amount, t.UnitPrice.Currency, t.AccountId.Value));
                         break;
                     case CashEntry c:
                         var srcId = c.RelatedInstrumentId ?? c.CashInstrumentId;
                         var (cs, ci) = Resolve(srcId, byId);
-                        var view = new CashView(c.EffectiveDate, cs, ci, c.CashFlowType,
-                            c.GrossAmount.Amount, c.Fees.Amount, c.Taxes.Amount, c.GrossAmount.Currency);
-                        switch (c.CashFlowType)
-                        {
-                            case CashFlowType.Dividend: _dividends.Add(view); break;
-                            case CashFlowType.Interest: _interest.Add(view); break;
-                            case CashFlowType.WithholdingTax: _withholding.Add(view); break;
-                            default: _other.Add(view); break;
-                        }
+                        _allCash.Add(new CashView(c.EffectiveDate, cs, ci, c.CashFlowType,
+                            c.GrossAmount.Amount, c.Fees.Amount, c.Taxes.Amount, c.GrossAmount.Currency, c.AccountId.Value));
                         break;
                 }
             }
+
+            var accountIdsWithEntries = _allTrades.Select(x => x.AccountId)
+                .Concat(_allCash.Select(x => x.AccountId))
+                .Distinct()
+                .ToList();
+
+            _accounts = accountIdsWithEntries
+                .Select(id => new AccountOption(
+                    id.ToString(),
+                    accountNumberById.TryGetValue(id, out var num) ? num : id.ToString()))
+                .OrderBy(a => a.Number)
+                .ToList();
+
+            _selectedAccountId = _accounts.FirstOrDefault()?.Id ?? "";
+            ApplyAccountFilter();
         }
         catch (Exception ex)
         {
@@ -125,20 +178,43 @@ else
         }
     }
 
+    private void OnAccountChanged(string accountId)
+    {
+        _selectedAccountId = accountId;
+        ApplyAccountFilter();
+    }
+
+    private void ApplyAccountFilter()
+    {
+        var match = Guid.TryParse(_selectedAccountId, out var id) ? id : Guid.Empty;
+        _trades = _allTrades.Where(x => x.AccountId == match).ToList();
+        var cash = _allCash.Where(x => x.AccountId == match).ToList();
+        _dividends = cash.Where(x => x.Type == CashFlowType.Dividend).ToList();
+        _interest = cash.Where(x => x.Type == CashFlowType.Interest).ToList();
+        _withholding = cash.Where(x => x.Type == CashFlowType.WithholdingTax).ToList();
+        _other = cash.Where(x => x.Type is not (CashFlowType.Dividend or CashFlowType.Interest or CashFlowType.WithholdingTax)).ToList();
+    }
+
     private static (string Symbol, string Isin) Resolve(InstrumentId id, IReadOnlyDictionary<InstrumentId, Instrument> byId)
         => byId.TryGetValue(id, out var i) ? (i.Symbol, i.ISIN) : ("", "");
 
-    private RenderFragment SourceLink(string isin) => __builder =>
+    private async Task ClearLedger()
     {
-        if (!string.IsNullOrWhiteSpace(isin))
-        {
-            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
-                       OnClick="() => DrillToSource(isin)">Anzeigen</MudButton>
-        }
-    };
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Ledger wirklich löschen?",
+            "Alle Buchungen, Konten, Import-Batches und Diagnosen werden unwiderruflich gelöscht. Referenz-/Marktdaten bleiben erhalten.",
+            yesText: "Endgültig löschen", cancelText: "Abbrechen");
+        if (confirmed != true) return;
 
-    private void DrillToSource(string isin)
-        => Navigation.NavigateTo($"/audit?isin={Uri.EscapeDataString(isin)}");
+        _busy = true;
+        try
+        {
+            await LedgerClear.ClearLedgerAsync(_purgeAuditFiles);
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
 
     private RenderFragment CashTable(IReadOnlyList<CashView> items, bool showIsin) => __builder =>
     {
@@ -154,7 +230,7 @@ else
                     @if (showIsin) { <MudTh>ISIN</MudTh> }
                     <MudTh Style="text-align:right">Betrag</MudTh>
                     <MudTh Style="text-align:right">Gebühren</MudTh><MudTh Style="text-align:right">Steuern</MudTh>
-                    <MudTh>Whg.</MudTh><MudTh></MudTh>
+                    <MudTh>Whg.</MudTh>
                 </HeaderContent>
                 <RowTemplate Context="row">
                     <MudTd DataLabel="Datum">@row.Date.ToString("yyyy-MM-dd")</MudTd>
@@ -164,7 +240,6 @@ else
                     <MudTd DataLabel="Gebühren" Style="text-align:right">@row.Fees.ToString("N2")</MudTd>
                     <MudTd DataLabel="Steuern" Style="text-align:right">@row.Taxes.ToString("N2")</MudTd>
                     <MudTd DataLabel="Whg.">@row.Currency</MudTd>
-                    <MudTd>@SourceLink(row.Isin)</MudTd>
                 </RowTemplate>
             </MudTable>
         }
