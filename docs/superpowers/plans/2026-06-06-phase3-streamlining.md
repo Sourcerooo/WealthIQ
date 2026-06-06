@@ -1,6 +1,6 @@
 # Phase 3 Streamlining Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Streamline the Phase 3 UI — account-scoped ledger with delete, FX incremental/add-currency, simplified Basiszins, Kurschart preselect/remember/zoom, and Steuerreport in-place source/explanation expanders — per `docs/superpowers/specs/2026-06-06-phase3-streamlining-design.md`.
 
@@ -48,7 +48,7 @@
 - Modify: `src/WealthIQ.Infrastructure/Ibkr/Currency/EcbFxRateProvider.cs:14-51`
 - Modify (compile fixes): `tests/WealthIQ.Tests/Application/Currency/FxRateRefreshServiceTests.cs:9-12`, `tests/WealthIQ.Tests/Infrastructure/Currency/EcbFxRateProviderTests.cs`
 
-- [ ] **Step 1: Update the provider interface**
+- [x] **Step 1: Update the provider interface**
 
 Replace the contents of `IFxRateProvider.cs`:
 
@@ -65,7 +65,7 @@ public interface IFxRateProvider
 }
 ```
 
-- [ ] **Step 2: Update EcbFxRateProvider to honor the filter**
+- [x] **Step 2: Update EcbFxRateProvider to honor the filter**
 
 In `EcbFxRateProvider.cs`, change the method signature and the `supported` set source:
 
@@ -85,7 +85,7 @@ In `EcbFxRateProvider.cs`, change the method signature and the `supported` set s
 
 Leave the rest of the method body unchanged (it already filters via `supported.Contains(currency)` and always emits the `EUR=1m` row).
 
-- [ ] **Step 3: Fix the existing fake + provider test to compile**
+- [x] **Step 3: Fix the existing fake + provider test to compile**
 
 In `FxRateRefreshServiceTests.cs`, update `FakeProvider.FetchAsync`:
 
@@ -115,12 +115,12 @@ In `EcbFxRateProviderTests.cs`, update every `FetchAsync(from, to, ...)` call si
 
 > If `EcbFxRateProviderTests` does not already expose a reusable sample-XML helper, inline the same `HttpClient`/sample-XML construction the file's other tests use rather than inventing a new fixture.
 
-- [ ] **Step 4: Build and run the touched tests**
+- [x] **Step 4: Build and run the touched tests**
 
 Run: `dotnet test WealthIQ.slnx --filter "FullyQualifiedName~EcbFxRateProvider|FullyQualifiedName~FxRateRefreshService"`
 Expected: PASS (including the new filter test).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/WealthIQ.Application/Currency/Interface/IFxRateProvider.cs src/WealthIQ.Infrastructure/Ibkr/Currency/EcbFxRateProvider.cs tests/WealthIQ.Tests/Application/Currency/FxRateRefreshServiceTests.cs tests/WealthIQ.Tests/Infrastructure/Currency/EcbFxRateProviderTests.cs
@@ -136,7 +136,7 @@ git commit -m "Feat: FX provider accepts a currency filter"
 - Modify: `src/WealthIQ.Infrastructure/ReferenceData/DbFxRateStore.cs`
 - Modify (compile fix): `tests/WealthIQ.Tests/Application/Currency/FxRateRefreshServiceTests.cs:14-19`
 
-- [ ] **Step 1: Extend the store interface**
+- [x] **Step 1: Extend the store interface**
 
 Replace `FxRateRefreshModels.cs` contents:
 
@@ -158,7 +158,7 @@ public interface IFxRateStore
 }
 ```
 
-- [ ] **Step 2: Implement in DbFxRateStore**
+- [x] **Step 2: Implement in DbFxRateStore**
 
 Add to `DbFxRateStore.cs` (before `SaveChangesAsync`):
 
@@ -174,7 +174,7 @@ Add to `DbFxRateStore.cs` (before `SaveChangesAsync`):
         db.FxRates.Any() ? db.FxRates.Max(x => x.Date) : (DateOnly?)null;
 ```
 
-- [ ] **Step 3: Update the FakeStore in tests**
+- [x] **Step 3: Update the FakeStore in tests**
 
 In `FxRateRefreshServiceTests.cs`, extend `FakeStore`:
 
@@ -191,12 +191,12 @@ In `FxRateRefreshServiceTests.cs`, extend `FakeStore`:
     }
 ```
 
-- [ ] **Step 4: Build**
+- [x] **Step 4: Build**
 
 Run: `dotnet build WealthIQ.slnx`
 Expected: build succeeds (test project compiles with the extended fake).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/WealthIQ.Application/Currency/FxRateRefreshModels.cs src/WealthIQ.Infrastructure/ReferenceData/DbFxRateStore.cs tests/WealthIQ.Tests/Application/Currency/FxRateRefreshServiceTests.cs
@@ -211,7 +211,7 @@ git commit -m "Feat: FX store exposes stored currencies and max date"
 - Modify: `src/WealthIQ.Application/Currency/FxRateRefreshService.cs`
 - Test: `tests/WealthIQ.Tests/Application/Currency/FxRateRefreshServiceTests.cs`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Add to `FxRateRefreshServiceTests.cs`. The fake provider currently ignores its params; add a capturing fake so we can assert the requested window/currencies:
 
@@ -257,12 +257,12 @@ Add to `FxRateRefreshServiceTests.cs`. The fake provider currently ignores its p
     }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `dotnet test WealthIQ.slnx --filter "FullyQualifiedName~FxRateRefreshService"`
 Expected: FAIL — `RefreshIncrementalAsync`/`AddCurrencyAsync` do not exist.
 
-- [ ] **Step 3: Implement the new methods**
+- [x] **Step 3: Implement the new methods**
 
 Replace `FxRateRefreshService.cs` with:
 
@@ -319,12 +319,12 @@ public sealed class FxRateRefreshService(IFxRateProvider provider, IFxRateStore 
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `dotnet test WealthIQ.slnx --filter "FullyQualifiedName~FxRateRefreshService"`
 Expected: PASS (all FX refresh tests, old + new).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/WealthIQ.Application/Currency/FxRateRefreshService.cs tests/WealthIQ.Tests/Application/Currency/FxRateRefreshServiceTests.cs
@@ -340,7 +340,7 @@ git commit -m "Feat: FX incremental refresh and add-currency backfill"
 - Modify: `src/WealthIQ.Application/Tax/GermanTaxCalculator.cs` (sell ~115, dividend ~154, interest ~184, withholding ~206, Vorab ~311)
 - Test: `tests/WealthIQ.Tests/Application/Tax/GermanTaxEntryDetailTests.cs`
 
-- [ ] **Step 1: Add the fields to GermanTaxEntry**
+- [x] **Step 1: Add the fields to GermanTaxEntry**
 
 Append optional params to the record struct (after `Origin`):
 
@@ -377,7 +377,7 @@ public readonly record struct GermanTaxEntry(
     decimal MonthFactor = 0m);
 ```
 
-- [ ] **Step 2: Write failing tests for population**
+- [x] **Step 2: Write failing tests for population**
 
 Add to `GermanTaxEntryDetailTests.cs` (reuse the existing import-based setup; factor the repeated arrange into a private helper `BuildResult()` returning `result.Entries`, or copy the arrange block as the other tests do):
 
@@ -450,12 +450,12 @@ Add the shared helper (extract the existing arrange block verbatim into it):
     }
 ```
 
-- [ ] **Step 3: Run tests to verify they fail**
+- [x] **Step 3: Run tests to verify they fail**
 
 Run: `dotnet test WealthIQ.slnx --filter "FullyQualifiedName~GermanTaxEntryDetail"`
 Expected: FAIL — new fields are still default (empty/zero).
 
-- [ ] **Step 4: Populate the fields in GermanTaxCalculator**
+- [x] **Step 4: Populate the fields in GermanTaxCalculator**
 
 Sell site (the `new GermanTaxEntry(` at ~line 115) — add named args before the closing paren:
 
@@ -551,12 +551,12 @@ Vorabpauschale site (~311) — the inputs (`startValueEur`, `endValueEur`, `basi
                     MonthFactor: monthFactor));
 ```
 
-- [ ] **Step 5: Run the detail tests + the regression baseline**
+- [x] **Step 5: Run the detail tests + the regression baseline**
 
 Run: `dotnet test WealthIQ.slnx --filter "FullyQualifiedName~GermanTaxEntryDetail|FullyQualifiedName~GermanTaxRegression"`
 Expected: PASS — detail fields populated; regression figures unchanged (additive fields don't affect computed amounts).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/WealthIQ.Domain/Model/Tax/GermanTaxEntry.cs src/WealthIQ.Application/Tax/GermanTaxCalculator.cs tests/WealthIQ.Tests/Application/Tax/GermanTaxEntryDetailTests.cs
@@ -571,7 +571,7 @@ git commit -m "Feat: GermanTaxEntry carries source/explanation detail for the re
 - Create: `src/WealthIQ.Web/Services/ChartSelectionState.cs`
 - Modify: `src/WealthIQ.Web/Program.cs:61` (near the other `AddScoped` UI services)
 
-- [ ] **Step 1: Create the service**
+- [x] **Step 1: Create the service**
 
 ```csharp
 namespace WealthIQ.Web.Services;
@@ -585,7 +585,7 @@ public sealed class ChartSelectionState
 }
 ```
 
-- [ ] **Step 2: Register it in DI**
+- [x] **Step 2: Register it in DI**
 
 In `Program.cs`, next to `builder.Services.AddScoped<WealthIQ.Web.Services.ThemePreferenceService>();`, add:
 
@@ -593,12 +593,12 @@ In `Program.cs`, next to `builder.Services.AddScoped<WealthIQ.Web.Services.Theme
 builder.Services.AddScoped<WealthIQ.Web.Services.ChartSelectionState>();
 ```
 
-- [ ] **Step 3: Build**
+- [x] **Step 3: Build**
 
 Run: `dotnet build WealthIQ.slnx`
 Expected: build succeeds.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/WealthIQ.Web/Services/ChartSelectionState.cs src/WealthIQ.Web/Program.cs
@@ -613,7 +613,7 @@ git commit -m "Feat: scoped ChartSelectionState for remembering chart selection"
 - Modify: `src/WealthIQ.Web/wwwroot/wiq-charts.js:32-37`
 - Modify: `src/WealthIQ.Web/Components/Shared/LightweightChart.razor`
 
-- [ ] **Step 1: Add an initial-range option to the JS `setData`**
+- [x] **Step 1: Add an initial-range option to the JS `setData`**
 
 Replace the `setData` function in `wiq-charts.js` with a version that accepts an optional `initialRangeDays`:
 
@@ -644,7 +644,7 @@ Replace the `setData` function in `wiq-charts.js` with a version that accepts an
     },
 ```
 
-- [ ] **Step 2: Pass an `InitialRangeDays` parameter from the component**
+- [x] **Step 2: Pass an `InitialRangeDays` parameter from the component**
 
 In `LightweightChart.razor`, add the parameter and forward it in `PushDataAsync`:
 
@@ -677,12 +677,12 @@ Update both `setData` interop calls in `PushDataAsync` to pass `InitialRangeDays
 
 > Note: `InitialRangeDays` null serializes fine to JS (`undefined`-like) and the JS guard `if (initialRangeDays ...)` treats it as "fit all", so the FX line chart (which doesn't set it) is unaffected.
 
-- [ ] **Step 3: Build**
+- [x] **Step 3: Build**
 
 Run: `dotnet build WealthIQ.slnx`
 Expected: build succeeds. (JS verified in the Task 11 smoke test.)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/WealthIQ.Web/wwwroot/wiq-charts.js src/WealthIQ.Web/Components/Shared/LightweightChart.razor
@@ -696,7 +696,7 @@ git commit -m "Feat: chart supports a last-N-days initial visible range"
 **Files:**
 - Modify: `src/WealthIQ.Web/Components/Pages/Browse/PriceChart.razor`
 
-- [ ] **Step 1: Inject the selection state and set the chart range**
+- [x] **Step 1: Inject the selection state and set the chart range**
 
 At the top of `PriceChart.razor`, after the existing `@inject` lines, add:
 
@@ -719,7 +719,7 @@ Pass the initial range to the chart (item 5):
                 <LightweightChart Kind="candlestick" Candles="_candles" Dark="_dark" InitialRangeDays="365" />
 ```
 
-- [ ] **Step 2: Preselect + restore in OnInitializedAsync**
+- [x] **Step 2: Preselect + restore in OnInitializedAsync**
 
 Replace `OnInitializedAsync` in `PriceChart.razor` with logic that restores the remembered symbol, else preselects the first listing, then loads its candles:
 
@@ -756,7 +756,7 @@ Replace `OnInitializedAsync` in `PriceChart.razor` with logic that restores the 
     }
 ```
 
-- [ ] **Step 3: Persist the selection on change**
+- [x] **Step 3: Persist the selection on change**
 
 In `OnSymbolChanged`, after `_selected = option;`, record it:
 
@@ -776,12 +776,12 @@ In `OnSymbolChanged`, after `_selected = option;`, record it:
 
 (Leave the candle-loading body exactly as it is.)
 
-- [ ] **Step 4: Build**
+- [x] **Step 4: Build**
 
 Run: `dotnet build WealthIQ.slnx`
 Expected: build succeeds.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/WealthIQ.Web/Components/Pages/Browse/PriceChart.razor
@@ -797,7 +797,7 @@ git commit -m "Feat: Kurschart preselects, remembers selection, opens zoomed to 
 - Modify: `src/WealthIQ.Web/wwwroot/wealthiq.css`
 - Modify: `src/WealthIQ.Web/Components/Pages/Steuerreport.razor:251-283`
 
-- [ ] **Step 1: Add a scroll-and-highlight helper**
+- [x] **Step 1: Add a scroll-and-highlight helper**
 
 In `wealthiq.js`, inside the `window.wealthiq` object, add (next to the existing `scrollToAnchor`):
 
@@ -817,7 +817,7 @@ In `wealthiq.js`, inside the `window.wealthiq` object, add (next to the existing
 
 > If `scrollToAnchor` already exists and is only used by this link, you may instead extend it; keeping a new named function avoids touching other callers.
 
-- [ ] **Step 2: Add the highlight animation CSS**
+- [x] **Step 2: Add the highlight animation CSS**
 
 Append to `wealthiq.css`:
 
@@ -838,7 +838,7 @@ Append to `wealthiq.css`:
 }
 ```
 
-- [ ] **Step 3: Point the link at the new helper**
+- [x] **Step 3: Point the link at the new helper**
 
 In `Steuerreport.razor`, change `ScrollToDetail` to call the new helper:
 
@@ -849,12 +849,12 @@ In `Steuerreport.razor`, change `ScrollToDetail` to call the new helper:
 
 The anchor `<span id="sell-detail-{index}">` already lives inside the detail row's first `<td>`, so `closest('tr')` resolves to the correct row.
 
-- [ ] **Step 4: Build**
+- [x] **Step 4: Build**
 
 Run: `dotnet build WealthIQ.slnx`
 Expected: build succeeds. (Behavior verified in Task 11 smoke test.)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/WealthIQ.Web/wwwroot/wealthiq.js src/WealthIQ.Web/wwwroot/wealthiq.css src/WealthIQ.Web/Components/Pages/Steuerreport.razor
@@ -870,7 +870,7 @@ git commit -m "Feat: Verkäufe 'Anzeigen' scrolls to and highlights the detail r
 
 This task replaces the navigating "Quelle/Import/Anzeigen" buttons in the **Verkäufe — Details, Dividenden, Quellensteuer, Vorabpauschale** tables with in-place expanders, and hides the Vorab column where it is always 0. The Verkäufe summary table keeps its row-highlight link from Task 8.
 
-- [ ] **Step 1: Make the Vorab column conditional in EntryTable (item 10)**
+- [x] **Step 1: Make the Vorab column conditional in EntryTable (item 10)**
 
 Change the `EntryTable` signature and the two places the Vorab column is rendered. Replace the `EntryTable` render fragment header so it takes a `showVorab` flag (default false), and gate the Vorab `<MudTh>`/`<MudTd>` on it:
 
@@ -931,7 +931,7 @@ Change the `EntryTable` signature and the two places the Vorab column is rendere
 
 > `ChildRowContent` is a MudTable feature that renders an extra row beneath each item — used here as the in-place expander. `ColSpan` accounts for the optional columns.
 
-- [ ] **Step 2: Add expander state, colspan, and the detail fragment**
+- [x] **Step 2: Add expander state, colspan, and the detail fragment**
 
 Add to the `@code` block:
 
@@ -984,7 +984,7 @@ Add to the `@code` block:
     };
 ```
 
-- [ ] **Step 3: Update the panel call-sites**
+- [x] **Step 3: Update the panel call-sites**
 
 In the markup, set the flags so Vorab shows only for Verkäufe summary and the source-expander is used elsewhere:
 
@@ -1009,7 +1009,7 @@ In the markup, set the flags so Vorab shows only for Verkäufe summary and the s
             </MudExpansionPanel>
 ```
 
-- [ ] **Step 4: Convert the Verkäufe — Details "Import" link and Quellensteuer link to expanders**
+- [x] **Step 4: Convert the Verkäufe — Details "Import" link and Quellensteuer link to expanders**
 
 In `SellDetailTable`, replace the "Import" button cell with an expander toggle and add a `ChildRowContent` (the detail row has 11 columns):
 
@@ -1061,16 +1061,16 @@ In `WithholdingTable`, replace the "Anzeigen" button cell with the expander togg
                 </ChildRowContent>
 ```
 
-- [ ] **Step 5: Remove the now-unused navigation**
+- [x] **Step 5: Remove the now-unused navigation**
 
 Delete the `DrillToSource` method and the `@inject NavigationManager Navigation` if no longer referenced anywhere in `Steuerreport.razor`. (Search the file for `DrillToSource` and `Navigation.` first; remove both only if there are no remaining uses.)
 
-- [ ] **Step 6: Build**
+- [x] **Step 6: Build**
 
 Run: `dotnet build WealthIQ.slnx`
 Expected: build succeeds.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/WealthIQ.Web/Components/Pages/Steuerreport.razor
@@ -1084,7 +1084,7 @@ git commit -m "Feat: Steuerreport shows source/Vorab details inline; drop always
 **Files:**
 - Modify: `src/WealthIQ.Web/Components/Pages/Browse/LedgerBrowser.razor`
 
-- [ ] **Step 1: Inject clear service + dialog and add an account select**
+- [x] **Step 1: Inject clear service + dialog and add an account select**
 
 At the top of `LedgerBrowser.razor`, add the injections and usings:
 
@@ -1116,7 +1116,7 @@ Add an account select to the `PageHeader`:
 </PageHeader>
 ```
 
-- [ ] **Step 2: Load accounts, filter entries by selected account**
+- [x] **Step 2: Load accounts, filter entries by selected account**
 
 Rework the `@code` block so the raw ledger is held once and the per-kind lists are rebuilt for the selected account. Replace the data-loading section:
 
@@ -1223,7 +1223,7 @@ Rework the `@code` block so the raw ledger is held once and the per-kind lists a
 
 > The `CashTable` render fragment is unchanged — it already takes an `IReadOnlyList<CashView>`. The `TradeView`/`CashView` records gained an `AccountId` field; the table markup ignores it.
 
-- [ ] **Step 3: Add the delete controls (item 2) and remove the old SourceLink**
+- [x] **Step 3: Add the delete controls (item 2) and remove the old SourceLink**
 
 Remove the `SourceLink`/`DrillToSource` members and the empty trailing `<MudTh></MudTh>` / `<MudTd>@SourceLink(...)</MudTd>` cells from both the trades table and `CashTable` (the source link moves out of the ledger browser; the Audit page remains for provenance).
 
@@ -1270,12 +1270,12 @@ Add the supporting state + handler to `@code`:
     }
 ```
 
-- [ ] **Step 4: Build**
+- [x] **Step 4: Build**
 
 Run: `dotnet build WealthIQ.slnx`
 Expected: build succeeds.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/WealthIQ.Web/Components/Pages/Browse/LedgerBrowser.razor
@@ -1289,7 +1289,7 @@ git commit -m "Feat: Ledger screen scoped by account with in-place delete"
 **Files:**
 - Modify: `src/WealthIQ.Web/Components/Pages/DataAdmin.razor`
 
-- [ ] **Step 1: Remove the Ledger and Instrumente panels (items 2 & 7)**
+- [x] **Step 1: Remove the Ledger and Instrumente panels (items 2 & 7)**
 
 Delete the entire `<!-- Ledger -->` `MudExpansionPanel` (Text="Ledger (Buchungen)") and the entire `<!-- Instruments -->` `MudExpansionPanel` (Text="Instrumente"). Then remove the now-unused members and injections:
 - `@inject ILedgerClearService LedgerClear`
@@ -1297,7 +1297,7 @@ Delete the entire `<!-- Ledger -->` `MudExpansionPanel` (Text="Ledger (Buchungen
 - the `ClearLedger` method
 - in `LoadStatusAsync`, delete the lines computing `_ledgerEntries/_accounts/_batches/_profileCount/_listingCount`.
 
-- [ ] **Step 2: Add FX incremental + add-currency UI (item 3)**
+- [x] **Step 2: Add FX incremental + add-currency UI (item 3)**
 
 Replace the FX panel body (`<!-- FX Rates -->` panel) with:
 
@@ -1407,7 +1407,7 @@ Add the supporting members to `@code`:
 
 (Keep the existing `RefreshFxRates`, `ClearFxRates`, `ReseedFxRates`, and `_fxRange`.)
 
-- [ ] **Step 3: Streamline the Basiszins panel (item 6)**
+- [x] **Step 3: Streamline the Basiszins panel (item 6)**
 
 Replace the Basiszins panel body so it is a single editable table with an inline add-row. Replace the manual-entry section, the BMF section, and the "Gespeicherte Werte" block with:
 
@@ -1490,12 +1490,12 @@ Then in `@code`:
 
 Keep `SaveManualBasiszins`, `CommitBasiszinsEdit`, `DeleteBasiszins`, `_manualYear`, `_manualRate` (still used by add-row + edit).
 
-- [ ] **Step 4: Build**
+- [x] **Step 4: Build**
 
 Run: `dotnet build WealthIQ.slnx`
 Expected: build succeeds (no references to removed members remain).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/WealthIQ.Web/Components/Pages/DataAdmin.razor
@@ -1509,17 +1509,17 @@ git commit -m "Refine: Marktdaten — drop Ledger/Instrumente panels, FX increme
 **Files:**
 - Modify: `CLAUDE.md` (Web UI section) — reflect the moved ledger delete, FX incremental/add-currency, streamlined Basiszins, removed Marktdaten panels, and Kurschart/Steuerreport changes.
 
-- [ ] **Step 1: Format**
+- [x] **Step 1: Format**
 
 Run: `dotnet format WealthIQ.slnx`
 Expected: no errors. Re-run `dotnet format WealthIQ.slnx --verify-no-changes` → clean.
 
-- [ ] **Step 2: Full test suite (Release, as CI runs)**
+- [x] **Step 2: Full test suite (Release, as CI runs)**
 
 Run: `dotnet test WealthIQ.slnx --configuration Release`
 Expected: all tests pass, including `GermanTaxRegressionTests` with unchanged expected figures.
 
-- [ ] **Step 3: Manual smoke test (`dotnet run`)**
+- [x] **Step 3: Manual smoke test (`dotnet run`)**
 
 Per project memory, Blazor render correctness is not covered by build/xUnit — run the app and verify:
 
@@ -1533,11 +1533,11 @@ Checklist (with seeded/imported data present):
 - **Kurschart** (`/browse/prices`): first instrument auto-selected; chart opens zoomed to ~last year; no "x" clear; pick another instrument, navigate away and back → selection remembered.
 - **Steuerreport** (`/`): "Verkäufe → Anzeigen" scrolls to + flashes the matching detail row; "Quelle" toggles an inline detail under Verkäufe-Details/Dividenden/Quellensteuer; Vorabpauschale "Quelle" shows the calculation inputs; Dividenden & Zinsen no longer show the "Verrechnete Vorabpauschale" column.
 
-- [ ] **Step 4: Update CLAUDE.md**
+- [x] **Step 4: Update CLAUDE.md**
 
 Edit the "Web UI" section to reflect: ledger delete now lives on the Ledger browser (account-scoped); Marktdaten no longer hosts Ledger or Instrumente; FX supports incremental refresh + add-currency backfill (tracked set = stored currencies ∪ USD/GBP/CHF); Basiszins is a single ascending editable table (no BMF button in UI); Kurschart preselects/remembers/opens zoomed to last year; Steuerreport uses inline source/Vorab expanders and drops the always-zero Vorab column from Dividenden/Zinsen.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add CLAUDE.md
