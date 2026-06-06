@@ -8,7 +8,7 @@ public sealed class FxRateRefreshService(IFxRateProvider provider, IFxRateStore 
 {
     public async Task<DataRefreshResult> RefreshAsync(DateOnly from, DateOnly to, CancellationToken ct)
     {
-        var records = await provider.FetchAsync(from, to, ct);
+        var records = await provider.FetchAsync(from, to, null, ct);
         var (added, updated) = store.Upsert(records);
         await store.SaveChangesAsync(ct);
         return new DataRefreshResult(added, updated, 0, []);

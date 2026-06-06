@@ -7,7 +7,8 @@ public sealed class FxRateRefreshServiceTests
 {
     private sealed class FakeProvider(IReadOnlyList<FxRateRecord> records) : IFxRateProvider
     {
-        public Task<IReadOnlyList<FxRateRecord>> FetchAsync(DateOnly from, DateOnly to, CancellationToken ct)
+        public Task<IReadOnlyList<FxRateRecord>> FetchAsync(
+            DateOnly from, DateOnly to, IReadOnlyCollection<string>? currencies, CancellationToken ct)
             => Task.FromResult(records);
     }
 
