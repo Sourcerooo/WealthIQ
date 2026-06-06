@@ -1,0 +1,172 @@
+@page "/browse/ledger"
+@using WealthIQ.Application.Persistence.Interface
+@using WealthIQ.Domain.Enumeration
+@using WealthIQ.Domain.Model.General
+@using WealthIQ.Domain.Model.Ledger
+@inject ILedgerStore LedgerStore
+@inject NavigationManager Navigation
+
+<PageTitle>WealthIQ — Ledger</PageTitle>
+
+<PageHeader Title="Ledger" Subtitle="Importierte Buchungen (Originalwährung)" />
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+
+@if (_loading)
+{
+    <div style="display:flex;justify-content:center;padding:64px;">
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+    </div>
+}
+else
+{
+    <div class="wiq-rise">
+        <MudExpansionPanels MultiExpansion="true" Elevation="0">
+            <MudExpansionPanel Text="@($"Trades ({_trades.Count})")">
+                @if (_trades.Count == 0) { <MudText Typo="Typo.body2">Keine Einträge.</MudText> }
+                else
+                {
+                    <MudTable Items="_trades" Dense="true" Hover="true" Elevation="0" Breakpoint="Breakpoint.Sm">
+                        <HeaderContent>
+                            <MudTh>Datum</MudTh><MudTh>Seite</MudTh><MudTh>Symbol</MudTh><MudTh>ISIN</MudTh>
+                            <MudTh Style="text-align:right">Menge</MudTh><MudTh Style="text-align:right">Kurs</MudTh>
+                            <MudTh Style="text-align:right">Gebühren</MudTh><MudTh Style="text-align:right">Steuern</MudTh>
+                            <MudTh>Whg.</MudTh><MudTh></MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Datum">@context.Date.ToString("yyyy-MM-dd")</MudTd>
+                            <MudTd DataLabel="Seite">@context.Side</MudTd>
+                            <MudTd DataLabel="Symbol">@context.Symbol</MudTd>
+                            <MudTd DataLabel="ISIN">@context.Isin</MudTd>
+                            <MudTd DataLabel="Menge" Style="text-align:right">@context.Quantity.ToString("0.####")</MudTd>
+                            <MudTd DataLabel="Kurs" Style="text-align:right">@context.UnitPrice.ToString("N4")</MudTd>
+                            <MudTd DataLabel="Gebühren" Style="text-align:right">@context.Fees.ToString("N2")</MudTd>
+                            <MudTd DataLabel="Steuern" Style="text-align:right">@context.Taxes.ToString("N2")</MudTd>
+                            <MudTd DataLabel="Whg.">@context.Currency</MudTd>
+                            <MudTd>@SourceLink(context.Isin)</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudExpansionPanel>
+
+            <MudExpansionPanel Text="@($"Dividenden ({_dividends.Count})")">
+                @CashTable(_dividends, showIsin: true)
+            </MudExpansionPanel>
+            <MudExpansionPanel Text="@($"Zinsen ({_interest.Count})")">
+                @CashTable(_interest, showIsin: false)
+            </MudExpansionPanel>
+            <MudExpansionPanel Text="@($"Quellensteuer ({_withholding.Count})")">
+                @CashTable(_withholding, showIsin: true)
+            </MudExpansionPanel>
+            <MudExpansionPanel Text="@($"Sonstige Buchungen ({_other.Count})")">
+                @CashTable(_other, showIsin: true)
+            </MudExpansionPanel>
+        </MudExpansionPanels>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private string? _error;
+
+    private sealed record TradeView(DateOnly Date, TradeSide Side, string Symbol, string Isin,
+        decimal Quantity, decimal UnitPrice, decimal Fees, decimal Taxes, Currency Currency);
+    private sealed record CashView(DateOnly Date, string Symbol, string Isin, CashFlowType Type,
+        decimal GrossAmount, decimal Fees, decimal Taxes, Currency Currency);
+
+    private List<TradeView> _trades = new();
+    private List<CashView> _dividends = new();
+    private List<CashView> _interest = new();
+    private List<CashView> _withholding = new();
+    private List<CashView> _other = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var ledger = await LedgerStore.LoadLedgerAsync();
+            var byId = ledger.Instruments.ToDictionary(i => i.InstrumentId);
+
+            foreach (var entry in ledger.Entries)
+            {
+                switch (entry)
+                {
+                    case TradeEntry t:
+                        var (ts, ti) = Resolve(t.InstrumentId, byId);
+                        _trades.Add(new TradeView(t.EffectiveDate, t.Side, ts, ti,
+                            t.Quantity.Value, t.UnitPrice.Amount, t.Fees.Amount, t.Taxes.Amount, t.UnitPrice.Currency));
+                        break;
+                    case CashEntry c:
+                        var srcId = c.RelatedInstrumentId ?? c.CashInstrumentId;
+                        var (cs, ci) = Resolve(srcId, byId);
+                        var view = new CashView(c.EffectiveDate, cs, ci, c.CashFlowType,
+                            c.GrossAmount.Amount, c.Fees.Amount, c.Taxes.Amount, c.GrossAmount.Currency);
+                        switch (c.CashFlowType)
+                        {
+                            case CashFlowType.Dividend: _dividends.Add(view); break;
+                            case CashFlowType.Interest: _interest.Add(view); break;
+                            case CashFlowType.WithholdingTax: _withholding.Add(view); break;
+                            default: _other.Add(view); break;
+                        }
+                        break;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Ledger konnte nicht geladen werden: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static (string Symbol, string Isin) Resolve(InstrumentId id, IReadOnlyDictionary<InstrumentId, Instrument> byId)
+        => byId.TryGetValue(id, out var i) ? (i.Symbol, i.ISIN) : ("", "");
+
+    private RenderFragment SourceLink(string isin) => __builder =>
+    {
+        if (!string.IsNullOrWhiteSpace(isin))
+        {
+            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                       OnClick="() => DrillToSource(isin)">Anzeigen</MudButton>
+        }
+    };
+
+    private void DrillToSource(string isin)
+        => Navigation.NavigateTo($"/audit?isin={Uri.EscapeDataString(isin)}");
+
+    private RenderFragment CashTable(IReadOnlyList<CashView> items, bool showIsin) => __builder =>
+    {
+        if (items.Count == 0)
+        {
+            <MudText Typo="Typo.body2">Keine Einträge.</MudText>
+        }
+        else
+        {
+            <MudTable Items="items" Dense="true" Hover="true" Elevation="0" Breakpoint="Breakpoint.Sm">
+                <HeaderContent>
+                    <MudTh>Datum</MudTh><MudTh>Symbol</MudTh>
+                    @if (showIsin) { <MudTh>ISIN</MudTh> }
+                    <MudTh Style="text-align:right">Betrag</MudTh>
+                    <MudTh Style="text-align:right">Gebühren</MudTh><MudTh Style="text-align:right">Steuern</MudTh>
+                    <MudTh>Whg.</MudTh><MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate Context="row">
+                    <MudTd DataLabel="Datum">@row.Date.ToString("yyyy-MM-dd")</MudTd>
+                    <MudTd DataLabel="Symbol">@row.Symbol</MudTd>
+                    @if (showIsin) { <MudTd DataLabel="ISIN">@row.Isin</MudTd> }
+                    <MudTd DataLabel="Betrag" Style="text-align:right">@row.GrossAmount.ToString("N2")</MudTd>
+                    <MudTd DataLabel="Gebühren" Style="text-align:right">@row.Fees.ToString("N2")</MudTd>
+                    <MudTd DataLabel="Steuern" Style="text-align:right">@row.Taxes.ToString("N2")</MudTd>
+                    <MudTd DataLabel="Whg.">@row.Currency</MudTd>
+                    <MudTd>@SourceLink(row.Isin)</MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    };
+}
