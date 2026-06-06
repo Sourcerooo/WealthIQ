@@ -432,7 +432,7 @@ public sealed class GermanTaxCalculator(
         return _fxConverter.Convert(sourceMoney, conversionDate);
     }
 
-/// <summary>A per-share distribution recorded for Vorabpauschale reduction, scoped to the account,
+    /// <summary>A per-share distribution recorded for Vorabpauschale reduction, scoped to the account,
     /// instrument and the date it was paid (so only lots held at that date are reduced).</summary>
     private readonly record struct Distribution(
         int Year,

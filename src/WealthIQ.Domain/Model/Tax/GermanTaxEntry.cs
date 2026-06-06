@@ -27,7 +27,7 @@ public readonly record struct GermanTaxEntry(
     string SourceFile = "",          // originating statement file
     decimal OriginalAmount = 0m,     // cash: gross amount in original currency
     string OriginalCurrency = "",    // cash: original currency code
-    // Vorabpauschale: the §18 calculation inputs for the "warum?" expander.
+                                     // Vorabpauschale: the §18 calculation inputs for the "warum?" expander.
     decimal YearStartPrice = 0m,     // year-start redemption price, EUR
     decimal YearEndPrice = 0m,       // year-end redemption price, EUR
     decimal BasisRate = 0m,          // Basiszins used
