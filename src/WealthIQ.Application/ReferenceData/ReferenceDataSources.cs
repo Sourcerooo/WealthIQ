@@ -6,4 +6,5 @@ public sealed record ReferenceDataSources(
     string HistoricalPriceCsvPath,
     string InstrumentProfileJsonPath,
     string InstrumentListingJsonPath,
-    string FxRateCsvPath);
+    string FxRateCsvPath,
+    string DividendAliasCsvPath);

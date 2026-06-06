@@ -44,7 +44,8 @@ var referenceDataSources = new ReferenceDataSources(
     Path.Combine(referenceDir, "historical_prices.csv"),
     Path.Combine(referenceDir, "instruments.json"),
     Path.Combine(referenceDir, "listings.json"),
-    Path.Combine(referenceDir, "fx_rates.csv"));
+    Path.Combine(referenceDir, "fx_rates.csv"),
+    Path.Combine(referenceDir, "tradersplace_dividend_aliases.csv"));
 builder.Services.AddSingleton(referenceDataSources);
 
 // --- Config options ---

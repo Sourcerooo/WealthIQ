@@ -44,6 +44,11 @@ public sealed class ReferenceDataSeeder(WealthIqDbContext db) : IReferenceDataSe
             db.FxRates.AddRange(ReadFxRates(sources.FxRateCsvPath));
         }
 
+        if (!await db.DividendAliases.AnyAsync(ct))
+        {
+            db.DividendAliases.AddRange(ReadDividendAliases(sources.DividendAliasCsvPath));
+        }
+
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
@@ -163,6 +168,26 @@ public sealed class ReferenceDataSeeder(WealthIqDbContext db) : IReferenceDataSe
                     Notes = dto.Notes
                 };
             }
+        }
+    }
+
+    private static IEnumerable<DividendAliasRow> ReadDividendAliases(string path)
+    {
+        foreach (var (_, parts) in ReadCsv(path, "Dividend alias file not found.", minColumns: 2))
+        {
+            var alias = parts[0].Trim();
+            var isin = parts[1].Trim();
+            if (alias.Length == 0 || isin.Length == 0)
+            {
+                continue;
+            }
+
+            yield return new DividendAliasRow
+            {
+                NormalizedAlias = WealthIQ.Application.ReferenceData.DividendAliasNormalizer.Normalize(alias),
+                Alias = alias,
+                Isin = isin
+            };
         }
     }
 
