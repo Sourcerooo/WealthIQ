@@ -146,6 +146,34 @@ public sealed class TradersPlaceStatementImporterTests
     }
 
     [Fact]
+    public async Task Import_IdenticalTradeRows_GetDistinctButStableReferences()
+    {
+        // Two rows that are byte-for-byte identical must produce two entries with DISTINCT references
+        // (ordinal 0 vs ordinal 1).  Importing the same folder a second time must yield the exact same
+        // reference set — proving the key is stable across re-imports (idempotency).
+        var rows = new[]
+        {
+            DepotHeader,
+            "06.06.2024;10.06.2024;Kauf;Investmentfonds/ETFs;Isin;FR0010510800;Amundi EUR Overnight Return UCITS ETF Acc;100,000000;108,259000;EUR;EUR;10825,90;0,00;0,00;0,00;0,00;10825,90;1,000000;MUNC;ausgeführt;Limit;Tagesgültig;Deutschland;",
+            "06.06.2024;10.06.2024;Kauf;Investmentfonds/ETFs;Isin;FR0010510800;Amundi EUR Overnight Return UCITS ETF Acc;100,000000;108,259000;EUR;EUR;10825,90;0,00;0,00;0,00;0,00;10825,90;1,000000;MUNC;ausgeführt;Limit;Tagesgültig;Deutschland;",
+        };
+        var dir = WriteFolder(("Depot.csv", rows));
+        try
+        {
+            var first = await NewImporter().ImportAsync(RequestFor(dir), CancellationToken.None);
+            var second = await NewImporter().ImportAsync(RequestFor(dir), CancellationToken.None);
+
+            var refs1 = first.PortfolioLedger.Entries.Select(e => e.SourceProvenance.SourceRecordReference).ToList();
+            Assert.Equal(2, refs1.Count);
+            Assert.Equal(2, refs1.Distinct().Count()); // two identical rows → distinct references
+
+            var refs2 = second.PortfolioLedger.Entries.Select(e => e.SourceProvenance.SourceRecordReference).OrderBy(x => x).ToList();
+            Assert.Equal(refs1.OrderBy(x => x).ToList(), refs2); // same file → same references (idempotent)
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
     public async Task Import_TradeRowsInKontoumsaetze_AreSkipped_NoDoubleCount()
     {
         var dir = WriteFolder(

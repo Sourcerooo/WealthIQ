@@ -9,6 +9,7 @@ using WealthIQ.Domain.Enumeration;
 using WealthIQ.Domain.Model.General;
 using WealthIQ.Domain.Model.Ledger;
 
+// CurrencyCode alias avoids collision with the local Currency enum; CashFlowType has no such collision and is used unqualified.
 using CurrencyCode = WealthIQ.Domain.Enumeration.Currency;
 
 namespace WealthIQ.Infrastructure.TradersPlace.Import;
@@ -99,6 +100,14 @@ public sealed class TradersPlaceStatementImporter(IDividendAliasMap dividendAlia
         IReadOnlyList<string> lines, string file, AccountId accountId,
         Dictionary<InstrumentId, Instrument> catalog, List<PortfolioEntry> entries, List<ImportDiagnostic> diagnostics)
     {
+        // Depotumsätze columns: 0=Handelsdatum, 2=Transaktion, 5=WP-Identifikation(ISIN), 6=WP-Name,
+        // 7=Nominale/Stück, 8=Kurs/Limit, 9=Handelswährung, 10=Zahlungswährung, 12=eigene Spesen,
+        // 13=fremde Spesen, 15=KESt, 16=Endbetrag.
+
+        // Tracks how many times we have seen each (date|isin|txn|qty|price|endbetrag) composite key
+        // so that genuinely-identical rows still receive distinct but deterministic references.
+        var keyOccurrences = new Dictionary<string, int>();
+
         for (var i = 1; i < lines.Count; i++)
         {
             var line = lines[i];
@@ -163,7 +172,10 @@ public sealed class TradersPlaceStatementImporter(IDividendAliasMap dividendAlia
             var instrument = EnsureInstrument(catalog, isin, name);
             var occurredAt = new DateTimeOffset(handelsdatum.ToDateTime(new TimeOnly(12, 0), DateTimeKind.Utc));
 
-            var reference = StableTradeReference(handelsdatum, isin, transaktion, c[7].Trim(), c[8].Trim(), c[16].Trim(), i);
+            var baseKey = $"{handelsdatum:yyyy-MM-dd}|{isin}|{transaktion}|{c[7].Trim()}|{c[8].Trim()}|{c[16].Trim()}";
+            var ordinal = keyOccurrences.TryGetValue(baseKey, out var seen) ? seen : 0;
+            keyOccurrences[baseKey] = ordinal + 1;
+            var reference = StableTradeReference(baseKey, ordinal);
 
             entries.Add(new TradeEntry(
                 PortfolioEntryId.NewId(), accountId, occurredAt, handelsdatum,
@@ -187,6 +199,9 @@ public sealed class TradersPlaceStatementImporter(IDividendAliasMap dividendAlia
         IReadOnlyList<string> lines, string file, AccountId accountId,
         Dictionary<InstrumentId, Instrument> catalog, List<PortfolioEntry> entries, List<ImportDiagnostic> diagnostics)
     {
+        // Kontoumsätze columns: 2=Buchungsdatum, 4=Transaktion, 5=Währung, 6=Betrag,
+        // 7=Kontotext/WP-Identifikation, 8=Umsatz-ID (PK).
+
         for (var i = 1; i < lines.Count; i++)
         {
             var line = lines[i];
@@ -252,7 +267,7 @@ public sealed class TradersPlaceStatementImporter(IDividendAliasMap dividendAlia
                 var related = EnsureInstrument(catalog, isin, text);
                 entries.Add(new CashEntry(
                     PortfolioEntryId.NewId(), accountId, occurredAt, buchungsdatum, provenance,
-                    cashInstrument.InstrumentId, WealthIQ.Domain.Enumeration.CashFlowType.Dividend,
+                    cashInstrument.InstrumentId, CashFlowType.Dividend,
                     new Money(amount, currency.Value), new Money(0m, currency.Value), new Money(0m, currency.Value),
                     related.InstrumentId));
                 continue;
@@ -262,6 +277,8 @@ public sealed class TradersPlaceStatementImporter(IDividendAliasMap dividendAlia
             {
                 if (amount <= 0m)
                 {
+                    // Deliberate deferral (spec 2026-06-06): debit interest and potential Werbungskosten
+                    // from negative Kontoabschluss rows are not modelled in this phase.
                     diagnostics.Add(new ImportDiagnostic(
                         ImportDiagnosticSeverity.Info, ImportDiagnosticCode.IgnoredAsset,
                         $"Ignored non-positive Kontoabschluss (debit interest/fee) row {i + 1}.", SourceReference: reference));
@@ -271,7 +288,7 @@ public sealed class TradersPlaceStatementImporter(IDividendAliasMap dividendAlia
                 var cashInstrument = EnsureCashInstrument(catalog, currency.Value);
                 entries.Add(new CashEntry(
                     PortfolioEntryId.NewId(), accountId, occurredAt, buchungsdatum, provenance,
-                    cashInstrument.InstrumentId, WealthIQ.Domain.Enumeration.CashFlowType.Interest,
+                    cashInstrument.InstrumentId, CashFlowType.Interest,
                     new Money(amount, currency.Value), new Money(0m, currency.Value), new Money(0m, currency.Value)));
                 continue;
             }
@@ -314,10 +331,12 @@ public sealed class TradersPlaceStatementImporter(IDividendAliasMap dividendAlia
         return null;
     }
 
-    private static string StableTradeReference(DateOnly date, string isin, string transaktion, string qty, string price, string endbetrag, int rowIndex)
+    // Uses an occurrence ordinal (0, 1, 2…) rather than the absolute loop line number so that the
+    // resulting SourceRecordReference is stable across re-imports even when new rows are added before
+    // this one in the export, satisfying the CLAUDE.md idempotency requirement.
+    private static string StableTradeReference(string baseKey, int ordinal)
     {
-        var key = $"{date:yyyy-MM-dd}|{isin}|{transaktion}|{qty}|{price}|{endbetrag}|{rowIndex}";
-        var bytes = MD5.HashData(Encoding.UTF8.GetBytes(key.ToUpperInvariant()));
+        var bytes = MD5.HashData(Encoding.UTF8.GetBytes($"{baseKey}|{ordinal}".ToUpperInvariant()));
         return $"TP-DEPOT-{new Guid(bytes):N}";
     }
 
