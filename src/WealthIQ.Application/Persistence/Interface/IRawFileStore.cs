@@ -7,4 +7,8 @@ namespace WealthIQ.Application.Persistence.Interface;
 public interface IRawFileStore
 {
     string Ingest(string sourceFilePath);
+
+    /// <summary>Copies every file from a source directory into an isolated audit subfolder and returns
+    /// that subfolder. Used for multi-file imports (e.g. Trader's Place: trades + cash CSVs together).</summary>
+    string IngestDirectory(string sourceDirectory);
 }
