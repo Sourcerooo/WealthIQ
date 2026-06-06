@@ -25,8 +25,15 @@ public sealed class DbHistoricalPriceLookupTests
         using var db = NewDb();
         db.HistoricalPrices.Add(new HistoricalPriceRow
         {
-            ProviderSymbol = "VUSA.L", Date = new DateOnly(2024, 12, 30), Currency = "GBP",
-            Open = 1, High = 1, Low = 1, Close = 130, AdjustedClose = 130, Volume = 10
+            ProviderSymbol = "VUSA.L",
+            Date = new DateOnly(2024, 12, 30),
+            Currency = "GBP",
+            Open = 1,
+            High = 1,
+            Low = 1,
+            Close = 130,
+            AdjustedClose = 130,
+            Volume = 10
         });
         db.SaveChanges();
 

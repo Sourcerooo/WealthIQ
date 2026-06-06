@@ -51,9 +51,15 @@ public sealed class DbHistoricalPriceStore(WealthIqDbContext db) : IHistoricalPr
             {
                 db.HistoricalPrices.Add(new HistoricalPriceRow
                 {
-                    ProviderSymbol = bar.ProviderSymbol, Date = bar.Date, Currency = bar.Currency.ToString(),
-                    Open = bar.Open, High = bar.High, Low = bar.Low, Close = bar.Close,
-                    AdjustedClose = bar.AdjustedClose, Volume = bar.Volume
+                    ProviderSymbol = bar.ProviderSymbol,
+                    Date = bar.Date,
+                    Currency = bar.Currency.ToString(),
+                    Open = bar.Open,
+                    High = bar.High,
+                    Low = bar.Low,
+                    Close = bar.Close,
+                    AdjustedClose = bar.AdjustedClose,
+                    Volume = bar.Volume
                 });
                 added++;
             }

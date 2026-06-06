@@ -209,12 +209,14 @@ else if (Current is not null)
 
     private void OnYearChanged(int year)
     {
+        _expanded.Clear();
         _selectedYear = year;
         _animatePending = true;
     }
 
     private void OnAccountChanged(Guid accountId)
     {
+        _expanded.Clear();
         _selectedAccountId = accountId;
         _selectedYear = _reports.Count > 0 ? _reports[^1].Year : 0;
         _animatePending = true;

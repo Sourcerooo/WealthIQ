@@ -25,8 +25,17 @@ public sealed class DerivedInstrumentPriceProviderTests
         db.InstrumentListings.Add(new InstrumentListingRow
         { Isin = "IE00B3XXRP09", Currency = "GBP", Provider = "YahooFinance", ProviderSymbol = "VUSA.L" });
         db.HistoricalPrices.Add(new HistoricalPriceRow
-        { ProviderSymbol = "VUSA.L", Date = new DateOnly(2024, 12, 30), Currency = "GBP",
-          Open = 1, High = 1, Low = 1, Close = 90, AdjustedClose = 90, Volume = 1 });
+        {
+            ProviderSymbol = "VUSA.L",
+            Date = new DateOnly(2024, 12, 30),
+            Currency = "GBP",
+            Open = 1,
+            High = 1,
+            Low = 1,
+            Close = 90,
+            AdjustedClose = 90,
+            Volume = 1
+        });
         db.SaveChanges();
 
         var provider = new DerivedInstrumentPriceProvider(new DbInstrumentMarketDataMap(db), new DbHistoricalPriceLookup(db));
@@ -45,8 +54,17 @@ public sealed class DerivedInstrumentPriceProviderTests
         db.InstrumentListings.Add(new InstrumentListingRow
         { Isin = "IE00B3XXRP09", Currency = "GBP", Provider = "YahooFinance", ProviderSymbol = "VUSA.L" });
         db.HistoricalPrices.Add(new HistoricalPriceRow
-        { ProviderSymbol = "VUSA.L", Date = new DateOnly(2024, 12, 30), Currency = "USD",
-          Open = 1, High = 1, Low = 1, Close = 90, AdjustedClose = 90, Volume = 1 });
+        {
+            ProviderSymbol = "VUSA.L",
+            Date = new DateOnly(2024, 12, 30),
+            Currency = "USD",
+            Open = 1,
+            High = 1,
+            Low = 1,
+            Close = 90,
+            AdjustedClose = 90,
+            Volume = 1
+        });
         db.SaveChanges();
 
         var provider = new DerivedInstrumentPriceProvider(new DbInstrumentMarketDataMap(db), new DbHistoricalPriceLookup(db));

@@ -42,7 +42,9 @@ public sealed class DbInstrumentReferenceAdmin(WealthIqDbContext db) : IInstrume
         {
             db.InstrumentProfiles.Add(new InstrumentProfileRow
             {
-                Isin = dto.Isin, Name = dto.Name, Type = dto.Type,
+                Isin = dto.Isin,
+                Name = dto.Name,
+                Type = dto.Type,
                 Teilfreistellungsquote = dto.Teilfreistellungsquote,
                 SubjectToVorabpauschale = dto.SubjectToVorabpauschale
             });
@@ -61,9 +63,12 @@ public sealed class DbInstrumentReferenceAdmin(WealthIqDbContext db) : IInstrume
         {
             db.InstrumentListings.Add(new InstrumentListingRow
             {
-                Isin = dto.Isin, Currency = l.Currency.ToString(),
-                Provider = l.Provider, ProviderSymbol = l.ProviderSymbol,
-                Exchange = l.Exchange, Notes = l.Notes
+                Isin = dto.Isin,
+                Currency = l.Currency.ToString(),
+                Provider = l.Provider,
+                ProviderSymbol = l.ProviderSymbol,
+                Exchange = l.Exchange,
+                Notes = l.Notes
             });
         }
 
@@ -155,8 +160,12 @@ public sealed class DbInstrumentReferenceAdmin(WealthIqDbContext db) : IInstrume
             {
                 db.InstrumentListings.Add(new InstrumentListingRow
                 {
-                    Isin = isin, Currency = l.Currency, Provider = l.Provider,
-                    ProviderSymbol = l.ProviderSymbol, Exchange = l.Exchange, Notes = l.Notes
+                    Isin = isin,
+                    Currency = l.Currency,
+                    Provider = l.Provider,
+                    ProviderSymbol = l.ProviderSymbol,
+                    Exchange = l.Exchange,
+                    Notes = l.Notes
                 });
                 listingCount++;
             }
