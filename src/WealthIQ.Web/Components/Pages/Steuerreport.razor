@@ -55,9 +55,9 @@ else if (_accounts.Count == 0)
 else if (Current is not null)
 {
     @* Hero: headline estimated tax (count-up) + composition donut.
-       Keyed on the year so switching produces fresh DOM (no stale count-up guard) and re-animates.
+       Keyed on account + year so switching EITHER produces fresh DOM (no stale count-up guard) and re-animates.
        The key is prefixed because sibling MudGrids must have distinct @key values. *@
-    <MudGrid Class="mb-4 wiq-rise" @key="@($"hero-{_selectedYear}")">
+    <MudGrid Class="mb-4 wiq-rise" @key="@($"hero-{_selectedAccountId}-{_selectedYear}")">
         <MudItem xs="12" md="7">
             <MudPaper Elevation="0" Class="wiq-card wiq-card--accent" Style="height:100%;padding:24px;">
                 <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);">Geschätzte Steuer @Current.Year</MudText>
@@ -86,9 +86,9 @@ else if (Current is not null)
         </MudItem>
     </MudGrid>
 
-    @* KPI grid. Keyed on the year so the StatCard count-ups re-animate on year switch.
+    @* KPI grid. Keyed on account + year so the StatCard count-ups re-animate on either switch.
        Distinct key prefix from the hero grid (sibling @key values must be unique). *@
-    <MudGrid Class="mb-4 wiq-rise-2" @key="@($"kpi-{_selectedYear}")">
+    <MudGrid Class="mb-4 wiq-rise-2" @key="@($"kpi-{_selectedAccountId}-{_selectedYear}")">
         <MudItem xs="12" sm="6" md="4"><StatCard Caption="Verkäufe (steuerpflichtig)" Value="@Current.Summary.NetRealizedGainsTaxable" CountUp="true" /></MudItem>
         <MudItem xs="12" sm="6" md="4"><StatCard Caption="Dividenden (steuerpflichtig)" Value="@Current.Summary.DividendsTaxable" CountUp="true" /></MudItem>
         <MudItem xs="12" sm="6" md="4"><StatCard Caption="Zinsen (steuerpflichtig)" Value="@Current.Summary.InterestTaxable" CountUp="true" /></MudItem>
@@ -218,7 +218,12 @@ else if (Current is not null)
     {
         _expanded.Clear();
         _selectedAccountId = accountId;
-        _selectedYear = _reports.Count > 0 ? _reports[^1].Year : 0;
+        // Keep the chosen year across accounts; only fall back to the latest available year
+        // when the newly selected account has no data for the current year (avoids a blank view).
+        if (!_reports.Any(r => r.Year == _selectedYear))
+        {
+            _selectedYear = _reports.Count > 0 ? _reports[^1].Year : 0;
+        }
         _animatePending = true;
     }
 
