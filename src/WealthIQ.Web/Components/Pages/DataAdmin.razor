@@ -12,6 +12,7 @@
 @inject HistoricalPriceRefreshService PriceRefresh
 @inject FxRateRefreshService FxRefresh
 @inject BasisInterestRateRefreshService BasisRefresh
+@inject DividendAliasRefreshService AliasService
 @inject IReferenceDataClearService RefClear
 @inject IReferenceDataSeeder Seeder
 @inject ReferenceDataSources Sources
@@ -209,6 +210,38 @@
 
 </MudExpansionPanels>
 
+<div style="margin-top:16px;">
+<SectionCard Title="Trader's Place Dividenden-Zuordnung (Alias → ISIN)">
+    <MudTable Items="_aliases" Dense="true" Hover="true" Elevation="0" T="DividendAliasView">
+        <HeaderContent>
+            <MudTh>Alias</MudTh>
+            <MudTh>ISIN</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Alias">@context.Alias</MudTd>
+            <MudTd DataLabel="ISIN">@context.Isin</MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small"
+                               aria-label="Löschen" OnClick="() => OnAliasDelete(context)" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+
+    <div class="d-flex gap-2 mt-3" style="align-items:flex-end;">
+        <MudTextField @bind-Value="_newAlias" Label="Neuer Alias" Variant="Variant.Outlined" />
+        <MudTextField @bind-Value="_newIsin" Label="ISIN" Variant="Variant.Outlined" />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(string.IsNullOrWhiteSpace(_newAlias) || string.IsNullOrWhiteSpace(_newIsin))"
+                   OnClick="OnAliasAdd">Hinzufügen</MudButton>
+    </div>
+    @if (_aliasError is not null)
+    {
+        <MudAlert Severity="Severity.Error" Class="mt-2">@_aliasError</MudAlert>
+    }
+</SectionCard>
+</div>
+
 @if (_lastResult is not null)
 {
     <div class="mt-4">
@@ -286,6 +319,12 @@
 
     private List<BasiszinsRow> _basiszinsRows = new();
 
+    // dividend aliases
+    private List<DividendAliasView> _aliases = new();
+    private string _newAlias = "";
+    private string _newIsin = "";
+    private string? _aliasError;
+
     // last refresh result
     private DataRefreshResult? _lastResult;
     private string _lastResultLabel = "";
@@ -355,6 +394,8 @@
             .OrderBy(x => x.ProviderSymbol)
             .ToListAsync()
             .ContinueWith(t => t.Result.Select(x => (x.ProviderSymbol, x.Currency)).ToList());
+
+        await LoadAliasesAsync();
     }
 
     private async Task RefreshPricesIncremental()
@@ -552,6 +593,38 @@
         }
         catch (Exception ex) { ShowError(ex.Message); }
         finally { _busy = false; }
+    }
+
+    private async Task LoadAliasesAsync()
+    {
+        _aliases = await Db.DividendAliases
+            .OrderBy(a => a.Alias)
+            .Select(a => new DividendAliasView(a.NormalizedAlias, a.Alias, a.Isin))
+            .ToListAsync();
+    }
+
+    private async Task OnAliasAdd()
+    {
+        _aliasError = null;
+        try
+        {
+            await AliasService.SetAsync(_newAlias, _newIsin);
+            _newAlias = "";
+            _newIsin = "";
+            await LoadAliasesAsync();
+        }
+        catch (Exception ex) { _aliasError = ex.Message; }
+    }
+
+    private async Task OnAliasDelete(DividendAliasView row)
+    {
+        _aliasError = null;
+        try
+        {
+            await AliasService.DeleteAsync(row.NormalizedAlias);
+            await LoadAliasesAsync();
+        }
+        catch (Exception ex) { _aliasError = ex.Message; }
     }
 
     private void DismissMessage() => _message = null;
