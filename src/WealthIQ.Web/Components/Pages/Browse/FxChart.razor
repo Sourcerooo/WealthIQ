@@ -22,6 +22,11 @@
     </Actions>
 </PageHeader>
 
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+
 <div class="wiq-rise">
     <SectionCard>
         <ChildContent>
@@ -46,14 +51,22 @@
     private string _selected = "";
     private List<LightweightChart.LinePoint> _points = new();
     private bool _dark = true;
+    private string? _error;
 
     protected override async Task OnInitializedAsync()
     {
-        _currencies = await Db.FxRates.Select(x => x.Currency).Distinct().OrderBy(x => x).ToListAsync();
-        if (_currencies.Count > 0)
+        try
         {
-            _selected = _currencies[0];
-            await LoadSeriesAsync();
+            _currencies = await Db.FxRates.Select(x => x.Currency).Distinct().OrderBy(x => x).ToListAsync();
+            if (_currencies.Count > 0)
+            {
+                _selected = _currencies[0];
+                await LoadSeriesAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Wechselkurse konnten nicht geladen werden: {ex.Message}";
         }
     }
 
@@ -74,15 +87,22 @@
 
     private async Task LoadSeriesAsync()
     {
-        // Fetch raw rows first; format DateOnly in-memory to avoid EF SQLite translation issues
-        // with DateOnly.ToString(format).
-        var rows = await Db.FxRates
-            .Where(x => x.Currency == _selected)
-            .OrderBy(x => x.Date)
-            .ToListAsync();
+        try
+        {
+            // Fetch raw rows first; format DateOnly in-memory to avoid EF SQLite translation issues
+            // with DateOnly.ToString(format).
+            var rows = await Db.FxRates
+                .Where(x => x.Currency == _selected)
+                .OrderBy(x => x.Date)
+                .ToListAsync();
 
-        _points = rows
-            .Select(x => new LightweightChart.LinePoint(x.Date.ToString("yyyy-MM-dd"), decimal.Round(x.RateToEur, 6)))
-            .ToList();
+            _points = rows
+                .Select(x => new LightweightChart.LinePoint(x.Date.ToString("yyyy-MM-dd"), decimal.Round(x.RateToEur, 6)))
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Wechselkurse konnten nicht geladen werden: {ex.Message}";
+        }
     }
 }

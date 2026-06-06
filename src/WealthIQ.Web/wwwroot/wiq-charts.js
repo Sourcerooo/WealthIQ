@@ -26,7 +26,7 @@ window.wiqCharts = {
                 wickUpColor: theme.upColor, wickDownColor: theme.downColor
             });
 
-        this._charts[id] = { chart: chart, series: series };
+        this._charts[id] = { chart: chart, series: series, kind: kind };
     },
 
     setData: function (id, data) {
@@ -45,7 +45,15 @@ window.wiqCharts = {
             rightPriceScale: { borderColor: theme.gridColor },
             timeScale: { borderColor: theme.gridColor }
         });
-        if (theme.lineColor) entry.series.applyOptions({ color: theme.lineColor });
+        if (entry.kind === 'line') {
+            entry.series.applyOptions({ color: theme.lineColor });
+        } else {
+            entry.series.applyOptions({
+                upColor: theme.upColor, downColor: theme.downColor,
+                borderUpColor: theme.upColor, borderDownColor: theme.downColor,
+                wickUpColor: theme.upColor, wickDownColor: theme.downColor
+            });
+        }
     },
 
     dispose: function (id) {

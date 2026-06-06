@@ -18,6 +18,11 @@
     </Actions>
 </PageHeader>
 
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+
 <div class="wiq-rise">
     <SectionCard>
         <ChildContent>
@@ -47,19 +52,27 @@
     private ListingOption? _selected;
     private List<LightweightChart.Candle> _candles = new();
     private bool _dark = true;
+    private string? _error;
 
     protected override async Task OnInitializedAsync()
     {
-        // Filter on the entity before projection so EF can translate the WHERE clause.
-        var rows = await Db.InstrumentListings
-            .Where(x => x.ProviderSymbol != "")
-            .OrderBy(x => x.ProviderSymbol)
-            .Select(x => new { x.ProviderSymbol, x.Isin, x.Currency })
-            .ToListAsync();
+        try
+        {
+            // Filter on the entity before projection so EF can translate the WHERE clause.
+            var rows = await Db.InstrumentListings
+                .Where(x => x.ProviderSymbol != "")
+                .OrderBy(x => x.ProviderSymbol)
+                .Select(x => new { x.ProviderSymbol, x.Isin, x.Currency })
+                .ToListAsync();
 
-        _listings = rows
-            .Select(x => new ListingOption(x.ProviderSymbol, x.Isin, x.Currency))
-            .ToList();
+            _listings = rows
+                .Select(x => new ListingOption(x.ProviderSymbol, x.Isin, x.Currency))
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Instrumente konnten nicht geladen werden: {ex.Message}";
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -85,28 +98,36 @@
     {
         _selected = option;
         _candles = new();
+        _error = null;
         if (option is not null)
         {
-            var currency = Enum.TryParse<CurrencyCode>(option.Currency, out var c) ? c : CurrencyCode.EUR;
+            try
+            {
+                var currency = Enum.TryParse<CurrencyCode>(option.Currency, out var c) ? c : CurrencyCode.EUR;
 
-            // Fetch raw rows from DB, then project in-memory to avoid EF translation issues
-            // with DateOnly.ToString(format) and the PriceBar record constructor.
-            var rows = await Db.HistoricalPrices
-                .Where(x => x.ProviderSymbol == option.ProviderSymbol)
-                .OrderBy(x => x.Date)
-                .ToListAsync();
+                // Fetch raw rows from DB, then project in-memory to avoid EF translation issues
+                // with DateOnly.ToString(format) and the PriceBar record constructor.
+                var rows = await Db.HistoricalPrices
+                    .Where(x => x.ProviderSymbol == option.ProviderSymbol)
+                    .OrderBy(x => x.Date)
+                    .ToListAsync();
 
-            var priceBars = rows
-                .Select(x => new PriceBar(x.Date, x.ProviderSymbol, currency,
-                    x.Open, x.High, x.Low, x.Close, x.AdjustedClose, x.Volume))
-                .ToList();
+                var priceBars = rows
+                    .Select(x => new PriceBar(x.Date, x.ProviderSymbol, currency,
+                        x.Open, x.High, x.Low, x.Close, x.AdjustedClose, x.Volume))
+                    .ToList();
 
-            _candles = AdjustedPriceCalculator.ToAdjusted(priceBars)
-                .Select(b => new LightweightChart.Candle(
-                    b.Date.ToString("yyyy-MM-dd"),
-                    decimal.Round(b.Open, 4), decimal.Round(b.High, 4),
-                    decimal.Round(b.Low, 4), decimal.Round(b.Close, 4)))
-                .ToList();
+                _candles = AdjustedPriceCalculator.ToAdjusted(priceBars)
+                    .Select(b => new LightweightChart.Candle(
+                        b.Date.ToString("yyyy-MM-dd"),
+                        decimal.Round(b.Open, 4), decimal.Round(b.High, 4),
+                        decimal.Round(b.Low, 4), decimal.Round(b.Close, 4)))
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                _error = $"Kursdaten konnten nicht geladen werden: {ex.Message}";
+            }
         }
     }
 }
