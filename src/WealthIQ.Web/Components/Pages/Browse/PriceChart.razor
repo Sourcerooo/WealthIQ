@@ -12,10 +12,14 @@
 
 <PageHeader Title="Kurschart" Subtitle="Bereinigte Tageskerzen (OHLC)">
     <Actions>
-        <MudAutocomplete T="ListingOption" Value="_selected" ValueChanged="OnSymbolChanged"
-                         SearchFunc="SearchListings" ToStringFunc="o => o is null ? string.Empty : o.Label"
-                         Label="Instrument" Variant="Variant.Outlined" Dense="true"
-                         Clearable="false" Style="min-width:320px;" />
+        <MudSelect T="ListingOption" Value="_selected" ValueChanged="OnSymbolChanged"
+                   ToStringFunc="o => o is null ? string.Empty : o.Label"
+                   Label="Instrument" Variant="Variant.Outlined" Dense="true" Style="min-width:320px;">
+            @foreach (var listing in _listings)
+            {
+                <MudSelectItem T="ListingOption" Value="@listing">@listing.Label</MudSelectItem>
+            }
+        </MudSelect>
     </Actions>
 </PageHeader>
 
@@ -94,16 +98,6 @@
             _dark = await ThemePreference.LoadIsDarkAsync();
             StateHasChanged();
         }
-    }
-
-    private Task<IEnumerable<ListingOption>> SearchListings(string value, CancellationToken ct)
-    {
-        IEnumerable<ListingOption> result = string.IsNullOrWhiteSpace(value)
-            ? _listings
-            : _listings.Where(o =>
-                o.ProviderSymbol.Contains(value, StringComparison.OrdinalIgnoreCase) ||
-                o.Isin.Contains(value, StringComparison.OrdinalIgnoreCase));
-        return Task.FromResult(result);
     }
 
     private async Task OnSymbolChanged(ListingOption? option)
