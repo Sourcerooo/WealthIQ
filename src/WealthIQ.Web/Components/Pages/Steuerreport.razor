@@ -233,12 +233,12 @@ else if (Current is not null)
                         else
                         {
                             <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
-                                       OnClick="() => ToggleDetail(row)">@(IsExpanded(row) ? "Weniger" : "Quelle")</MudButton>
+                                       OnClick="() => ToggleDetail(row.Type, rowList.IndexOf(row))">@(IsExpanded(row.Type, rowList.IndexOf(row)) ? "Weniger" : "Quelle")</MudButton>
                         }
                     </MudTd>
                 </RowTemplate>
                 <ChildRowContent Context="row">
-                    @if (!linkToDetail && IsExpanded(row))
+                    @if (!linkToDetail && IsExpanded(row.Type, rowList.IndexOf(row)))
                     {
                         <MudTr>
                             <td colspan="@ColSpan(showIsin, showVorab)">
@@ -254,21 +254,18 @@ else if (Current is not null)
     private async Task ScrollToDetail(int index)
         => await JS.InvokeVoidAsync("wealthiq.scrollAndHighlight", $"sell-detail-{index}");
 
-    private readonly HashSet<(int, DateOnly, string, GermanTaxEntryType)> _expanded = new();
+    private readonly HashSet<(GermanTaxEntryType Type, int Index)> _expanded = new();
 
-    private static (int, DateOnly, string, GermanTaxEntryType) Key(GermanTaxEntry e)
-        => (e.Year, e.Date, e.Isin, e.Type);
+    private bool IsExpanded(GermanTaxEntryType type, int index) => _expanded.Contains((type, index));
 
-    private bool IsExpanded(GermanTaxEntry e) => _expanded.Contains(Key(e));
-
-    private void ToggleDetail(GermanTaxEntry e)
+    private void ToggleDetail(GermanTaxEntryType type, int index)
     {
-        var key = Key(e);
+        var key = (type, index);
         if (!_expanded.Remove(key)) { _expanded.Add(key); }
     }
 
-    // Datum, Symbol, [ISIN], Brutto, Steuerpflichtig, [Vorab], Quelle
-    private static int ColSpan(bool showIsin, bool showVorab) => 4 + (showIsin ? 1 : 0) + (showVorab ? 1 : 0);
+    // Always: Datum, Symbol, Brutto, Steuerpflichtig, Quelle (5). Optional: ISIN, Vorab.
+    private static int ColSpan(bool showIsin, bool showVorab) => 5 + (showIsin ? 1 : 0) + (showVorab ? 1 : 0);
 
     private RenderFragment SourceDetail(GermanTaxEntry row) => __builder =>
     {
@@ -339,11 +336,11 @@ else if (Current is not null)
                     <MudTd DataLabel="Steuerpfl." Style="text-align:right">@row.TaxableAmount.ToString("N2")</MudTd>
                     <MudTd DataLabel="Quelle">
                         <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
-                                   OnClick="() => ToggleDetail(row)">@(IsExpanded(row) ? "Weniger" : "Quelle")</MudButton>
+                                   OnClick="() => ToggleDetail(row.Type, rowList.IndexOf(row))">@(IsExpanded(row.Type, rowList.IndexOf(row)) ? "Weniger" : "Quelle")</MudButton>
                     </MudTd>
                 </RowTemplate>
                 <ChildRowContent Context="row">
-                    @if (IsExpanded(row))
+                    @if (IsExpanded(row.Type, rowList.IndexOf(row)))
                     {
                         <MudTr>
                             <td colspan="11">
@@ -364,13 +361,14 @@ else if (Current is not null)
 
     private RenderFragment WithholdingTable(IReadOnlyList<GermanTaxEntry> entries) => __builder =>
     {
-        if (entries.Count == 0)
+        var rowList = entries as List<GermanTaxEntry> ?? entries.ToList();
+        if (rowList.Count == 0)
         {
             <MudText Typo="Typo.body2">Keine Einträge.</MudText>
         }
         else
         {
-            <MudTable Items="entries" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm">
+            <MudTable Items="rowList" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm">
                 <HeaderContent>
                     <MudTh>Datum</MudTh>
                     <MudTh>Herkunft</MudTh>
@@ -385,11 +383,11 @@ else if (Current is not null)
                     <MudTd DataLabel="Quellensteuer" Style="text-align:right">@row.ForeignWithholdingTax.ToString("N2")</MudTd>
                     <MudTd DataLabel="Quelle">
                         <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
-                                   OnClick="() => ToggleDetail(row)">@(IsExpanded(row) ? "Weniger" : "Quelle")</MudButton>
+                                   OnClick="() => ToggleDetail(row.Type, rowList.IndexOf(row))">@(IsExpanded(row.Type, rowList.IndexOf(row)) ? "Weniger" : "Quelle")</MudButton>
                     </MudTd>
                 </RowTemplate>
                 <ChildRowContent Context="row">
-                    @if (IsExpanded(row))
+                    @if (IsExpanded(row.Type, rowList.IndexOf(row)))
                     {
                         <MudTr>
                             <td colspan="5">@SourceDetail(row)</td>
