@@ -17,6 +17,9 @@
 
     [Parameter] public string Height { get; set; } = "460px";
 
+    /// <summary>When set, the chart opens showing only the last N days of data (else fits all).</summary>
+    [Parameter] public int? InitialRangeDays { get; set; }
+
     public sealed record Candle(string Time, decimal Open, decimal High, decimal Low, decimal Close);
     public sealed record LinePoint(string Time, decimal Value);
 
@@ -48,13 +51,13 @@
         {
             var data = (Line ?? Array.Empty<LinePoint>())
                 .Select(p => new { time = p.Time, value = p.Value });
-            await JS.InvokeVoidAsync("wiqCharts.setData", _id, data);
+            await JS.InvokeVoidAsync("wiqCharts.setData", _id, data, InitialRangeDays);
         }
         else
         {
             var data = (Candles ?? Array.Empty<Candle>())
                 .Select(c => new { time = c.Time, open = c.Open, high = c.High, low = c.Low, close = c.Close });
-            await JS.InvokeVoidAsync("wiqCharts.setData", _id, data);
+            await JS.InvokeVoidAsync("wiqCharts.setData", _id, data, InitialRangeDays);
         }
     }
 

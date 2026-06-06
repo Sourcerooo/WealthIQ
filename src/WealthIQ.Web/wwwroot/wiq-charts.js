@@ -29,11 +29,29 @@ window.wiqCharts = {
         this._charts[id] = { chart: chart, series: series, kind: kind };
     },
 
-    setData: function (id, data) {
+    setData: function (id, data, initialRangeDays) {
         var entry = this._charts[id];
         if (!entry) return;
-        entry.series.setData(data || []);
-        entry.chart.timeScale().fitContent();
+        var points = data || [];
+        entry.series.setData(points);
+
+        // When an initial window is requested and there is enough data, show only the last
+        // `initialRangeDays` days; otherwise fit everything. Times are "yyyy-MM-dd" strings.
+        if (initialRangeDays && points.length > 0) {
+            var lastTime = points[points.length - 1].time;
+            var last = new Date(lastTime + 'T00:00:00Z');
+            var firstAvailable = new Date(points[0].time + 'T00:00:00Z');
+            var from = new Date(last);
+            from.setUTCDate(from.getUTCDate() - initialRangeDays);
+            if (from <= firstAvailable) {
+                entry.chart.timeScale().fitContent();
+            } else {
+                var iso = function (d) { return d.toISOString().slice(0, 10); };
+                entry.chart.timeScale().setVisibleRange({ from: iso(from), to: lastTime });
+            }
+        } else {
+            entry.chart.timeScale().fitContent();
+        }
     },
 
     applyTheme: function (id, theme) {
