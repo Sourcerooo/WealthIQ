@@ -63,6 +63,9 @@
 
     public async ValueTask DisposeAsync()
     {
+        // No JS chart was created (e.g. the static prerender pass, where OnAfterRenderAsync never
+        // runs) — there is nothing to dispose, and JS interop is unavailable during static rendering.
+        if (!_created) return;
         try { await JS.InvokeVoidAsync("wiqCharts.dispose", _id); }
         catch (JSDisconnectedException) { /* circuit gone — nothing to clean up */ }
     }
