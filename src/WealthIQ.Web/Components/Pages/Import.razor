@@ -7,21 +7,25 @@
 
 <PageTitle>WealthIQ — Import</PageTitle>
 
-<PageHeader Title="Import" Subtitle="IBKR FlexQuery-Statements (XML) einlesen" />
+<PageHeader Title="Import" Subtitle="Broker-Statements einlesen (IBKR XML · Trader's Place CSV)" />
 
 <div class="wiq-rise">
 
     <div style="max-width:640px;margin-bottom:16px;">
     <SectionCard Title="Statement hochladen">
-        <MudText Typo="Typo.subtitle2" GutterBottom="true">Interactive Brokers (FlexQuery XML)</MudText>
+        <MudSelect T="Broker" @bind-Value="_broker" Label="Broker" Variant="Variant.Outlined"
+                   Dense="true" Class="mb-4">
+            <MudSelectItem T="Broker" Value="Broker.InteractiveBrokers">Interactive Brokers (XML)</MudSelectItem>
+            <MudSelectItem T="Broker" Value="Broker.TradersPlace">Trader's Place (CSV: Depot- + Kontoumsätze)</MudSelectItem>
+        </MudSelect>
 
         <MudTextField @bind-Value="_accountNumber" Label="Account-Nummer" Variant="Variant.Outlined"
                       ShrinkLabel="true" autocomplete="off" Class="mb-4" />
 
-        <MudText Typo="Typo.body2" Class="mb-2">Statement-Datei(en) (.xml, mehrere erlaubt):</MudText>
+        <MudText Typo="Typo.body2" Class="mb-2">Statement-Datei(en) (@(_broker == Broker.TradersPlace ? ".csv, mehrere erlaubt" : ".xml, mehrere erlaubt")):</MudText>
         @* @key forces Blazor to recreate the input element after each import, resetting the file selection *@
         <div style="border:1.5px dashed var(--mud-palette-lines-default);border-radius:12px;padding:28px;text-align:center;">
-            <InputFile @key="_fileInputKey" OnChange="OnFilesSelected" accept=".xml" multiple />
+            <InputFile @key="_fileInputKey" OnChange="OnFilesSelected" accept="@(_broker == Broker.TradersPlace ? ".csv" : ".xml")" multiple />
         </div>
 
         @if (_pendingFiles.Count > 0)
@@ -87,6 +91,7 @@
 @code {
     private string _accountNumber = "";
     private int _fileInputKey = 0;
+    private Broker _broker = Broker.InteractiveBrokers;
     private readonly List<(string Name, string TempPath)> _pendingFiles = new();
     private readonly List<(string FileName, ImportPipelineResult Result)> _results = new();
     private bool _busy;
@@ -136,41 +141,80 @@
         _error = null;
         _results.Clear();
 
-        var accountId = DeterministicAccount.IdFor("InteractiveBrokers", _accountNumber.Trim());
+        var brokerName = _broker.ToString();
+        var accountId = DeterministicAccount.IdFor(brokerName, _accountNumber.Trim());
         var account = new Account(accountId, _accountNumber.Trim());
 
         var toProcess = _pendingFiles.ToList();
-        _totalCount = toProcess.Count;
         _pendingFiles.Clear();
 
         try
         {
-            foreach (var (name, tempPath) in toProcess)
+            if (_broker == Broker.TradersPlace)
             {
+                _totalCount = 1;
+                var stagingDir = Path.Combine(Path.GetTempPath(), $"wealthiq-tp-{Guid.NewGuid():N}");
+                Directory.CreateDirectory(stagingDir);
                 try
                 {
+                    foreach (var (name, tempPath) in toProcess)
+                        File.Copy(tempPath, Path.Combine(stagingDir, name), overwrite: true);
+
                     var command = new ImportStatementCommand(
                         new ImportRequest
                         {
-                            Source = new ImportSource(Broker.InteractiveBrokers, Format.XML, tempPath),
+                            Source = new ImportSource(Broker.TradersPlace, Format.CSV, stagingDir),
                             AccountId = accountId
                         },
                         account);
 
                     var result = await Pipeline.RunAsync(command);
-                    _results.Add((name, result));
+                    _results.Add((toProcess.Count == 1 ? toProcess[0].Name : $"{toProcess.Count} Dateien", result));
                 }
                 catch (Exception ex)
                 {
-                    _error = $"{name}: Import fehlgeschlagen — {ex.Message}";
+                    _error = $"Trader's Place Import fehlgeschlagen — {ex.Message}";
                 }
                 finally
                 {
-                    if (File.Exists(tempPath)) File.Delete(tempPath);
+                    foreach (var (_, tempPath) in toProcess)
+                        if (File.Exists(tempPath)) File.Delete(tempPath);
+                    if (Directory.Exists(stagingDir)) Directory.Delete(stagingDir, true);
                 }
 
-                _doneCount++;
+                _doneCount = 1;
                 StateHasChanged();
+            }
+            else
+            {
+                _totalCount = toProcess.Count;
+                foreach (var (name, tempPath) in toProcess)
+                {
+                    try
+                    {
+                        var command = new ImportStatementCommand(
+                            new ImportRequest
+                            {
+                                Source = new ImportSource(Broker.InteractiveBrokers, Format.XML, tempPath),
+                                AccountId = accountId
+                            },
+                            account);
+
+                        var result = await Pipeline.RunAsync(command);
+                        _results.Add((name, result));
+                    }
+                    catch (Exception ex)
+                    {
+                        _error = $"{name}: Import fehlgeschlagen — {ex.Message}";
+                    }
+                    finally
+                    {
+                        if (File.Exists(tempPath)) File.Delete(tempPath);
+                    }
+
+                    _doneCount++;
+                    StateHasChanged();
+                }
             }
         }
         finally
