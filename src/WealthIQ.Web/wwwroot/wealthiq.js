@@ -41,4 +41,16 @@ window.wealthiq = {
         el.classList.add('wiq-flash');
         setTimeout(function () { el.classList.remove('wiq-flash'); }, 1200);
     }
+    ,
+    scrollAndHighlight: function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        var row = el.closest('tr') || el;
+        row.classList.remove('wiq-row-highlight');
+        // Force reflow so re-adding the class restarts the animation.
+        void row.offsetWidth;
+        row.classList.add('wiq-row-highlight');
+        window.setTimeout(function () { row.classList.remove('wiq-row-highlight'); }, 2200);
+    }
 };

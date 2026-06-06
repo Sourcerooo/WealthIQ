@@ -94,3 +94,18 @@
     100% { background-color: transparent; }
 }
 @media (prefers-reduced-motion: reduce) { .wiq-flash { animation: none; } }
+
+/* Transient highlight when jumping from a Verkäufe row to its detail row. */
+@keyframes wiq-row-flash {
+    0%   { background-color: rgba(52, 211, 153, 0.35); }
+    100% { background-color: transparent; }
+}
+.wiq-row-highlight > td {
+    animation: wiq-row-flash 2.2s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+    .wiq-row-highlight > td {
+        animation: none;
+        background-color: rgba(52, 211, 153, 0.18);
+    }
+}

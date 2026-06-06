@@ -249,7 +249,7 @@ else if (Current is not null)
     };
 
     private async Task ScrollToDetail(int index)
-        => await JS.InvokeVoidAsync("wealthiq.scrollToAnchor", $"sell-detail-{index}");
+        => await JS.InvokeVoidAsync("wealthiq.scrollAndHighlight", $"sell-detail-{index}");
 
     private void DrillToSource(string isin)
         => Navigation.NavigateTo($"/audit?isin={Uri.EscapeDataString(isin)}");
