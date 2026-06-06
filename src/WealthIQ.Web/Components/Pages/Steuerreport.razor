@@ -91,7 +91,10 @@ else if (Current is not null)
     <div class="wiq-rise-3">
         <MudExpansionPanels MultiExpansion="true" Elevation="0">
             <MudExpansionPanel Text="@($"Verkäufe (realisierter PnL) ({Current.Sells.Count})")">
-                @EntryTable(Current.Sells)
+                @EntryTable(Current.Sells, showIsin: true, linkToDetail: true)
+            </MudExpansionPanel>
+            <MudExpansionPanel Text="@($"Verkäufe — Details ({Current.Sells.Count})")">
+                @SellDetailTable(Current.Sells)
             </MudExpansionPanel>
             <MudExpansionPanel Text="@($"Vorabpauschale ({Current.Vorabpauschale.Count})")">
                 @EntryTable(Current.Vorabpauschale)
@@ -100,10 +103,10 @@ else if (Current is not null)
                 @EntryTable(Current.Dividends)
             </MudExpansionPanel>
             <MudExpansionPanel Text="@($"Zinsen ({Current.Interest.Count})")">
-                @EntryTable(Current.Interest)
+                @EntryTable(Current.Interest, showIsin: false)
             </MudExpansionPanel>
             <MudExpansionPanel Text="@($"Quellensteuer ({Current.WithholdingTaxes.Count})")">
-                @EntryTable(Current.WithholdingTaxes)
+                @WithholdingTable(Current.WithholdingTaxes)
             </MudExpansionPanel>
         </MudExpansionPanels>
     </div>
@@ -195,7 +198,108 @@ else if (Current is not null)
     private static string Eur(decimal amount)
         => amount.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("de-DE")) + " €";
 
-    private RenderFragment EntryTable(IReadOnlyList<GermanTaxEntry> entries) => __builder =>
+    private RenderFragment EntryTable(IReadOnlyList<GermanTaxEntry> entries, bool showIsin = true, bool linkToDetail = false) => __builder =>
+    {
+        // Materialize once so we can call IndexOf (IReadOnlyList has none) and bind the same list.
+        var rowList = entries as List<GermanTaxEntry> ?? entries.ToList();
+        if (rowList.Count == 0)
+        {
+            <MudText Typo="Typo.body2">Keine Einträge.</MudText>
+        }
+        else
+        {
+            <MudTable Items="rowList" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm">
+                <HeaderContent>
+                    <MudTh>Datum</MudTh>
+                    <MudTh>Symbol</MudTh>
+                    @if (showIsin)
+                    {
+                        <MudTh>ISIN</MudTh>
+                    }
+                    <MudTh Style="text-align:right">Brutto (€)</MudTh>
+                    <MudTh Style="text-align:right">Steuerpflichtig (€)</MudTh>
+                    <MudTh Style="text-align:right">Verrechn. Vorabpausch. (€)</MudTh>
+                    <MudTh>Quelle</MudTh>
+                </HeaderContent>
+                <RowTemplate Context="row">
+                    <MudTd DataLabel="Datum">@row.Date.ToString("yyyy-MM-dd")</MudTd>
+                    <MudTd DataLabel="Symbol">@row.Symbol</MudTd>
+                    @if (showIsin)
+                    {
+                        <MudTd DataLabel="ISIN">@row.Isin</MudTd>
+                    }
+                    <MudTd DataLabel="Brutto" Style="text-align:right">@row.RawAmount.ToString("N2")</MudTd>
+                    <MudTd DataLabel="Steuerpflichtig" Style="text-align:right">@row.TaxableAmount.ToString("N2")</MudTd>
+                    <MudTd DataLabel="Vorabpauschale" Style="text-align:right">@row.UsedVorabpauschale.ToString("N2")</MudTd>
+                    <MudTd DataLabel="Quelle">
+                        @if (linkToDetail)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                                       OnClick="() => ScrollToDetail(rowList.IndexOf(row))">Anzeigen</MudButton>
+                        }
+                        else
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                                       OnClick="() => DrillToSource(row.Isin)">Anzeigen</MudButton>
+                        }
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    };
+
+    private async Task ScrollToDetail(int index)
+        => await JS.InvokeVoidAsync("wealthiq.scrollToAnchor", $"sell-detail-{index}");
+
+    private void DrillToSource(string isin)
+        => Navigation.NavigateTo($"/audit?isin={Uri.EscapeDataString(isin)}");
+
+    private RenderFragment SellDetailTable(IReadOnlyList<GermanTaxEntry> sells) => __builder =>
+    {
+        // Same materialized list used for Items and for the anchor index (must align with the
+        // summary table's rowList so "Anzeigen" scrolls to the matching detail row).
+        var rowList = sells as List<GermanTaxEntry> ?? sells.ToList();
+        if (rowList.Count == 0)
+        {
+            <MudText Typo="Typo.body2">Keine Verkäufe.</MudText>
+        }
+        else
+        {
+            <MudTable Items="rowList" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm">
+                <HeaderContent>
+                    <MudTh>Symbol</MudTh>
+                    <MudTh>Eröffnet</MudTh>
+                    <MudTh>Geschlossen</MudTh>
+                    <MudTh Style="text-align:right">Stück</MudTh>
+                    <MudTh Style="text-align:right">Kaufpreis (€)</MudTh>
+                    <MudTh Style="text-align:right">Verkaufspreis (€)</MudTh>
+                    <MudTh Style="text-align:right">Kosten (€)</MudTh>
+                    <MudTh Style="text-align:right">Roh-PnL (€)</MudTh>
+                    <MudTh Style="text-align:right">Verr. Vorab. (€)</MudTh>
+                    <MudTh Style="text-align:right">Steuerpfl. (€)</MudTh>
+                    <MudTh>Quelle</MudTh>
+                </HeaderContent>
+                <RowTemplate Context="row">
+                    <MudTd DataLabel="Symbol"><span id="@($"sell-detail-{rowList.IndexOf(row)}")">@row.Symbol</span></MudTd>
+                    <MudTd DataLabel="Eröffnet">@row.OpenedOn.ToString("yyyy-MM-dd")</MudTd>
+                    <MudTd DataLabel="Geschlossen">@row.Date.ToString("yyyy-MM-dd")</MudTd>
+                    <MudTd DataLabel="Stück" Style="text-align:right">@row.QuantitySold.ToString("0.####")</MudTd>
+                    <MudTd DataLabel="Kaufpreis" Style="text-align:right">@PerShare(row.AcquisitionCosts, row.QuantitySold)</MudTd>
+                    <MudTd DataLabel="Verkaufspreis" Style="text-align:right">@PerShare(row.SaleProceeds, row.QuantitySold)</MudTd>
+                    <MudTd DataLabel="Kosten" Style="text-align:right">@row.Fees.ToString("N2")</MudTd>
+                    <MudTd DataLabel="Roh-PnL" Style="text-align:right">@row.RawAmount.ToString("N2")</MudTd>
+                    <MudTd DataLabel="Verr. Vorab." Style="text-align:right">@row.UsedVorabpauschale.ToString("N2")</MudTd>
+                    <MudTd DataLabel="Steuerpfl." Style="text-align:right">@row.TaxableAmount.ToString("N2")</MudTd>
+                    <MudTd DataLabel="Quelle">
+                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                                   OnClick="() => DrillToSource(row.Isin)">Import</MudButton>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    };
+
+    private RenderFragment WithholdingTable(IReadOnlyList<GermanTaxEntry> entries) => __builder =>
     {
         if (entries.Count == 0)
         {
@@ -206,29 +310,25 @@ else if (Current is not null)
             <MudTable Items="entries" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm">
                 <HeaderContent>
                     <MudTh>Datum</MudTh>
-                    <MudTh>Symbol</MudTh>
+                    <MudTh>Herkunft</MudTh>
                     <MudTh>ISIN</MudTh>
-                    <MudTh Style="text-align:right">Brutto (€)</MudTh>
-                    <MudTh Style="text-align:right">Steuerpflichtig (€)</MudTh>
-                    <MudTh Style="text-align:right">Verrechn. Vorabpausch. (€)</MudTh>
+                    <MudTh Style="text-align:right">Quellensteuer (€)</MudTh>
                     <MudTh>Quelle</MudTh>
                 </HeaderContent>
-                <RowTemplate>
-                    <MudTd DataLabel="Datum">@context.Date.ToString("yyyy-MM-dd")</MudTd>
-                    <MudTd DataLabel="Symbol">@context.Symbol</MudTd>
-                    <MudTd DataLabel="ISIN">@context.Isin</MudTd>
-                    <MudTd DataLabel="Brutto" Style="text-align:right">@context.RawAmount.ToString("N2")</MudTd>
-                    <MudTd DataLabel="Steuerpflichtig" Style="text-align:right">@context.TaxableAmount.ToString("N2")</MudTd>
-                    <MudTd DataLabel="Vorabpauschale" Style="text-align:right">@context.UsedVorabpauschale.ToString("N2")</MudTd>
+                <RowTemplate Context="row">
+                    <MudTd DataLabel="Datum">@row.Date.ToString("yyyy-MM-dd")</MudTd>
+                    <MudTd DataLabel="Herkunft">@row.Origin</MudTd>
+                    <MudTd DataLabel="ISIN">@row.Isin</MudTd>
+                    <MudTd DataLabel="Quellensteuer" Style="text-align:right">@row.ForeignWithholdingTax.ToString("N2")</MudTd>
                     <MudTd DataLabel="Quelle">
                         <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
-                                   OnClick="() => DrillToSource(context.Isin)">Anzeigen</MudButton>
+                                   OnClick="() => DrillToSource(row.Isin)">Anzeigen</MudButton>
                     </MudTd>
                 </RowTemplate>
             </MudTable>
         }
     };
 
-    private void DrillToSource(string isin)
-        => Navigation.NavigateTo($"/audit?isin={Uri.EscapeDataString(isin)}");
+    private static string PerShare(decimal total, decimal qty)
+        => qty == 0m ? "—" : (total / qty).ToString("N2");
 }

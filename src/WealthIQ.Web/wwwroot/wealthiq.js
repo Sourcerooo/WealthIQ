@@ -32,4 +32,13 @@ window.wealthiq = {
             requestAnimationFrame(frame);
         });
     }
+    ,
+    // Smooth-scroll to an element by id and briefly highlight it.
+    scrollToAnchor: function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('wiq-flash');
+        setTimeout(function () { el.classList.remove('wiq-flash'); }, 1200);
+    }
 };

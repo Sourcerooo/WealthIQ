@@ -87,3 +87,10 @@
 @media (prefers-reduced-motion: reduce) {
     .wiq-card, .wiq-rise, .wiq-rise-2, .wiq-rise-3, .wiq-page { animation: none !important; transition: none !important; }
 }
+
+.wiq-flash { animation: wiq-flash 1.2s ease-out; }
+@keyframes wiq-flash {
+    0% { background-color: var(--mud-palette-primary); }
+    100% { background-color: transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .wiq-flash { animation: none; } }
