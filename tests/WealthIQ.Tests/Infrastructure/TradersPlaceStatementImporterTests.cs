@@ -174,6 +174,37 @@ public sealed class TradersPlaceStatementImporterTests
     }
 
     [Fact]
+    public async Task Import_CorruptedUmlautFooterAndTransfer_NoErrorAndSkipped()
+    {
+        // Trader's Place exports contain U+FFFD (replacement character) where umlauts should be,
+        // because the broker destroys them during CSV generation.  When written via Latin1, '?' (0x3F)
+        // is emitted for '�', which is not the umlaut — so footer/transfer detection must NOT
+        // rely on the exact umlaut characters.  This test proves the ASCII-safe matching handles both
+        // the corrupted footer line and the corrupted Überweisung transfer without errors.
+        var dir = WriteFolder(("Konto.csv", new[]
+        {
+            KontoHeader,
+            // Footer line: "Kontoumsätze" corrupted → the umlaut is replaced by '?' via Latin1
+            "Kontoums�tze;Depot: 4415066001;von: 01.04.2022;bis: 06.06.2026;Erzeugt: 06.06.2026 13:43:51;;;;;",
+            // Transfer: "Überweisung" corrupted → leading umlaut replaced by '?' via Latin1
+            "4415066002;WP-Verrechnungskonto;27.02.2025;27.02.2025;�berweisung;EUR;-23000; ;U57907;",
+            // Clean dividend row that SHOULD be imported
+            "4415066002;WP-Verrechnungskonto;03.07.2025;02.07.2025;Effekten;EUR;221,36;VANGUARD S+P 500U.ETF DLD;K483225;",
+        }));
+        try
+        {
+            var result = await NewImporter().ImportAsync(RequestFor(dir), CancellationToken.None);
+
+            Assert.DoesNotContain(result.Diagnostics, d => d.Severity >= ImportDiagnosticSeverity.Error);
+            var cashEntries = result.PortfolioLedger.Entries.OfType<CashEntry>().ToList();
+            Assert.Single(cashEntries); // only the Effekten dividend
+            Assert.Equal(CashFlowType.Dividend, cashEntries[0].CashFlowType);
+            Assert.Empty(result.PortfolioLedger.Entries.OfType<TradeEntry>());
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
     public async Task Import_TradeRowsInKontoumsaetze_AreSkipped_NoDoubleCount()
     {
         var dir = WriteFolder(

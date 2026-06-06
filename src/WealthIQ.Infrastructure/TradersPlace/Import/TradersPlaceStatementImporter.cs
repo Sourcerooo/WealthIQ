@@ -111,7 +111,9 @@ public sealed class TradersPlaceStatementImporter(IDividendAliasMap dividendAlia
         for (var i = 1; i < lines.Count; i++)
         {
             var line = lines[i];
-            if (string.IsNullOrWhiteSpace(line) || line.StartsWith("Depotumsätze;", StringComparison.Ordinal))
+            // Trader's Place corrupts umlauts to U+FFFD in the export; "Depotumsätze" may appear as
+            // "Depotums<U+FFFD>tze". Match the ASCII prefix that precedes the (possibly corrupted) umlaut.
+            if (string.IsNullOrWhiteSpace(line) || line.StartsWith("Depotums", StringComparison.Ordinal))
             {
                 continue;
             }
@@ -205,7 +207,9 @@ public sealed class TradersPlaceStatementImporter(IDividendAliasMap dividendAlia
         for (var i = 1; i < lines.Count; i++)
         {
             var line = lines[i];
-            if (string.IsNullOrWhiteSpace(line) || line.StartsWith("Kontoumsätze;", StringComparison.Ordinal))
+            // Trader's Place corrupts umlauts to U+FFFD in the export; "Kontoumsätze" may appear as
+            // "Kontoums<U+FFFD>tze". Match the ASCII prefix that precedes the (possibly corrupted) umlaut.
+            if (string.IsNullOrWhiteSpace(line) || line.StartsWith("Kontoums", StringComparison.Ordinal))
             {
                 continue;
             }
@@ -220,7 +224,10 @@ public sealed class TradersPlaceStatementImporter(IDividendAliasMap dividendAlia
             var transaktion = c[4].Trim();
             var reference = c[8].Trim();
 
-            if (transaktion is "Gutschrift" or "Überweisung" or "Einzahlung" or "Kauf" or "Verkauf")
+            // "Überweisung" may be stored as "<U+FFFD>berweisung" due to broker umlaut corruption.
+            // Match the ASCII suffix "berweisung" so both the clean and corrupted form are recognized.
+            if (transaktion is "Gutschrift" or "Einzahlung" or "Kauf" or "Verkauf"
+                || transaktion.EndsWith("berweisung", StringComparison.Ordinal))
             {
                 diagnostics.Add(new ImportDiagnostic(
                     ImportDiagnosticSeverity.Info, ImportDiagnosticCode.IgnoredAsset,

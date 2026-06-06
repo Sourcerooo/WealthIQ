@@ -1,4 +1,4 @@
-Kontonummer;Kontoart;Buchungsdatum;Valutadatum;Transaktion;Währung;Betrag;Kontotext / WP-Identifikation;Umsatz-ID (PK);Ausführungs-ID
+Kontonummer;Kontoart;Buchungsdatum;Valutadatum;Transaktion;Wï¿½hrung;Betrag;Kontotext / WP-Identifikation;Umsatz-ID (PK);Ausfï¿½hrungs-ID
 4415066002;WP-Verrechnungskonto;05.06.2024;05.06.2024;Gutschrift;EUR;50000;Sebastian Brandt;K63157;
 4415066002;WP-Verrechnungskonto;07.06.2024;07.06.2024;Gutschrift;EUR;40000;Sebastian Brandt;K63921;
 4415066002;WP-Verrechnungskonto;28.06.2024;30.06.2024;Kontoabschluss;EUR;14,59;Abschluss;K78297;
@@ -35,9 +35,9 @@ Kontonummer;Kontoart;Buchungsdatum;Valutadatum;Transaktion;Währung;Betrag;Kontot
 4415066002;WP-Verrechnungskonto;01.04.2025;03.04.2025;Verkauf;EUR;50421;IE00B53SZB19, iShares NASDAQ 100 U.E.USD Acc;;871122
 4415066002;WP-Verrechnungskonto;02.04.2025;04.04.2025;Verkauf;EUR;33112,2;FR0010342592, Amundi Nasdaq-100 Daily (2x) Leveraged UCITS ETF Acc;;873355
 4415066002;WP-Verrechnungskonto;31.10.2025;04.11.2025;Verkauf;EUR;65251,71;IE00B3XXRP09, Vanguard S&P 500 UCITS ETF USD;;1716257
-4415066002;WP-Verrechnungskonto;27.02.2025;27.02.2025;Überweisung;EUR;-23000; ;U57907;
-4415066002;WP-Verrechnungskonto;02.04.2025;02.04.2025;Überweisung;EUR;-52783;UEBERWEISUNGZINSKONTO ;U69731;
-4415066002;WP-Verrechnungskonto;02.04.2025;02.04.2025;Überweisung;EUR;-33113;UEBERWEISUNGZINSKONTO ;U70107;
-4415066010;Tagesgeld;28.05.2025;28.05.2025;Überweisung;EUR;-85896;UEBERWEISUNGWPKONTO ;U88632;
-4415066010;Tagesgeld;02.07.2025;02.07.2025;Überweisung;EUR;-279,76; ;U99492;
-Kontoumsätze;Depot: 4415066001;von: 01.04.2022;bis: 06.06.2026;Erzeugt: 06.06.2026 13:43:51;;;;;
+4415066002;WP-Verrechnungskonto;27.02.2025;27.02.2025;ï¿½berweisung;EUR;-23000; ;U57907;
+4415066002;WP-Verrechnungskonto;02.04.2025;02.04.2025;ï¿½berweisung;EUR;-52783;UEBERWEISUNGZINSKONTO ;U69731;
+4415066002;WP-Verrechnungskonto;02.04.2025;02.04.2025;ï¿½berweisung;EUR;-33113;UEBERWEISUNGZINSKONTO ;U70107;
+4415066010;Tagesgeld;28.05.2025;28.05.2025;ï¿½berweisung;EUR;-85896;UEBERWEISUNGWPKONTO ;U88632;
+4415066010;Tagesgeld;02.07.2025;02.07.2025;ï¿½berweisung;EUR;-279,76; ;U99492;
+Kontoumsï¿½tze;Depot: 4415066001;von: 01.04.2022;bis: 06.06.2026;Erzeugt: 06.06.2026 13:43:51;;;;;
