@@ -43,7 +43,7 @@
 **Files:**
 - Modify: `src/WealthIQ.Web/Components/Pages/Steuerreport.razor:130-145`
 
-- [ ] **Step 1: Round each donut segment to 2 decimals**
+- [x] **Step 1: Round each donut segment to 2 decimals**
 
 In `Steuerreport.razor`, replace the `Data` initializer inside `CompositionSeries` (currently `(double)Math.Max(0, ...)` for the four categories) with rounded values:
 
@@ -57,17 +57,17 @@ Data = new[]
 },
 ```
 
-- [ ] **Step 2: Build**
+- [x] **Step 2: Build**
 
 Run: `dotnet build WealthIQ.slnx`
 Expected: Build succeeded, 0 errors.
 
-- [ ] **Step 3: Manual smoke test**
+- [x] **Step 3: Manual smoke test**
 
 Run: `dotnet run --project src/WealthIQ.Web` then open the Steuerreport, hover a donut segment.
 Expected: tooltip shows a euro value with at most two decimals (no long float tail).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/WealthIQ.Web/Components/Pages/Steuerreport.razor
@@ -83,7 +83,7 @@ git commit -m "Fix: round Steuerreport donut segments to 2 decimals"
 
 New optional fields go at the **end** of the positional record so existing positional/named construction (and the golden regression test) is unaffected.
 
-- [ ] **Step 1: Add the fields**
+- [x] **Step 1: Add the fields**
 
 Replace the record body with:
 
@@ -110,12 +110,12 @@ public readonly record struct GermanTaxEntry(
     string Origin = "");
 ```
 
-- [ ] **Step 2: Build**
+- [x] **Step 2: Build**
 
 Run: `dotnet build WealthIQ.slnx`
 Expected: Build succeeded, 0 errors (defaults keep all existing call sites valid).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/WealthIQ.Domain/Model/Tax/GermanTaxEntry.cs
@@ -130,7 +130,7 @@ git commit -m "Feat: add OpenedOn/Fees/Origin to GermanTaxEntry"
 - Test: `tests/WealthIQ.Tests/Application/Tax/GermanTaxEntryDetailTests.cs`
 - Modify: `src/WealthIQ.Application/Tax/GermanTaxCalculator.cs:107-118`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/WealthIQ.Tests/Application/Tax/GermanTaxEntryDetailTests.cs`. It reuses the golden `data/test` fixtures (same wiring as `GermanTaxRegressionTests`) and asserts that 2024 Sell entries carry the acquisition date and non-negative fees:
 
@@ -203,12 +203,12 @@ public sealed class GermanTaxEntryDetailTests
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `dotnet test WealthIQ.slnx --filter "FullyQualifiedName~GermanTaxEntryDetailTests"`
 Expected: FAIL — `OpenedOn` is `default` (the calculator does not set it yet).
 
-- [ ] **Step 3: Populate the fields in the Sell branch**
+- [x] **Step 3: Populate the fields in the Sell branch**
 
 In `GermanTaxCalculator.cs`, the Sell `ledger.Add(new GermanTaxEntry(...))` call (inside `foreach (var consumption in matchResult.Consumptions)`) currently ends with the `AcquisitionCosts:` named argument. Add fee conversion just above the `ledger.Add` and pass the two new named arguments. Replace the block from `var taxableProfit = ...` through the `ledger.Add(...)` statement with:
 
@@ -238,12 +238,12 @@ In `GermanTaxCalculator.cs`, the Sell `ledger.Add(new GermanTaxEntry(...))` call
                 Fees: feesEur));
 ```
 
-- [ ] **Step 4: Run the new test + the golden regression test**
+- [x] **Step 4: Run the new test + the golden regression test**
 
 Run: `dotnet test WealthIQ.slnx --filter "FullyQualifiedName~GermanTaxEntryDetailTests|FullyQualifiedName~GermanTaxRegressionTests"`
 Expected: BOTH PASS (regression unchanged — it projects only Symbol/RawAmount/UsedVorabpauschale/TaxableAmount).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/WealthIQ.Application/Tax/GermanTaxCalculator.cs tests/WealthIQ.Tests/Application/Tax/GermanTaxEntryDetailTests.cs
@@ -258,7 +258,7 @@ git commit -m "Feat: populate OpenedOn and Fees on Sell tax entries"
 - Modify: `src/WealthIQ.Application/Tax/GermanTaxCalculator.cs:184-197`
 - Test: `tests/WealthIQ.Tests/Application/Tax/GermanTaxEntryDetailTests.cs` (add a method)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append this method to `GermanTaxEntryDetailTests` (reuse the same setup; factor the calculator wiring into a local helper or copy the arrange block — copy is acceptable here):
 
@@ -301,12 +301,12 @@ Append this method to `GermanTaxEntryDetailTests` (reuse the same setup; factor 
     }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `dotnet test WealthIQ.slnx --filter "DisplayName~CarryOrigin"`
 Expected: FAIL — `Origin` is empty.
 
-- [ ] **Step 3: Populate `Origin` in the WithholdingTax branch**
+- [x] **Step 3: Populate `Origin` in the WithholdingTax branch**
 
 In `GermanTaxCalculator.cs`, replace the `case CashFlowType.WithholdingTax:` block (the `ledger.Add(new GermanTaxEntry(...))` ending with `ForeignWithholdingTax: Math.Abs(withholdingTaxAmount))`) with:
 
@@ -336,12 +336,12 @@ In `GermanTaxCalculator.cs`, replace the `case CashFlowType.WithholdingTax:` blo
                 break;
 ```
 
-- [ ] **Step 4: Run the test**
+- [x] **Step 4: Run the test**
 
 Run: `dotnet test WealthIQ.slnx --filter "DisplayName~CarryOrigin"`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/WealthIQ.Application/Tax/GermanTaxCalculator.cs tests/WealthIQ.Tests/Application/Tax/GermanTaxEntryDetailTests.cs
@@ -356,7 +356,7 @@ git commit -m "Feat: populate Origin on withholding-tax entries"
 - Modify: `src/WealthIQ.Web/wwwroot/wealthiq.js`
 - Modify: `src/WealthIQ.Web/Components/Pages/Steuerreport.razor`
 
-- [ ] **Step 1: Add a scroll helper to `wealthiq.js`**
+- [x] **Step 1: Add a scroll helper to `wealthiq.js`**
 
 Inside the `window.wealthiq = { ... }` object (after `runCountUps`), add:
 
@@ -372,7 +372,7 @@ Inside the `window.wealthiq = { ... }` object (after `runCountUps`), add:
     }
 ```
 
-- [ ] **Step 2: Make `EntryTable` ISIN column optional and the Sell "Anzeigen" scroll to detail**
+- [x] **Step 2: Make `EntryTable` ISIN column optional and the Sell "Anzeigen" scroll to detail**
 
 In `Steuerreport.razor`, replace the `EntryTable` render fragment (the whole `private RenderFragment EntryTable(...)` method) with a version that takes a `showIsin` flag and, when rendering the Sells table, points "Anzeigen" at the detail anchor. Replace `DrillToSource` usage accordingly:
 
@@ -431,7 +431,7 @@ In `Steuerreport.razor`, replace the `EntryTable` render fragment (the whole `pr
         => await JS.InvokeVoidAsync("wealthiq.scrollToAnchor", $"sell-detail-{index}");
 ```
 
-- [ ] **Step 3: Wire the panels — Sells link to detail, Zinsen hide ISIN, add the detail + Herkunft panels**
+- [x] **Step 3: Wire the panels — Sells link to detail, Zinsen hide ISIN, add the detail + Herkunft panels**
 
 In `Steuerreport.razor`, replace the `<MudExpansionPanels MultiExpansion="true" Elevation="0">` block (inside `wiq-rise-3`) with:
 
@@ -458,7 +458,7 @@ In `Steuerreport.razor`, replace the `<MudExpansionPanels MultiExpansion="true" 
         </MudExpansionPanels>
 ```
 
-- [ ] **Step 4: Add the `SellDetailTable` and `WithholdingTable` fragments**
+- [x] **Step 4: Add the `SellDetailTable` and `WithholdingTable` fragments**
 
 In the `@code` block of `Steuerreport.razor`, add these two render fragments (after `EntryTable`):
 
@@ -542,7 +542,7 @@ In the `@code` block of `Steuerreport.razor`, add these two render fragments (af
         => qty == 0m ? "—" : (total / qty).ToString("N2");
 ```
 
-- [ ] **Step 5: Add a subtle flash style for the scroll target**
+- [x] **Step 5: Add a subtle flash style for the scroll target**
 
 Append to `src/WealthIQ.Web/wwwroot/wealthiq.css`:
 
@@ -555,12 +555,12 @@ Append to `src/WealthIQ.Web/wwwroot/wealthiq.css`:
 @media (prefers-reduced-motion: reduce) { .wiq-flash { animation: none; } }
 ```
 
-- [ ] **Step 6: Build**
+- [x] **Step 6: Build**
 
 Run: `dotnet build WealthIQ.slnx`
 Expected: Build succeeded, 0 errors.
 
-- [ ] **Step 7: Manual smoke test**
+- [x] **Step 7: Manual smoke test**
 
 Run: `dotnet run --project src/WealthIQ.Web`, open Steuerreport:
 - Verkäufe "Anzeigen" scrolls to the matching row in "Verkäufe — Details" (which flashes).
@@ -568,7 +568,7 @@ Run: `dotnet run --project src/WealthIQ.Web`, open Steuerreport:
 - The Zinsen table has no ISIN column.
 - The Quellensteuer table shows a "Herkunft" column (instrument symbol or "Zinsen").
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/WealthIQ.Web/Components/Pages/Steuerreport.razor src/WealthIQ.Web/wwwroot/wealthiq.js src/WealthIQ.Web/wwwroot/wealthiq.css
@@ -585,7 +585,7 @@ git commit -m "Feat: Steuerreport sell-detail drill-down, Zinsen/Quellensteuer c
 - Modify: `src/WealthIQ.Application/Tax/BasisInterestRateRefreshService.cs`
 - Test: `tests/WealthIQ.Tests/Infrastructure/ReferenceData/DbBasisInterestRateStoreTests.cs`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/WealthIQ.Tests/Infrastructure/ReferenceData/DbBasisInterestRateStoreTests.cs`:
 
@@ -637,12 +637,12 @@ public sealed class DbBasisInterestRateStoreTests
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `dotnet test WealthIQ.slnx --filter "FullyQualifiedName~DbBasisInterestRateStoreTests"`
 Expected: FAIL — `IBasisInterestRateStore` has no `Delete` (compile error).
 
-- [ ] **Step 3: Add `Delete` to the interface**
+- [x] **Step 3: Add `Delete` to the interface**
 
 In `src/WealthIQ.Application/Tax/BasisInterestRateRefreshModels.cs`:
 
@@ -657,7 +657,7 @@ public interface IBasisInterestRateStore
 }
 ```
 
-- [ ] **Step 4: Implement `Delete` in the store**
+- [x] **Step 4: Implement `Delete` in the store**
 
 In `src/WealthIQ.Infrastructure/ReferenceData/DbBasisInterestRateStore.cs`, add after `Upsert`:
 
@@ -672,7 +672,7 @@ In `src/WealthIQ.Infrastructure/ReferenceData/DbBasisInterestRateStore.cs`, add 
     }
 ```
 
-- [ ] **Step 5: Add `DeleteAsync` to the refresh service**
+- [x] **Step 5: Add `DeleteAsync` to the refresh service**
 
 In `src/WealthIQ.Application/Tax/BasisInterestRateRefreshService.cs`, add after `SetManualAsync`:
 
@@ -684,12 +684,12 @@ In `src/WealthIQ.Application/Tax/BasisInterestRateRefreshService.cs`, add after 
     }
 ```
 
-- [ ] **Step 6: Run the test**
+- [x] **Step 6: Run the test**
 
 Run: `dotnet test WealthIQ.slnx --filter "FullyQualifiedName~DbBasisInterestRateStoreTests"`
 Expected: PASS (both cases).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/WealthIQ.Application/Tax/BasisInterestRateRefreshModels.cs src/WealthIQ.Infrastructure/ReferenceData/DbBasisInterestRateStore.cs src/WealthIQ.Application/Tax/BasisInterestRateRefreshService.cs tests/WealthIQ.Tests/Infrastructure/ReferenceData/DbBasisInterestRateStoreTests.cs
@@ -703,7 +703,7 @@ git commit -m "Feat: Basiszins store/service Delete"
 **Files:**
 - Modify: `src/WealthIQ.Web/Components/Pages/DataAdmin.razor`
 
-- [ ] **Step 1: Add the editable table to the Basiszins panel**
+- [x] **Step 1: Add the editable table to the Basiszins panel**
 
 In `DataAdmin.razor`, inside the Basiszins `<MudExpansionPanel ...>`, immediately **before** the final `<MudDivider Class="my-3" />` (the one above the Löschen/Reseed buttons), insert:
 
@@ -746,7 +746,7 @@ In `DataAdmin.razor`, inside the Basiszins `<MudExpansionPanel ...>`, immediatel
         }
 ```
 
-- [ ] **Step 2: Add the row type, load, edit-commit, and delete handlers**
+- [x] **Step 2: Add the row type, load, edit-commit, and delete handlers**
 
 In the `@code` block of `DataAdmin.razor`, add the field and methods (place the field near the other Basiszins fields, and the methods near `SaveManualBasiszins`):
 
@@ -789,7 +789,7 @@ In the `@code` block of `DataAdmin.razor`, add the field and methods (place the 
     }
 ```
 
-- [ ] **Step 3: Load the rows in `LoadStatusAsync`**
+- [x] **Step 3: Load the rows in `LoadStatusAsync`**
 
 In `DataAdmin.razor`, inside `LoadStatusAsync`, immediately after the existing Basiszins min/max block (after the `_basiszinsMax = null;` else-branch closes), add:
 
@@ -800,12 +800,12 @@ In `DataAdmin.razor`, inside `LoadStatusAsync`, immediately after the existing B
             .ToListAsync();
 ```
 
-- [ ] **Step 4: Build**
+- [x] **Step 4: Build**
 
 Run: `dotnet build WealthIQ.slnx`
 Expected: Build succeeded, 0 errors.
 
-- [ ] **Step 5: Manual smoke test**
+- [x] **Step 5: Manual smoke test**
 
 Run: `dotnet run --project src/WealthIQ.Web`, open Stammdaten → Marktdaten → Basiszins:
 - The "Gespeicherte Werte" table lists all stored year→rate rows.
@@ -813,7 +813,7 @@ Run: `dotnet run --project src/WealthIQ.Web`, open Stammdaten → Marktdaten →
 - The delete icon removes a row.
 - Adding a new year via "Manuell erfassen" still works and the new row appears.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/WealthIQ.Web/Components/Pages/DataAdmin.razor
@@ -828,7 +828,7 @@ git commit -m "Feat: editable Basiszins table on Marktdaten page"
 - Create: `src/WealthIQ.Application/MarketData/AdjustedPriceCalculator.cs`
 - Test: `tests/WealthIQ.Tests/Application/MarketData/AdjustedPriceCalculatorTests.cs`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/WealthIQ.Tests/Application/MarketData/AdjustedPriceCalculatorTests.cs`:
 
@@ -882,12 +882,12 @@ public sealed class AdjustedPriceCalculatorTests
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `dotnet test WealthIQ.slnx --filter "FullyQualifiedName~AdjustedPriceCalculatorTests"`
 Expected: FAIL — `AdjustedPriceCalculator` does not exist (compile error).
 
-- [ ] **Step 3: Implement the helper**
+- [x] **Step 3: Implement the helper**
 
 Create `src/WealthIQ.Application/MarketData/AdjustedPriceCalculator.cs`:
 
@@ -931,12 +931,12 @@ public static class AdjustedPriceCalculator
 }
 ```
 
-- [ ] **Step 4: Run the test**
+- [x] **Step 4: Run the test**
 
 Run: `dotnet test WealthIQ.slnx --filter "FullyQualifiedName~AdjustedPriceCalculatorTests"`
 Expected: PASS (all three).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/WealthIQ.Application/MarketData/AdjustedPriceCalculator.cs tests/WealthIQ.Tests/Application/MarketData/AdjustedPriceCalculatorTests.cs
@@ -952,7 +952,7 @@ git commit -m "Feat: adjusted-OHLC derivation helper"
 - Create: `src/WealthIQ.Web/wwwroot/wiq-charts.js`
 - Modify: `src/WealthIQ.Web/Components/App.razor`
 
-- [ ] **Step 1: Vendor the library (v4.2.0)**
+- [x] **Step 1: Vendor the library (v4.2.0)**
 
 Run (downloads the committed offline copy):
 
@@ -967,7 +967,7 @@ Verify it is non-empty and exposes the global:
 Run: `grep -c "LightweightCharts" "src/WealthIQ.Web/wwwroot/lib/lightweight-charts/lightweight-charts.standalone.production.js"`
 Expected: a number ≥ 1.
 
-- [ ] **Step 2: Write the interop wrapper**
+- [x] **Step 2: Write the interop wrapper**
 
 Create `src/WealthIQ.Web/wwwroot/wiq-charts.js`:
 
@@ -1029,7 +1029,7 @@ window.wiqCharts = {
 };
 ```
 
-- [ ] **Step 3: Reference both scripts in `App.razor`**
+- [x] **Step 3: Reference both scripts in `App.razor`**
 
 In `src/WealthIQ.Web/Components/App.razor`, after the `wealthiq.js` script tag (line ~25), add:
 
@@ -1038,12 +1038,12 @@ In `src/WealthIQ.Web/Components/App.razor`, after the `wealthiq.js` script tag (
     <script src="@Assets["wiq-charts.js"]"></script>
 ```
 
-- [ ] **Step 4: Build**
+- [x] **Step 4: Build**
 
 Run: `dotnet build WealthIQ.slnx`
 Expected: Build succeeded, 0 errors.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/WealthIQ.Web/wwwroot/lib/lightweight-charts/lightweight-charts.standalone.production.js src/WealthIQ.Web/wwwroot/wiq-charts.js src/WealthIQ.Web/Components/App.razor
@@ -1057,7 +1057,7 @@ git commit -m "Feat: vendor Lightweight Charts and JS interop wrapper"
 **Files:**
 - Create: `src/WealthIQ.Web/Components/Shared/LightweightChart.razor`
 
-- [ ] **Step 1: Create the component**
+- [x] **Step 1: Create the component**
 
 Create `src/WealthIQ.Web/Components/Shared/LightweightChart.razor`:
 
@@ -1130,12 +1130,12 @@ Create `src/WealthIQ.Web/Components/Shared/LightweightChart.razor`:
 }
 ```
 
-- [ ] **Step 2: Build**
+- [x] **Step 2: Build**
 
 Run: `dotnet build WealthIQ.slnx`
 Expected: Build succeeded, 0 errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/WealthIQ.Web/Components/Shared/LightweightChart.razor
@@ -1149,7 +1149,7 @@ git commit -m "Feat: reusable LightweightChart Blazor component"
 **Files:**
 - Modify: `src/WealthIQ.Web/Components/Layout/MainLayout.razor:26-32`
 
-- [ ] **Step 1: Add the nav group**
+- [x] **Step 1: Add the nav group**
 
 In `MainLayout.razor`, between the "Daten erfassen" block (the Import link) and the "Stammdaten" label, insert:
 
@@ -1160,12 +1160,12 @@ In `MainLayout.razor`, between the "Daten erfassen" block (the Import link) and 
                 <MudNavLink Href="/browse/fx" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Outlined.Timeline">Wechselkurse</MudNavLink>
 ```
 
-- [ ] **Step 2: Build**
+- [x] **Step 2: Build**
 
 Run: `dotnet build WealthIQ.slnx`
 Expected: Build succeeded, 0 errors (routes resolve once the pages in Tasks 12–14 exist; until then the links 404, which is fine).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/WealthIQ.Web/Components/Layout/MainLayout.razor
@@ -1179,7 +1179,7 @@ git commit -m "Feat: Data Browser navigation group"
 **Files:**
 - Create: `src/WealthIQ.Web/Components/Pages/Browse/LedgerBrowser.razor`
 
-- [ ] **Step 1: Create the page**
+- [x] **Step 1: Create the page**
 
 Create `src/WealthIQ.Web/Components/Pages/Browse/LedgerBrowser.razor`:
 
@@ -1358,17 +1358,17 @@ else
 }
 ```
 
-- [ ] **Step 2: Build**
+- [x] **Step 2: Build**
 
 Run: `dotnet build WealthIQ.slnx`
 Expected: Build succeeded, 0 errors.
 
-- [ ] **Step 3: Manual smoke test**
+- [x] **Step 3: Manual smoke test**
 
 Run: `dotnet run --project src/WealthIQ.Web`, open Daten ansehen → Ledger.
 Expected: Trades/Dividenden/Zinsen/Quellensteuer/Sonstige panels populate (after an import); Zinsen has no ISIN column; "Anzeigen" opens `/audit` filtered by ISIN.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/WealthIQ.Web/Components/Pages/Browse/LedgerBrowser.razor
@@ -1382,7 +1382,7 @@ git commit -m "Feat: Ledger Data browser page"
 **Files:**
 - Create: `src/WealthIQ.Web/Components/Pages/Browse/PriceChart.razor`
 
-- [ ] **Step 1: Create the page**
+- [x] **Step 1: Create the page**
 
 Create `src/WealthIQ.Web/Components/Pages/Browse/PriceChart.razor`:
 
@@ -1489,17 +1489,17 @@ Create `src/WealthIQ.Web/Components/Pages/Browse/PriceChart.razor`:
 }
 ```
 
-- [ ] **Step 2: Build**
+- [x] **Step 2: Build**
 
 Run: `dotnet build WealthIQ.slnx`
 Expected: Build succeeded, 0 errors.
 
-- [ ] **Step 3: Manual smoke test**
+- [x] **Step 3: Manual smoke test**
 
 Run: `dotnet run --project src/WealthIQ.Web`, open Daten ansehen → Kurschart.
 Expected: the autocomplete searches symbol/ISIN; selecting one with downloaded prices renders adjusted daily candles that zoom (mouse wheel) and scroll (drag); theme matches; empty state appears for a listing without bars.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/WealthIQ.Web/Components/Pages/Browse/PriceChart.razor
@@ -1513,7 +1513,7 @@ git commit -m "Feat: candlestick price chart browser page"
 **Files:**
 - Create: `src/WealthIQ.Web/Components/Pages/Browse/FxChart.razor`
 
-- [ ] **Step 1: Create the page**
+- [x] **Step 1: Create the page**
 
 Create `src/WealthIQ.Web/Components/Pages/Browse/FxChart.razor`:
 
@@ -1603,17 +1603,17 @@ Create `src/WealthIQ.Web/Components/Pages/Browse/FxChart.razor`:
 }
 ```
 
-- [ ] **Step 2: Build**
+- [x] **Step 2: Build**
 
 Run: `dotnet build WealthIQ.slnx`
 Expected: Build succeeded, 0 errors.
 
-- [ ] **Step 3: Manual smoke test**
+- [x] **Step 3: Manual smoke test**
 
 Run: `dotnet run --project src/WealthIQ.Web`, open Daten ansehen → Wechselkurse.
 Expected: the currency dropdown shows "X / EUR" labels; selecting one renders a daily line that zooms/drags; theme matches; empty states behave.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/WealthIQ.Web/Components/Pages/Browse/FxChart.razor
@@ -1626,22 +1626,22 @@ git commit -m "Feat: FX line chart browser page"
 
 **Files:** none (verification only)
 
-- [ ] **Step 1: Format**
+- [x] **Step 1: Format**
 
 Run: `dotnet format WealthIQ.slnx`
 Expected: completes; re-run with `--verify-no-changes` to confirm clean.
 
-- [ ] **Step 2: Full build (Release, as CI does)**
+- [x] **Step 2: Full build (Release, as CI does)**
 
 Run: `dotnet build WealthIQ.slnx --configuration Release`
 Expected: Build succeeded, 0 errors.
 
-- [ ] **Step 3: Full test suite**
+- [x] **Step 3: Full test suite**
 
 Run: `dotnet test WealthIQ.slnx --configuration Release --no-build`
 Expected: all tests PASS — including the unchanged `GermanTaxRegressionTests`, plus the new `GermanTaxEntryDetailTests`, `AdjustedPriceCalculatorTests`, and `DbBasisInterestRateStoreTests`.
 
-- [ ] **Step 4: End-to-end manual smoke (all touched pages)**
+- [x] **Step 4: End-to-end manual smoke (all touched pages)**
 
 Run: `dotnet run --project src/WealthIQ.Web` and verify, in one session:
 - Steuerreport: donut tooltip rounded; sell-detail drill-down + audit link; Zinsen no ISIN; Quellensteuer Herkunft.
@@ -1649,11 +1649,11 @@ Run: `dotnet run --project src/WealthIQ.Web` and verify, in one session:
 - Marktdaten → Basiszins editable table edits + deletes.
 - Toggle dark/light and confirm charts re-theme on navigation back to a chart page.
 
-- [ ] **Step 5: Update CLAUDE.md**
+- [x] **Step 5: Update CLAUDE.md**
 
 Add to the "Web UI" section a short note that the dashboard now has a **Daten ansehen** nav group (`/browse/ledger`, `/browse/prices`, `/browse/fx`); charts use vendored **TradingView Lightweight Charts** (`wwwroot/lib/lightweight-charts/`, interop in `wwwroot/wiq-charts.js`, wrapped by `Components/Shared/LightweightChart.razor`); and the Marktdaten Basiszins section has an inline-editable table. Note `GermanTaxEntry` now carries `OpenedOn`/`Fees`/`Origin` for the report drill-down.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add CLAUDE.md
