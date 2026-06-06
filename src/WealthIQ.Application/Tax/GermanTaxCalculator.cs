@@ -112,6 +112,10 @@ public sealed class GermanTaxCalculator(
                 _fxConverter.Convert(consumption.AllocatedOpenFees, consumption.OpenTradeDate).Amount +
                 _fxConverter.Convert(consumption.AllocatedCloseFees, consumption.CloseTradeDate).Amount;
 
+            var kestSlice = tradeEntry.WithheldTax.Amount <= 0m
+                ? 0m
+                : tradeEntry.WithheldTax.Amount * (consumption.MatchedQuantity.Value / tradeEntry.Quantity.Value);
+
             ledger.Add(new GermanTaxEntry(
                 tradeEntry.OccurredAt.Year,
                 DateOnly.FromDateTime(tradeEntry.OccurredAt.UtcDateTime),
@@ -128,7 +132,9 @@ public sealed class GermanTaxCalculator(
                 Fees: feesEur,
                 SourceReference: originalLot.OpenSourceReference,
                 CloseReference: tradeEntry.SourceProvenance.SourceRecordReference,
-                SourceFile: tradeEntry.SourceProvenance.SourceLocation));
+                SourceFile: tradeEntry.SourceProvenance.SourceLocation,
+                AccountId: tradeEntry.AccountId,
+                WithheldKESt: kestSlice));
         }
 
         openLots.Clear();
@@ -165,7 +171,8 @@ public sealed class GermanTaxCalculator(
                     SourceReference: cashEntry.SourceProvenance.SourceRecordReference,
                     SourceFile: cashEntry.SourceProvenance.SourceLocation,
                     OriginalAmount: cashEntry.GrossAmount.Amount,
-                    OriginalCurrency: cashEntry.GrossAmount.Currency.ToString()));
+                    OriginalCurrency: cashEntry.GrossAmount.Currency.ToString(),
+                    AccountId: cashEntry.AccountId));
 
                 var heldLots = openLots
                     .Where(x => x.AccountId == cashEntry.AccountId
@@ -199,7 +206,8 @@ public sealed class GermanTaxCalculator(
                     SourceReference: cashEntry.SourceProvenance.SourceRecordReference,
                     SourceFile: cashEntry.SourceProvenance.SourceLocation,
                     OriginalAmount: cashEntry.GrossAmount.Amount,
-                    OriginalCurrency: cashEntry.GrossAmount.Currency.ToString()));
+                    OriginalCurrency: cashEntry.GrossAmount.Currency.ToString(),
+                    AccountId: cashEntry.AccountId));
                 break;
 
             case CashFlowType.WithholdingTax:
@@ -227,7 +235,8 @@ public sealed class GermanTaxCalculator(
                     SourceReference: cashEntry.SourceProvenance.SourceRecordReference,
                     SourceFile: cashEntry.SourceProvenance.SourceLocation,
                     OriginalAmount: cashEntry.GrossAmount.Amount,
-                    OriginalCurrency: cashEntry.GrossAmount.Currency.ToString()));
+                    OriginalCurrency: cashEntry.GrossAmount.Currency.ToString(),
+                    AccountId: cashEntry.AccountId));
                 break;
         }
     }
@@ -336,7 +345,8 @@ public sealed class GermanTaxCalculator(
                     BasisRate: basisInterestRate.Value,
                     HeldQuantity: lot.RemainingQuantity.Value,
                     DistributionPerShare: distributionPerShare,
-                    MonthFactor: monthFactor));
+                    MonthFactor: monthFactor,
+                    AccountId: lot.AccountId));
             }
         }
     }
