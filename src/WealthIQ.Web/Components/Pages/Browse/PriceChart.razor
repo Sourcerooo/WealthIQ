@@ -5,6 +5,7 @@
 @using WealthIQ.Web.Services
 @inject WealthIqDbContext Db
 @inject ThemePreferenceService ThemePreference
+@inject WealthIQ.Web.Services.ChartSelectionState ChartSelection
 @using CurrencyCode = WealthIQ.Domain.Enumeration.Currency
 
 <PageTitle>WealthIQ — Kurschart</PageTitle>
@@ -14,7 +15,7 @@
         <MudAutocomplete T="ListingOption" Value="_selected" ValueChanged="OnSymbolChanged"
                          SearchFunc="SearchListings" ToStringFunc="o => o is null ? string.Empty : o.Label"
                          Label="Instrument" Variant="Variant.Outlined" Dense="true"
-                         Clearable="true" Style="min-width:320px;" />
+                         Clearable="false" Style="min-width:320px;" />
     </Actions>
 </PageHeader>
 
@@ -36,7 +37,7 @@
             }
             else
             {
-                <LightweightChart Kind="candlestick" Candles="_candles" Dark="_dark" />
+                <LightweightChart Kind="candlestick" Candles="_candles" Dark="_dark" InitialRangeDays="365" />
             }
         </ChildContent>
     </SectionCard>
@@ -68,6 +69,17 @@
             _listings = rows
                 .Select(x => new ListingOption(x.ProviderSymbol, x.Isin, x.Currency))
                 .ToList();
+
+            // Restore the remembered selection, else preselect the first listing.
+            var remembered = ChartSelection.SelectedPriceSymbol;
+            var initial = (remembered is not null
+                ? _listings.FirstOrDefault(o => o.ProviderSymbol == remembered)
+                : null) ?? _listings.FirstOrDefault();
+
+            if (initial is not null)
+            {
+                await OnSymbolChanged(initial);
+            }
         }
         catch (Exception ex)
         {
@@ -97,6 +109,7 @@
     private async Task OnSymbolChanged(ListingOption? option)
     {
         _selected = option;
+        ChartSelection.SelectedPriceSymbol = option?.ProviderSymbol;
         _candles = new();
         _error = null;
         if (option is not null)
