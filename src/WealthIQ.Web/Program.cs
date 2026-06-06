@@ -16,6 +16,7 @@ using WealthIQ.Application.Tax.Report;
 using WealthIQ.Infrastructure.Ibkr.Currency;
 using WealthIQ.Infrastructure.Ibkr.Import;
 using WealthIQ.Infrastructure.Ibkr.MarketData;
+using WealthIQ.Infrastructure.TradersPlace.Import;
 using WealthIQ.Infrastructure.Ibkr.Tax;
 using WealthIQ.Infrastructure.Ingest;
 using WealthIQ.Infrastructure.Persistence;
@@ -82,6 +83,7 @@ builder.Services.AddSingleton<IRawFileStore>(_ => new FileSystemRawFileStore(aud
 // --- Import ---
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IStatementImporter, IbkrStatementImporter>();
+builder.Services.AddScoped<IStatementImporter, TradersPlaceStatementImporter>();
 builder.Services.AddScoped<StatementImportPipeline>();
 
 // --- Reference data ---
@@ -111,6 +113,10 @@ builder.Services.AddScoped<IBasisInterestRateSource>(sp =>
 builder.Services.AddScoped<IHistoricalPriceStore, DbHistoricalPriceStore>();
 builder.Services.AddScoped<IFxRateStore, DbFxRateStore>();
 builder.Services.AddScoped<IBasisInterestRateStore, DbBasisInterestRateStore>();
+
+builder.Services.AddScoped<IDividendAliasMap, DbDividendAliasMap>();
+builder.Services.AddScoped<IDividendAliasStore, DbDividendAliasStore>();
+builder.Services.AddScoped<DividendAliasRefreshService>();
 
 // --- Refresh services ---
 builder.Services.AddScoped<HistoricalPriceRefreshService>();
