@@ -1,4 +1,5 @@
 using WealthIQ.Domain.Enumeration;
+using WealthIQ.Domain.Model.General;
 
 namespace WealthIQ.Domain.Model.Tax;
 
@@ -33,4 +34,7 @@ public readonly record struct GermanTaxEntry(
     decimal BasisRate = 0m,          // Basiszins used
     decimal HeldQuantity = 0m,       // shares held in the lot
     decimal DistributionPerShare = 0m,
-    decimal MonthFactor = 0m);
+    decimal MonthFactor = 0m,
+    // --- Per-account reporting + broker-withheld German KeSt (display/aggregation only) ---
+    AccountId AccountId = default,
+    decimal WithheldKESt = 0m);
