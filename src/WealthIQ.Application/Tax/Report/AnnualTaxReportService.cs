@@ -25,12 +25,15 @@ public sealed class AnnualTaxReportService(
 
         var accountNumbers = ledger.Accounts.ToDictionary(a => a.AccountId, a => a.AccountNumber);
 
+        string NumberFor(AccountId id) =>
+            accountNumbers.TryGetValue(id, out var number) ? number : id.ToString();
+
         return result.Entries
             .GroupBy(e => e.AccountId)
-            .OrderBy(g => accountNumbers.TryGetValue(g.Key, out var n) ? n : g.Key.ToString(), StringComparer.Ordinal)
+            .OrderBy(g => NumberFor(g.Key), StringComparer.Ordinal)
             .Select(accountGroup => new AccountTaxReport(
                 accountGroup.Key.Value,
-                accountNumbers.TryGetValue(accountGroup.Key, out var number) ? number : accountGroup.Key.ToString(),
+                NumberFor(accountGroup.Key),
                 accountGroup
                     .GroupBy(e => e.Year)
                     .OrderBy(y => y.Key)
