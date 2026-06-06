@@ -1,0 +1,14 @@
+{
+  "FR0010342592": [
+    { "currency": "EUR", "provider": "TradersPlace", "provider_symbol": "FR0010342592", "notes": "Amundi Nasdaq-100 2x Leveraged, EUR-denominated trades." }
+  ],
+  "IE00B53SZB19": [
+    { "currency": "EUR", "provider": "TradersPlace", "provider_symbol": "IE00B53SZB19", "notes": "iShares NASDAQ 100, EUR-denominated trades." }
+  ],
+  "IE00B3XXRP09": [
+    { "currency": "EUR", "provider": "TradersPlace", "provider_symbol": "IE00B3XXRP09", "notes": "Vanguard S&P 500, EUR-denominated trades." }
+  ],
+  "IE00BSKRJZ44": [
+    { "currency": "EUR", "provider": "TradersPlace", "provider_symbol": "IE00BSKRJZ44", "notes": "iShares USD Treasury Bond 20+yr, EUR-denominated trades." }
+  ]
+}
