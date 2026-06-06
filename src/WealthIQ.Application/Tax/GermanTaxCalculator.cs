@@ -125,7 +125,10 @@ public sealed class GermanTaxCalculator(
                 SaleProceeds: saleProceeds.Amount,
                 AcquisitionCosts: acquisitionCosts.Amount,
                 OpenedOn: consumption.OpenTradeDate,
-                Fees: feesEur));
+                Fees: feesEur,
+                SourceReference: originalLot.OpenSourceReference,
+                CloseReference: tradeEntry.SourceProvenance.SourceRecordReference,
+                SourceFile: tradeEntry.SourceProvenance.SourceLocation));
         }
 
         openLots.Clear();
@@ -158,7 +161,11 @@ public sealed class GermanTaxCalculator(
                     dividendInstrument.Symbol,
                     dividendInstrument.ISIN,
                     rawDividend,
-                    rawDividend * (1m - dividendInstrument.Teilfreistellungsquote)));
+                    rawDividend * (1m - dividendInstrument.Teilfreistellungsquote),
+                    SourceReference: cashEntry.SourceProvenance.SourceRecordReference,
+                    SourceFile: cashEntry.SourceProvenance.SourceLocation,
+                    OriginalAmount: cashEntry.GrossAmount.Amount,
+                    OriginalCurrency: cashEntry.GrossAmount.Currency.ToString()));
 
                 var heldLots = openLots
                     .Where(x => x.AccountId == cashEntry.AccountId
@@ -188,7 +195,11 @@ public sealed class GermanTaxCalculator(
                     interestInstrument.Symbol,
                     interestInstrument.ISIN,
                     _fxConverter.Convert(cashEntry.GrossAmount, date).Amount,
-                    _fxConverter.Convert(cashEntry.GrossAmount, date).Amount));
+                    _fxConverter.Convert(cashEntry.GrossAmount, date).Amount,
+                    SourceReference: cashEntry.SourceProvenance.SourceRecordReference,
+                    SourceFile: cashEntry.SourceProvenance.SourceLocation,
+                    OriginalAmount: cashEntry.GrossAmount.Amount,
+                    OriginalCurrency: cashEntry.GrossAmount.Currency.ToString()));
                 break;
 
             case CashFlowType.WithholdingTax:
@@ -212,7 +223,11 @@ public sealed class GermanTaxCalculator(
                     withholdingTaxAmount,
                     0m,
                     ForeignWithholdingTax: Math.Abs(withholdingTaxAmount),
-                    Origin: withholdingOrigin));
+                    Origin: withholdingOrigin,
+                    SourceReference: cashEntry.SourceProvenance.SourceRecordReference,
+                    SourceFile: cashEntry.SourceProvenance.SourceLocation,
+                    OriginalAmount: cashEntry.GrossAmount.Amount,
+                    OriginalCurrency: cashEntry.GrossAmount.Currency.ToString()));
                 break;
         }
     }
@@ -315,7 +330,13 @@ public sealed class GermanTaxCalculator(
                     instrument.Symbol,
                     instrument.ISIN,
                     totalVorabpauschale,
-                    totalVorabpauschale * (1m - instrument.Teilfreistellungsquote)));
+                    totalVorabpauschale * (1m - instrument.Teilfreistellungsquote),
+                    YearStartPrice: startValueEur,
+                    YearEndPrice: endValueEur,
+                    BasisRate: basisInterestRate.Value,
+                    HeldQuantity: lot.RemainingQuantity.Value,
+                    DistributionPerShare: distributionPerShare,
+                    MonthFactor: monthFactor));
             }
         }
     }
