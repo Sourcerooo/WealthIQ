@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using WealthIQ.Application.Import;
 using WealthIQ.Application.Import.Enumeration;
+using WealthIQ.Application.Import.Interface;
 using WealthIQ.Domain.Model.General;
 using WealthIQ.Infrastructure.Ibkr.Import;
 using WealthIQ.Infrastructure.Ingest;
@@ -34,7 +35,7 @@ public sealed class StatementImportEndToEndTests : IDisposable
         await using (var ctx = db.NewContext())
         {
             var pipeline = new StatementImportPipeline(
-                new IbkrStatementImporter(),
+                new IStatementImporter[] { new IbkrStatementImporter() },
                 new FileSystemRawFileStore(Path.Combine(_temp, "audit")),
                 new SqliteImportStore(ctx, new SqliteLedgerStore(ctx)),
                 TimeProvider.System);

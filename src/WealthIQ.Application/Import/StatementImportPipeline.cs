@@ -11,7 +11,7 @@ namespace WealthIQ.Application.Import;
 /// or higher aborts before any write. Otherwise the batch is persisted transactionally.
 /// </summary>
 public sealed class StatementImportPipeline(
-    IStatementImporter importer,
+    IEnumerable<IStatementImporter> importers,
     IRawFileStore rawFileStore,
     IImportStore importStore,
     TimeProvider timeProvider)
@@ -21,12 +21,24 @@ public sealed class StatementImportPipeline(
         var batchId = Guid.NewGuid();
         var importedAt = timeProvider.GetUtcNow();
 
+        var importer = importers.FirstOrDefault(i => i.CanImport(command.Request.Source));
+        if (importer is null)
+        {
+            var diagnostic = new ImportDiagnostic(
+                ImportDiagnosticSeverity.Fatal,
+                ImportDiagnosticCode.UnsupportedSource,
+                $"No importer supports '{command.Request.Source.Broker}/{command.Request.Source.Format}'.");
+            return new ImportPipelineResult(ImportStatus.Aborted, batchId, 0, 0, new[] { diagnostic });
+        }
+
         string storedPath;
         try
         {
-            storedPath = rawFileStore.Ingest(command.Request.Source.FilePath);
+            storedPath = Directory.Exists(command.Request.Source.FilePath)
+                ? rawFileStore.IngestDirectory(command.Request.Source.FilePath)
+                : rawFileStore.Ingest(command.Request.Source.FilePath);
         }
-        catch (FileNotFoundException ex)
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
         {
             var diagnostic = new ImportDiagnostic(
                 ImportDiagnosticSeverity.Fatal,

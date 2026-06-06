@@ -1,6 +1,7 @@
 using WealthIQ.Application.Import;
 using WealthIQ.Application.Import.Diagnostic;
 using WealthIQ.Application.Import.Enumeration;
+using WealthIQ.Application.Import.Interface;
 using WealthIQ.Application.Persistence;
 using WealthIQ.Domain.Enumeration;
 using WealthIQ.Domain.Model.General;
@@ -46,7 +47,7 @@ public sealed class StatementImportPipelineTests
         importer = new FakeStatementImporter(importResult);
         raw = new FakeRawFileStore(@"C:\audit\statement.xml");
         var clock = new FixedTimeProvider(new DateTimeOffset(2026, 5, 30, 9, 0, 0, TimeSpan.Zero));
-        return new StatementImportPipeline(importer, raw, store, clock);
+        return new StatementImportPipeline(new IStatementImporter[] { importer }, raw, store, clock);
     }
 
     [Fact]
