@@ -26,6 +26,19 @@ public sealed class TradeEntryTests
             new Money(0m, Currency.EUR), new Money(0m, Currency.EUR));
 
         Assert.Equal(0m, entry.WithheldTax.Amount);
+        Assert.Equal(Currency.EUR, entry.WithheldTax.Currency);
+    }
+
+    [Fact]
+    public void Constructor_NegativeWithheldTax_Throws()
+    {
+        Assert.Throws<InvalidOperationException>(() => new TradeEntry(
+            PortfolioEntryId.NewId(), AccountId.NewId(),
+            new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            new DateOnly(2025, 1, 1), Prov(), InstrumentId.NewId(),
+            TradeSide.Sell, new Quantity(10m), new Money(100m, Currency.EUR),
+            new Money(0m, Currency.EUR), new Money(0m, Currency.EUR),
+            new Money(-1m, Currency.EUR)));
     }
 
     [Fact]

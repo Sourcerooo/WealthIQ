@@ -40,7 +40,7 @@ public sealed record TradeEntry : PortfolioEntry
         UnitPrice = unitPrice;
         Fees = fees;
         Taxes = taxes;
-        WithheldTax = withheldTax;
+        WithheldTax = withheldTax.Amount == 0m ? new Money(0m, Currency.EUR) : withheldTax;
     }
 
     public InstrumentId InstrumentId { get; }
