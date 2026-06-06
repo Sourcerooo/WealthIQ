@@ -15,7 +15,11 @@ public sealed class FxRateRefreshServiceTests
     private sealed class FakeStore : IFxRateStore
     {
         public List<FxRateRecord> Saved = new();
+        public List<string> Stored = new();
+        public DateOnly? MaxDate;
         public (int, int) Upsert(IReadOnlyList<FxRateRecord> records) { Saved.AddRange(records); return (records.Count, 0); }
+        public IReadOnlyList<string> GetStoredCurrencies() => Stored;
+        public DateOnly? GetMaxStoredDate() => MaxDate;
         public Task SaveChangesAsync(CancellationToken ct) => Task.CompletedTask;
     }
 
