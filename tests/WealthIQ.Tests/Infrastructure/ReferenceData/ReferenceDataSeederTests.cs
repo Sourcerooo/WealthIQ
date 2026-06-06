@@ -17,7 +17,8 @@ public sealed class ReferenceDataSeederTests
             Path.Combine(dir, "historical_prices.csv"),
             Path.Combine(dir, "instruments.json"),
             Path.Combine(dir, "listings.json"),
-            Path.Combine(dir, "fx_rates.csv"));
+            Path.Combine(dir, "fx_rates.csv"),
+            Path.Combine(dir, "dividend_aliases.csv"));
     }
 
     [Fact]
@@ -103,7 +104,9 @@ public sealed class ReferenceDataSeederTests
             var listingsPath = Path.Combine(dir, "listings.json");
             await File.WriteAllTextAsync(listingsPath, "{}");
 
-            var sources = new ReferenceDataSources(basisPath, historicalPricesPath, instrumentsPath, listingsPath, fxPath);
+            var aliasCsvPath = Path.Combine(dir, "dividend_aliases.csv");
+            await File.WriteAllTextAsync(aliasCsvPath, "alias,isin\n");
+            var sources = new ReferenceDataSources(basisPath, historicalPricesPath, instrumentsPath, listingsPath, fxPath, aliasCsvPath);
 
             await using var ctx = db.NewContext();
             var seeder = new ReferenceDataSeeder(ctx);
@@ -139,13 +142,16 @@ public sealed class ReferenceDataSeederTests
                 "{\"IE00B53SZB19\":[{\"currency\":\"EUR\",\"provider\":\"YahooFinance\",\"provider_symbol\":\"CNDX.AS\"}]}");
             File.WriteAllText(Path.Combine(dir, "fx_rates.csv"), "date,currency,rate_to_eur\n2024-12-30,USD,0.9\n");
 
+            var aliasCsvPath2 = Path.Combine(dir, "dividend_aliases.csv");
+            File.WriteAllText(aliasCsvPath2, "alias,isin\n");
             var seeder = new ReferenceDataSeeder(db);
             var result = await seeder.SeedIfEmptyAsync(new ReferenceDataSources(
                 Path.Combine(dir, "basiszins.csv"),
                 Path.Combine(dir, "historical_prices.csv"),
                 Path.Combine(dir, "instruments.json"),
                 Path.Combine(dir, "listings.json"),
-                Path.Combine(dir, "fx_rates.csv")));
+                Path.Combine(dir, "fx_rates.csv"),
+                aliasCsvPath2));
 
             Assert.Equal(1, result.HistoricalPrices);
             Assert.Equal(1, result.InstrumentListings);
