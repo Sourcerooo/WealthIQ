@@ -86,6 +86,47 @@ public sealed class PortfolioDashboardServiceTests
         Assert.Equal(100m, all.Kpis.TotalSecuritiesValueInBaseCurrency);
     }
 
+    [Fact]
+    public async Task GenerateAsync_DividendsThisYear_AreSummedInBaseCurrency()
+    {
+        var account = AccountId.NewId();
+        var instrumentId = InstrumentId.NewId();
+        var instrument = new Instrument(instrumentId, "IE00TEST1234", "TEST", "Test ETF", 0.30m) { Type = "ETF_EQUITY" };
+
+        var ledger = new PortfolioLedger(
+            [
+                Buy(account, instrumentId, "BUY-1", new DateOnly(2025, 1, 2), 10m, 100m),
+                Dividend(account, instrumentId, "DIV-1", new DateOnly(2025, 3, 1), 40m),
+                Dividend(account, instrumentId, "DIV-OLD", new DateOnly(2024, 3, 1), 999m),
+            ],
+            [instrument],
+            [new Account(account, "ACC")]);
+
+        var report = await BuildService(ledger, closePrice: 100m).GenerateAsync(Today);
+
+        Assert.Equal(40m, report.Views[0].Kpis.DividendsYtdInBaseCurrency);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_RealizedThisYear_IsProceedsMinusCost()
+    {
+        var account = AccountId.NewId();
+        var instrumentId = InstrumentId.NewId();
+        var instrument = new Instrument(instrumentId, "IE00TEST1234", "TEST", "Test ETF", 0.30m) { Type = "ETF_EQUITY" };
+
+        var ledger = new PortfolioLedger(
+            [
+                Buy(account, instrumentId, "BUY-1", new DateOnly(2025, 1, 2), 10m, 100m),
+                Sell(account, instrumentId, "SELL-1", new DateOnly(2025, 4, 1), 4m, 130m),
+            ],
+            [instrument],
+            [new Account(account, "ACC")]);
+
+        var report = await BuildService(ledger, closePrice: 120m).GenerateAsync(Today);
+
+        Assert.Equal(120m, report.Views[0].Kpis.RealizedYtdInBaseCurrency);
+    }
+
     // ---- helpers / stubs (shared with Task 3) ----
 
     internal static TradeEntry Buy(AccountId account, InstrumentId instrument, string reference, DateOnly date, decimal qty, decimal price)

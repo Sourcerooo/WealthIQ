@@ -137,11 +137,54 @@ public sealed class PortfolioDashboardService(
             anyMissing);
     }
 
-    // Implemented in Task 3.
     private Dictionary<AccountId, decimal> DividendsYtdByAccount(PortfolioLedger ledger, int year)
-        => new();
+    {
+        var result = new Dictionary<AccountId, decimal>();
+        foreach (var cash in ledger.Entries.OfType<CashEntry>()
+                     .Where(c => c.CashFlowType == Domain.Enumeration.CashFlowType.Dividend && c.EffectiveDate.Year == year))
+        {
+            try
+            {
+                var eur = _fxConverter.Convert(cash.GrossAmount, cash.EffectiveDate).Amount;
+                result[cash.AccountId] = result.GetValueOrDefault(cash.AccountId) + eur;
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException)
+            {
+                // Missing FX must not blank the dashboard — skip this entry's contribution.
+            }
+        }
+        return result;
+    }
 
-    // Implemented in Task 3.
     private Dictionary<AccountId, decimal> RealizedYtdByAccount(PortfolioLedger ledger, int year)
-        => new();
+    {
+        var matcher = new Matcher.FiFoMatcher();
+        var openLots = new List<Domain.Model.Lot.OpenLot>();
+        var result = new Dictionary<AccountId, decimal>();
+
+        foreach (var trade in ledger.Entries.OfType<TradeEntry>().OrderBy(x => x.OccurredAt))
+        {
+            var match = matcher.Match(trade, openLots, Domain.Enumeration.LotMatchingPolicy.FIFO);
+            openLots = match.UpdatedOpenLots.ToList();
+            if (match.NewlyOpenedRemainderLot is not null)
+            {
+                openLots.Add(match.NewlyOpenedRemainderLot);
+            }
+
+            foreach (var c in match.Consumptions.Where(c => c.CloseTradeDate.Year == year))
+            {
+                try
+                {
+                    var realizedEur = _fxConverter.Convert(c.Proceeds, c.CloseTradeDate).Amount
+                                      - _fxConverter.Convert(c.CostBasis, c.OpenTradeDate).Amount;
+                    result[c.AccountId] = result.GetValueOrDefault(c.AccountId) + realizedEur;
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException)
+                {
+                    // Missing FX — skip this consumption's contribution.
+                }
+            }
+        }
+        return result;
+    }
 }
