@@ -84,7 +84,7 @@ else
         </MudItem>
     </MudGrid>
 
-    <MudGrid class="wiq-rise-2">
+    <MudGrid Class="wiq-rise-2">
         <MudItem xs="12" md="7">
             <SectionCard>
                 <ChildContent>
@@ -134,6 +134,10 @@ else
     private PortfolioDashboardReport? _report;
     private string _selectedKey = "ALL";
 
+    // Re-armed on load and on account switch; consumed once by OnAfterRenderAsync to animate the KPI count-ups
+    // only when figures are actually in the DOM (the first render shows the spinner).
+    private bool _animatePending = true;
+
     private DashboardView? Current => _report?.Views.FirstOrDefault(v => v.AccountKey == _selectedKey) ?? _report?.Views.FirstOrDefault();
     private bool IsStale => _report is not null && _report.ValuationDate.DayNumber - _report.EffectivePriceDate.DayNumber > 4;
 
@@ -158,9 +162,19 @@ else
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_animatePending && !_loading && Current is not null && Current.Holdings.Count > 0)
+        {
+            _animatePending = false;
+            await JS.InvokeVoidAsync("wealthiq.runCountUps");
+        }
+    }
+
     private async Task LoadAsync()
     {
         _loading = true;
+        _animatePending = true;
         _error = null;
         try
         {
@@ -185,6 +199,7 @@ else
     private void OnViewChanged(string key)
     {
         _selectedKey = key;
+        _animatePending = true;
     }
 
     private async Task RefreshPricesAsync()
