@@ -54,6 +54,21 @@ window.wiqCharts = {
         }
     },
 
+    setReferenceLine: function (id, price, theme) {
+        var entry = this._charts[id];
+        if (!entry) return;
+        if (entry.refLine) { try { entry.series.removePriceLine(entry.refLine); } catch (e) { } entry.refLine = null; }
+        if (price === null || price === undefined) return;
+        entry.refLine = entry.series.createPriceLine({
+            price: price,
+            color: theme.textColor,
+            lineWidth: 1,
+            lineStyle: 2, // dashed
+            axisLabelVisible: true,
+            title: 'Ø Kauf'
+        });
+    },
+
     applyTheme: function (id, theme) {
         var entry = this._charts[id];
         if (!entry) return;

@@ -20,6 +20,9 @@
     /// <summary>When set, the chart opens showing only the last N days of data (else fits all).</summary>
     [Parameter] public int? InitialRangeDays { get; set; }
 
+    /// <summary>Optional dashed horizontal reference line (e.g. average buy price) in the series' price units.</summary>
+    [Parameter] public decimal? ReferencePrice { get; set; }
+
     public sealed record Candle(string Time, decimal Open, decimal High, decimal Low, decimal Close);
     public sealed record LinePoint(string Time, decimal Value);
 
@@ -59,6 +62,7 @@
                 .Select(c => new { time = c.Time, open = c.Open, high = c.High, low = c.Low, close = c.Close });
             await JS.InvokeVoidAsync("wiqCharts.setData", _id, data, InitialRangeDays);
         }
+        await JS.InvokeVoidAsync("wiqCharts.setReferenceLine", _id, ReferencePrice, Theme);
     }
 
     public async ValueTask DisposeAsync()

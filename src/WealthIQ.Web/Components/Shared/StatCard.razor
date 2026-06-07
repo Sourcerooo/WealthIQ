@@ -4,7 +4,11 @@
         @Caption
     </MudText>
     <div class="wiq-figure @FigureClass" style="font-size:1.6rem;margin-top:6px;">
-        @if (CountUp)
+        @if (!string.IsNullOrWhiteSpace(ValueText))
+        {
+            @ValueText
+        }
+        else if (CountUp)
         {
             <span class="wiq-countup" data-target="@Value.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-suffix=" €">@Display</span>
         }
@@ -25,6 +29,10 @@
     [Parameter] public string? Hint { get; set; }
     [Parameter] public bool Accent { get; set; }
     [Parameter] public bool CountUp { get; set; }
+
+    /// <summary>When set, rendered verbatim instead of the "N2 €" formatting of <see cref="Value"/>.
+    /// Use for non-currency figures (counts, percentages).</summary>
+    [Parameter] public string? ValueText { get; set; }
 
     private string Display => Value.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("de-DE")) + " €";
     private string RootClass => "wiq-card" + (Accent ? " wiq-card--accent" : "");
