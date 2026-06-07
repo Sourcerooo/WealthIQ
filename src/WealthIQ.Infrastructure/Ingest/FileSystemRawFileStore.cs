@@ -20,4 +20,22 @@ public sealed class FileSystemRawFileStore(string rootFolder) : IRawFileStore
         File.Copy(sourceFilePath, destination, overwrite: true);
         return destination;
     }
+
+    public string IngestDirectory(string sourceDirectory)
+    {
+        if (!Directory.Exists(sourceDirectory))
+        {
+            throw new DirectoryNotFoundException($"Raw statement directory not found: {sourceDirectory}");
+        }
+
+        Directory.CreateDirectory(rootFolder);
+        var subfolder = Path.Combine(rootFolder, $"import-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(subfolder);
+        foreach (var file in Directory.GetFiles(sourceDirectory))
+        {
+            File.Copy(file, Path.Combine(subfolder, Path.GetFileName(file)), overwrite: true);
+        }
+
+        return subfolder;
+    }
 }

@@ -44,6 +44,11 @@ public sealed class ReferenceDataSeeder(WealthIqDbContext db) : IReferenceDataSe
             db.FxRates.AddRange(ReadFxRates(sources.FxRateCsvPath));
         }
 
+        if (!await db.DividendAliases.AnyAsync(ct))
+        {
+            db.DividendAliases.AddRange(ReadDividendAliases(sources.DividendAliasCsvPath));
+        }
+
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
@@ -86,8 +91,15 @@ public sealed class ReferenceDataSeeder(WealthIqDbContext db) : IReferenceDataSe
 
             yield return new HistoricalPriceRow
             {
-                ProviderSymbol = parts[1].Trim(), Date = date, Currency = parts[2].Trim(),
-                Open = open, High = high, Low = low, Close = close, AdjustedClose = adj, Volume = volume
+                ProviderSymbol = parts[1].Trim(),
+                Date = date,
+                Currency = parts[2].Trim(),
+                Open = open,
+                High = high,
+                Low = low,
+                Close = close,
+                AdjustedClose = adj,
+                Volume = volume
             };
         }
     }
@@ -127,8 +139,11 @@ public sealed class ReferenceDataSeeder(WealthIqDbContext db) : IReferenceDataSe
 
             yield return new InstrumentProfileRow
             {
-                Isin = isin, Name = dto.Name, Type = dto.Type,
-                Teilfreistellungsquote = tfs, SubjectToVorabpauschale = dto.SubjectToVorabpauschale
+                Isin = isin,
+                Name = dto.Name,
+                Type = dto.Type,
+                Teilfreistellungsquote = tfs,
+                SubjectToVorabpauschale = dto.SubjectToVorabpauschale
             };
         }
     }
@@ -163,6 +178,26 @@ public sealed class ReferenceDataSeeder(WealthIqDbContext db) : IReferenceDataSe
                     Notes = dto.Notes
                 };
             }
+        }
+    }
+
+    private static IEnumerable<DividendAliasRow> ReadDividendAliases(string path)
+    {
+        foreach (var (_, parts) in ReadCsv(path, "Dividend alias file not found.", minColumns: 2))
+        {
+            var alias = parts[0].Trim();
+            var isin = parts[1].Trim();
+            if (alias.Length == 0 || isin.Length == 0)
+            {
+                continue;
+            }
+
+            yield return new DividendAliasRow
+            {
+                NormalizedAlias = WealthIQ.Application.ReferenceData.DividendAliasNormalizer.Normalize(alias),
+                Alias = alias,
+                Isin = isin
+            };
         }
     }
 

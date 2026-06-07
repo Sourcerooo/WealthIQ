@@ -11,4 +11,5 @@ public sealed record TaxReportSummary(
     decimal InterestTaxable,
     decimal VorabpauschaleTaxable,
     decimal ForeignWithholdingTax,
-    decimal EstimatedTax);
+    decimal EstimatedTax,
+    decimal WithheldKESt = 0m);

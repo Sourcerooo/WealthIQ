@@ -62,6 +62,24 @@ namespace WealthIQ.Infrastructure.Persistence.Migrations
                     b.ToTable("DataRefreshLog");
                 });
 
+            modelBuilder.Entity("WealthIQ.Infrastructure.Persistence.Rows.DividendAliasRow", b =>
+                {
+                    b.Property<string>("NormalizedAlias")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Alias")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Isin")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("NormalizedAlias");
+
+                    b.ToTable("DividendAliases");
+                });
+
             modelBuilder.Entity("WealthIQ.Infrastructure.Persistence.Rows.FxRateRow", b =>
                 {
                     b.Property<DateOnly>("Date")

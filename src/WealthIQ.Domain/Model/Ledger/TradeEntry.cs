@@ -16,7 +16,8 @@ public sealed record TradeEntry : PortfolioEntry
         Quantity quantity,
         Money unitPrice,
         Money fees,
-        Money taxes)
+        Money taxes,
+        Money withheldTax = default)
         : base(entryId, accountId, occurredAt, effectiveDate, PortfolioEntryCategory.Trade, sourceProvenance)
     {
         if (quantity.Value <= 0m)
@@ -31,6 +32,7 @@ public sealed record TradeEntry : PortfolioEntry
 
         EnsureNonNegative(fees, nameof(fees));
         EnsureNonNegative(taxes, nameof(taxes));
+        EnsureNonNegative(withheldTax, nameof(withheldTax));
 
         InstrumentId = instrumentId;
         Side = side;
@@ -38,6 +40,7 @@ public sealed record TradeEntry : PortfolioEntry
         UnitPrice = unitPrice;
         Fees = fees;
         Taxes = taxes;
+        WithheldTax = withheldTax.Amount == 0m ? new Money(0m, Currency.EUR) : withheldTax;
     }
 
     public InstrumentId InstrumentId { get; }
@@ -46,4 +49,8 @@ public sealed record TradeEntry : PortfolioEntry
     public Money UnitPrice { get; }
     public Money Fees { get; }
     public Money Taxes { get; }
+
+    /// <summary>Capital-gains tax already withheld by the broker at sale (e.g. German KESt). Display/
+    /// reconciliation only — NEVER part of FIFO proceeds/cost math. Default zero EUR.</summary>
+    public Money WithheldTax { get; }
 }

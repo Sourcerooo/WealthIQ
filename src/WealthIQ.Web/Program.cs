@@ -17,6 +17,7 @@ using WealthIQ.Infrastructure.Ibkr.Currency;
 using WealthIQ.Infrastructure.Ibkr.Import;
 using WealthIQ.Infrastructure.Ibkr.MarketData;
 using WealthIQ.Infrastructure.Ibkr.Tax;
+using WealthIQ.Infrastructure.TradersPlace.Import;
 using WealthIQ.Infrastructure.Ingest;
 using WealthIQ.Infrastructure.Persistence;
 using WealthIQ.Infrastructure.ReferenceData;
@@ -44,7 +45,8 @@ var referenceDataSources = new ReferenceDataSources(
     Path.Combine(referenceDir, "historical_prices.csv"),
     Path.Combine(referenceDir, "instruments.json"),
     Path.Combine(referenceDir, "listings.json"),
-    Path.Combine(referenceDir, "fx_rates.csv"));
+    Path.Combine(referenceDir, "fx_rates.csv"),
+    Path.Combine(referenceDir, "tradersplace_dividend_aliases.csv"));
 builder.Services.AddSingleton(referenceDataSources);
 
 // --- Config options ---
@@ -81,6 +83,7 @@ builder.Services.AddSingleton<IRawFileStore>(_ => new FileSystemRawFileStore(aud
 // --- Import ---
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IStatementImporter, IbkrStatementImporter>();
+builder.Services.AddScoped<IStatementImporter, TradersPlaceStatementImporter>();
 builder.Services.AddScoped<StatementImportPipeline>();
 
 // --- Reference data ---
@@ -110,6 +113,10 @@ builder.Services.AddScoped<IBasisInterestRateSource>(sp =>
 builder.Services.AddScoped<IHistoricalPriceStore, DbHistoricalPriceStore>();
 builder.Services.AddScoped<IFxRateStore, DbFxRateStore>();
 builder.Services.AddScoped<IBasisInterestRateStore, DbBasisInterestRateStore>();
+
+builder.Services.AddScoped<IDividendAliasMap, DbDividendAliasMap>();
+builder.Services.AddScoped<IDividendAliasStore, DbDividendAliasStore>();
+builder.Services.AddScoped<DividendAliasRefreshService>();
 
 // --- Refresh services ---
 builder.Services.AddScoped<HistoricalPriceRefreshService>();

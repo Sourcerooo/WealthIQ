@@ -16,6 +16,7 @@ public sealed class WealthIqDbContext(DbContextOptions<WealthIqDbContext> option
     public DbSet<HistoricalPriceRow> HistoricalPrices => Set<HistoricalPriceRow>();
     public DbSet<InstrumentListingRow> InstrumentListings => Set<InstrumentListingRow>();
     public DbSet<DataRefreshLogRow> DataRefreshLog => Set<DataRefreshLogRow>();
+    public DbSet<DividendAliasRow> DividendAliases => Set<DividendAliasRow>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -72,5 +73,7 @@ public sealed class WealthIqDbContext(DbContextOptions<WealthIqDbContext> option
         });
 
         modelBuilder.Entity<DataRefreshLogRow>(e => e.HasKey(x => x.Dataset));
+
+        modelBuilder.Entity<DividendAliasRow>(e => e.HasKey(x => x.NormalizedAlias));
     }
 }

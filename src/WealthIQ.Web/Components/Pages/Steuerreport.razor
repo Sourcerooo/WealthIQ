@@ -10,6 +10,16 @@
 
 <PageHeader Title="Steuerreport" Subtitle="Deutsche Jahres-Steuerübersicht (Finanzamt-grade)">
     <Actions>
+        @if (_accounts.Count > 1)
+        {
+            <MudSelect T="Guid" Value="_selectedAccountId" ValueChanged="OnAccountChanged" Label="Konto"
+                       Variant="Variant.Outlined" Dense="true" Style="min-width:180px;" Class="me-2">
+                @foreach (var acct in _accounts)
+                {
+                    <MudSelectItem T="Guid" Value="acct.AccountId">@acct.AccountNumber</MudSelectItem>
+                }
+            </MudSelect>
+        }
         @if (_reports.Count > 0)
         {
             <MudSelect T="int" Value="_selectedYear" ValueChanged="OnYearChanged" Label="Jahr"
@@ -34,7 +44,7 @@
         <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
     </div>
 }
-else if (_reports.Count == 0)
+else if (_accounts.Count == 0)
 {
     <SectionCard>
         <MudAlert Severity="Severity.Info" Variant="Variant.Text">
@@ -45,9 +55,9 @@ else if (_reports.Count == 0)
 else if (Current is not null)
 {
     @* Hero: headline estimated tax (count-up) + composition donut.
-       Keyed on the year so switching produces fresh DOM (no stale count-up guard) and re-animates.
+       Keyed on account + year so switching EITHER produces fresh DOM (no stale count-up guard) and re-animates.
        The key is prefixed because sibling MudGrids must have distinct @key values. *@
-    <MudGrid Class="mb-4 wiq-rise" @key="@($"hero-{_selectedYear}")">
+    <MudGrid Class="mb-4 wiq-rise" @key="@($"hero-{_selectedAccountId}-{_selectedYear}")">
         <MudItem xs="12" md="7">
             <MudPaper Elevation="0" Class="wiq-card wiq-card--accent" Style="height:100%;padding:24px;">
                 <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);">Geschätzte Steuer @Current.Year</MudText>
@@ -76,14 +86,15 @@ else if (Current is not null)
         </MudItem>
     </MudGrid>
 
-    @* KPI grid. Keyed on the year so the StatCard count-ups re-animate on year switch.
+    @* KPI grid. Keyed on account + year so the StatCard count-ups re-animate on either switch.
        Distinct key prefix from the hero grid (sibling @key values must be unique). *@
-    <MudGrid Class="mb-4 wiq-rise-2" @key="@($"kpi-{_selectedYear}")">
+    <MudGrid Class="mb-4 wiq-rise-2" @key="@($"kpi-{_selectedAccountId}-{_selectedYear}")">
         <MudItem xs="12" sm="6" md="4"><StatCard Caption="Verkäufe (steuerpflichtig)" Value="@Current.Summary.NetRealizedGainsTaxable" CountUp="true" /></MudItem>
         <MudItem xs="12" sm="6" md="4"><StatCard Caption="Dividenden (steuerpflichtig)" Value="@Current.Summary.DividendsTaxable" CountUp="true" /></MudItem>
         <MudItem xs="12" sm="6" md="4"><StatCard Caption="Zinsen (steuerpflichtig)" Value="@Current.Summary.InterestTaxable" CountUp="true" /></MudItem>
         <MudItem xs="12" sm="6" md="4"><StatCard Caption="Vorabpauschale (steuerpflichtig)" Value="@Current.Summary.VorabpauschaleTaxable" CountUp="true" /></MudItem>
         <MudItem xs="12" sm="6" md="4"><StatCard Caption="Anrechenbare Quellensteuer" Value="@Current.Summary.ForeignWithholdingTax" CountUp="true" /></MudItem>
+        <MudItem xs="12" sm="6" md="4"><StatCard Caption="Einbehaltene KESt" Value="@Current.Summary.WithheldKESt" CountUp="true" /></MudItem>
         <MudItem xs="12" sm="6" md="4"><StatCard Caption="Geschätzte Steuer" Value="@Current.Summary.EstimatedTax" Accent="true" CountUp="true" /></MudItem>
     </MudGrid>
 
@@ -115,9 +126,12 @@ else if (Current is not null)
 @code {
     private bool _loading = true;
     private string? _error;
-    private IReadOnlyList<AnnualTaxReport> _reports = Array.Empty<AnnualTaxReport>();
+    private IReadOnlyList<AccountTaxReport> _accounts = Array.Empty<AccountTaxReport>();
+    private Guid _selectedAccountId;
     private int _selectedYear;
 
+    private AccountTaxReport? CurrentAccount => _accounts.FirstOrDefault(a => a.AccountId == _selectedAccountId);
+    private IReadOnlyList<AnnualTaxReport> _reports => CurrentAccount?.Years ?? Array.Empty<AnnualTaxReport>();
     private AnnualTaxReport? Current => _reports.FirstOrDefault(r => r.Year == _selectedYear);
 
     private readonly DonutChartOptions _chartOptions = new()
@@ -159,8 +173,12 @@ else if (Current is not null)
     {
         try
         {
-            _reports = await ReportService.GenerateAsync();
-            _selectedYear = _reports.Count > 0 ? _reports[^1].Year : 0;
+            _accounts = await ReportService.GenerateAsync();
+            if (_accounts.Count > 0)
+            {
+                _selectedAccountId = _accounts[0].AccountId;
+                _selectedYear = _reports.Count > 0 ? _reports[^1].Year : 0;
+            }
         }
         catch (Exception ex)
         {
@@ -191,7 +209,21 @@ else if (Current is not null)
 
     private void OnYearChanged(int year)
     {
+        _expanded.Clear();
         _selectedYear = year;
+        _animatePending = true;
+    }
+
+    private void OnAccountChanged(Guid accountId)
+    {
+        _expanded.Clear();
+        _selectedAccountId = accountId;
+        // Keep the chosen year across accounts; only fall back to the latest available year
+        // when the newly selected account has no data for the current year (avoids a blank view).
+        if (!_reports.Any(r => r.Year == _selectedYear))
+        {
+            _selectedYear = _reports.Count > 0 ? _reports[^1].Year : 0;
+        }
         _animatePending = true;
     }
 
