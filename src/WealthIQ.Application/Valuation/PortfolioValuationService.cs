@@ -17,6 +17,11 @@ public sealed class PortfolioValuationService(
 {
     private readonly FxConverter _fxConverter = new(fxRateLookup, WealthIQ.Domain.Enumeration.Currency.EUR);
 
+    /// <summary>Values the portfolio as of <paramref name="valuationDate"/>. Resilient for the CURRENT
+    /// valuation: a missing market-data mapping, current price, or current-FX rate flags that position
+    /// (<see cref="PortfolioPositionSnapshot.PriceMissing"/>) instead of throwing. NOTE: a missing FX rate
+    /// at a HISTORIC trade's own date (needed for cost basis) is a data-integrity problem and still throws
+    /// — callers (e.g. the dashboard page) surface it as an error rather than silently mis-stating cost.</summary>
     public PortfolioValuationSnapshot Calculate(
         PortfolioLedger portfolioLedger,
         IReadOnlyList<Instrument> instruments,
@@ -46,7 +51,9 @@ public sealed class PortfolioValuationService(
             foreach (var lot in lots)
             {
                 var lotCostNative = new Money(
-                    lot.OpenUnitPrice.Amount * lot.RemainingQuantity.Value + lot.RemainingOpenFees.Amount,
+                    lot.OpenUnitPrice.Amount * lot.RemainingQuantity.Value
+                        + lot.RemainingOpenFees.Amount
+                        + lot.RemainingOpenTaxes.Amount,
                     lot.OpenUnitPrice.Currency);
                 costBasisEur += _fxConverter.Convert(lotCostNative, lot.OpenTradeDate).Amount;
             }
@@ -54,7 +61,7 @@ public sealed class PortfolioValuationService(
             var nativeCurrency = lots[0].OpenUnitPrice.Currency;
             var singleCurrency = lots.All(x => x.OpenUnitPrice.Currency == nativeCurrency);
             decimal? avgBuyNative = singleCurrency && quantity != 0m
-                ? lots.Sum(x => x.OpenUnitPrice.Amount * x.RemainingQuantity.Value + x.RemainingOpenFees.Amount) / quantity
+                ? lots.Sum(x => x.OpenUnitPrice.Amount * x.RemainingQuantity.Value + x.RemainingOpenFees.Amount + x.RemainingOpenTaxes.Amount) / quantity
                 : null;
             var avgBuyEur = quantity != 0m ? costBasisEur / quantity : 0m;
 
@@ -179,9 +186,7 @@ public sealed class PortfolioValuationService(
 
                 case CashEntry cashEntry:
                     var cashCurrency = cashEntry.GrossAmount.Currency.ToString();
-                    var signedCashAmount = cashEntry.CashFlowType == CashFlowType.WithholdingTax
-                        ? cashEntry.GrossAmount.Amount - cashEntry.Fees.Amount - cashEntry.Taxes.Amount
-                        : cashEntry.GrossAmount.Amount - cashEntry.Fees.Amount - cashEntry.Taxes.Amount;
+                    var signedCashAmount = cashEntry.GrossAmount.Amount - cashEntry.Fees.Amount - cashEntry.Taxes.Amount;
                     cashByCurrency[cashCurrency] = cashByCurrency.GetValueOrDefault(cashCurrency) + signedCashAmount;
                     break;
             }
