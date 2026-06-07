@@ -6,6 +6,8 @@ using WealthIQ.Domain.Model.General;
 using WealthIQ.Domain.Model.Ledger;
 using WealthIQ.Domain.Model.Lot;
 
+using CurrencyCode = WealthIQ.Domain.Enumeration.Currency;
+
 namespace WealthIQ.Application.Valuation;
 
 public sealed class PortfolioValuationService(
@@ -35,20 +37,56 @@ public sealed class PortfolioValuationService(
                      .GroupBy(x => new { x.AccountId, x.InstrumentId, x.Direction }))
         {
             var instrument = instrumentById[instrumentLots.Key.InstrumentId];
-            var lotCurrency = instrumentLots.First().OpenUnitPrice.Currency;
-            var marketDataProfile = instrumentMarketDataMap.GetProfile(instrument.ISIN ?? "", lotCurrency);
-            var priceBar = historicalPriceLookup.GetPriceBar(
-                valuationDate,
-                marketDataProfile.ProviderSymbol,
-                PriceLookupDateHandling.LatestOnOrBefore);
+            var lots = instrumentLots.ToList();
+            var quantity = lots.Sum(x => x.RemainingQuantity.Value);
 
-            effectiveMarketDates.Add(priceBar.Date);
-            var quantity = instrumentLots.Sum(x => x.RemainingQuantity.Value);
-            var grossMarketValue = quantity * priceBar.Close;
-            var signedMarketValue = instrumentLots.Key.Direction == PositionDirection.Long
-                ? grossMarketValue
-                : -grossMarketValue;
-            var marketValueInBase = _fxConverter.Convert(new Money(signedMarketValue, priceBar.Currency), priceBar.Date);
+            // Cost basis in EUR: convert each lot's remaining cost at that lot's own open date
+            // (the project's FX-at-event-time rule), so mixed-currency lots never average raw prices.
+            var costBasisEur = 0m;
+            foreach (var lot in lots)
+            {
+                var lotCostNative = new Money(
+                    lot.OpenUnitPrice.Amount * lot.RemainingQuantity.Value + lot.RemainingOpenFees.Amount,
+                    lot.OpenUnitPrice.Currency);
+                costBasisEur += _fxConverter.Convert(lotCostNative, lot.OpenTradeDate).Amount;
+            }
+
+            var nativeCurrency = lots[0].OpenUnitPrice.Currency;
+            var singleCurrency = lots.All(x => x.OpenUnitPrice.Currency == nativeCurrency);
+            decimal? avgBuyNative = singleCurrency && quantity != 0m
+                ? lots.Sum(x => x.OpenUnitPrice.Amount * x.RemainingQuantity.Value + x.RemainingOpenFees.Amount) / quantity
+                : null;
+            var avgBuyEur = quantity != 0m ? costBasisEur / quantity : 0m;
+
+            var directionSign = instrumentLots.Key.Direction == PositionDirection.Long ? 1m : -1m;
+
+            // Resilient pricing: a missing mapping/price/FX rate must not blank the dashboard.
+            decimal closePrice = 0m;
+            CurrencyCode priceCurrency = nativeCurrency;
+            decimal marketValueEur = 0m;
+            DateOnly effectivePriceDate = valuationDate;
+            string? providerSymbol = null;
+            bool priceMissing = false;
+            try
+            {
+                var marketDataProfile = instrumentMarketDataMap.GetProfile(instrument.ISIN ?? "", nativeCurrency);
+                providerSymbol = marketDataProfile.ProviderSymbol;
+                var priceBar = historicalPriceLookup.GetPriceBar(
+                    valuationDate, marketDataProfile.ProviderSymbol, PriceLookupDateHandling.LatestOnOrBefore);
+                closePrice = priceBar.Close;
+                priceCurrency = priceBar.Currency;
+                effectivePriceDate = priceBar.Date;
+                var grossMarketValue = quantity * priceBar.Close * directionSign;
+                marketValueEur = _fxConverter.Convert(new Money(grossMarketValue, priceBar.Currency), priceBar.Date).Amount;
+                effectiveMarketDates.Add(priceBar.Date);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException)
+            {
+                priceMissing = true;
+            }
+
+            var unrealizedPnlEur = priceMissing ? 0m : marketValueEur - costBasisEur;
+            var unrealizedPnlPct = priceMissing || costBasisEur == 0m ? 0m : unrealizedPnlEur / costBasisEur;
 
             positionSnapshots.Add(new PortfolioPositionSnapshot(
                 instrumentLots.Key.AccountId,
@@ -57,23 +95,39 @@ public sealed class PortfolioValuationService(
                 string.IsNullOrWhiteSpace(instrument.ISIN) ? null : instrument.ISIN,
                 instrumentLots.Key.Direction,
                 quantity,
-                priceBar.Close,
-                priceBar.Currency,
-                marketValueInBase.Amount));
+                closePrice,
+                priceCurrency,
+                marketValueEur,
+                costBasisEur,
+                avgBuyEur,
+                avgBuyNative,
+                nativeCurrency,
+                unrealizedPnlEur,
+                unrealizedPnlPct,
+                instrument.Type,
+                providerSymbol,
+                effectivePriceDate,
+                priceMissing));
         }
 
-        var cashSnapshots = cashByCurrency
-            .OrderBy(x => x.Key)
-            .Select(x =>
+        var cashSnapshots = new List<PortfolioCashSnapshot>();
+        foreach (var entry in cashByCurrency.OrderBy(x => x.Key))
+        {
+            var currency = Enum.Parse<WealthIQ.Domain.Enumeration.Currency>(entry.Key, true);
+            // Cash conversion is resilient too: a missing FX rate must not blank the page.
+            try
             {
-                var currency = Enum.Parse<WealthIQ.Domain.Enumeration.Currency>(x.Key, true);
-                var amountInBase = _fxConverter.Convert(new Money(x.Value, currency), valuationDate);
-                return new PortfolioCashSnapshot(x.Key, x.Value, amountInBase.Amount);
-            })
-            .ToList();
+                var amountInBase = _fxConverter.Convert(new Money(entry.Value, currency), valuationDate);
+                cashSnapshots.Add(new PortfolioCashSnapshot(entry.Key, entry.Value, amountInBase.Amount));
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException)
+            {
+                cashSnapshots.Add(new PortfolioCashSnapshot(entry.Key, entry.Value, 0m));
+            }
+        }
 
         var effectiveMarketDate = effectiveMarketDates.Count == 0 ? valuationDate : effectiveMarketDates.Min();
-        var total = positionSnapshots.Sum(x => x.MarketValueInBaseCurrency)
+        var total = positionSnapshots.Sum(x => x.PriceMissing ? x.CostBasisInBaseCurrency : x.MarketValueInBaseCurrency)
             + cashSnapshots.Sum(x => x.AmountInBaseCurrency);
 
         return new PortfolioValuationSnapshot(

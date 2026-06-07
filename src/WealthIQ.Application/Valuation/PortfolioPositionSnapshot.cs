@@ -14,4 +14,14 @@ public sealed record PortfolioPositionSnapshot(
     decimal Quantity,
     decimal ClosePrice,
     CurrencyCode PriceCurrency,
-    decimal MarketValueInBaseCurrency);
+    decimal MarketValueInBaseCurrency,
+    decimal CostBasisInBaseCurrency,
+    decimal AverageBuyPriceInBaseCurrency,
+    decimal? AverageBuyPriceNative,
+    CurrencyCode NativeCurrency,
+    decimal UnrealizedPnlInBaseCurrency,
+    decimal UnrealizedPnlPct,
+    string AssetClass,
+    string? ProviderSymbol,
+    DateOnly EffectivePriceDate,
+    bool PriceMissing);
