@@ -1,0 +1,246 @@
+@page "/"
+@using MudBlazor.Charts
+@using WealthIQ.Application.Dashboard
+@inject IServiceScopeFactory ScopeFactory
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<PageTitle>WealthIQ — Mein Portfolio</PageTitle>
+
+<PageHeader Title="Mein Portfolio" Subtitle="Aktuelle Bestände, Wert und Entwicklung seit Kauf">
+    <Actions>
+        @if (_report is not null && _report.Views.Count > 1)
+        {
+            <MudSelect T="string" Value="_selectedKey" ValueChanged="OnViewChanged" Label="Konto"
+                       Variant="Variant.Outlined" Dense="true" Style="min-width:180px;" Class="me-2">
+                @foreach (var view in _report.Views)
+                {
+                    <MudSelectItem T="string" Value="@view.AccountKey">@view.AccountLabel</MudSelectItem>
+                }
+            </MudSelect>
+        }
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Refresh"
+                   OnClick="RefreshPricesAsync" Disabled="_refreshing" Class="me-2">
+            @(_refreshing ? "Aktualisiere…" : "Kurse aktualisieren")
+        </MudButton>
+        @if (_report is not null)
+        {
+            <MudChip T="string" Variant="Variant.Text" Color="@(IsStale ? Color.Warning : Color.Default)" Size="Size.Small">
+                Kurse per @_report.EffectivePriceDate.ToString("dd.MM.yyyy")
+            </MudChip>
+        }
+    </Actions>
+</PageHeader>
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+
+@if (_loading)
+{
+    <div style="display:flex;justify-content:center;padding:64px;">
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+    </div>
+}
+else if (Current is null || Current.Holdings.Count == 0)
+{
+    <SectionCard>
+        <MudAlert Severity="Severity.Info" Variant="Variant.Text">
+            Noch keine Bestände. Importiere zuerst ein Broker-Statement auf der Import-Seite.
+        </MudAlert>
+    </SectionCard>
+}
+else
+{
+    <MudGrid Class="mb-4 wiq-rise" @key="@($"hero-{_selectedKey}")">
+        <MudItem xs="12" md="5">
+            <MudPaper Elevation="0" Class="wiq-card" Style="height:100%;padding:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);align-self:flex-start;">Allokation · Anlageklasse</MudText>
+                @if (Current.Allocation.Count > 0)
+                {
+                    <MudChart T="double" ChartType="ChartType.Donut" Width="220px" Height="220px"
+                              ChartSeries="@AllocationSeries" ChartLabels="@AllocationLabels"
+                              ChartOptions="@_chartOptions" />
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);padding:32px 0;">Keine bewerteten Bestände.</MudText>
+                }
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="7">
+            <MudGrid @key="@($"kpi-{_selectedKey}")">
+                <MudItem xs="12" sm="6"><StatCard Caption="Gesamtwert (Wertpapiere)" Value="@Current.Kpis.TotalSecuritiesValueInBaseCurrency" Accent="true" CountUp="true" /></MudItem>
+                <MudItem xs="12" sm="6"><StatCard Caption="Nicht realisierter G/V" Value="@Current.Kpis.UnrealizedPnlInBaseCurrency" Hint="@PctHint(Current.Kpis.UnrealizedPnlPct)" CountUp="true" /></MudItem>
+                <MudItem xs="12" sm="6"><StatCard Caption="@($"Dividenden {_report!.ValuationDate.Year}")" Value="@Current.Kpis.DividendsYtdInBaseCurrency" CountUp="true" /></MudItem>
+                <MudItem xs="12" sm="6"><StatCard Caption="@($"Realisiert {_report!.ValuationDate.Year}")" Value="@Current.Kpis.RealizedYtdInBaseCurrency" CountUp="true" /></MudItem>
+                <MudItem xs="12" sm="6"><StatCard Caption="Positionen" ValueText="@Current.Kpis.PositionCount.ToString()" Hint="@AccountHint(Current.Kpis.AccountCount)" /></MudItem>
+                @if (Current.Kpis.PriceMissingCount > 0)
+                {
+                    <MudItem xs="12" sm="6"><StatCard Caption="Ohne Kurs" ValueText="@Current.Kpis.PriceMissingCount.ToString()" Hint="aus Summe ausgeschlossen" /></MudItem>
+                }
+            </MudGrid>
+        </MudItem>
+    </MudGrid>
+
+    <MudGrid class="wiq-rise-2">
+        <MudItem xs="12" md="7">
+            <SectionCard>
+                <ChildContent>
+                    <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);">Positionen (gruppiert nach ISIN)</MudText>
+                    <MudTable Items="Current.Holdings" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm"
+                              T="DashboardHolding" OnRowClick="OnHoldingRowClick" RowClass="cursor-pointer">
+                        <HeaderContent>
+                            <MudTh>Instrument</MudTh>
+                            <MudTh Style="text-align:right">Menge</MudTh>
+                            <MudTh Style="text-align:right">Ø Kauf</MudTh>
+                            <MudTh Style="text-align:right">Kurs</MudTh>
+                            <MudTh Style="text-align:right">Wert €</MudTh>
+                            <MudTh Style="text-align:right">+/− €</MudTh>
+                            <MudTh Style="text-align:right">+/− %</MudTh>
+                        </HeaderContent>
+                        <RowTemplate Context="h">
+                            <MudTd DataLabel="Instrument">
+                                <div style="font-weight:600;">@h.Symbol</div>
+                                <div style="font-size:.75rem;color:var(--mud-palette-text-secondary);">@h.Isin</div>
+                            </MudTd>
+                            <MudTd DataLabel="Menge" Style="text-align:right">@h.Quantity.ToString("0.####")</MudTd>
+                            <MudTd DataLabel="Ø Kauf" Style="text-align:right">@AvgBuyText(h)</MudTd>
+                            <MudTd DataLabel="Kurs" Style="text-align:right">@PriceText(h)</MudTd>
+                            <MudTd DataLabel="Wert €" Style="text-align:right">@EurOrDash(h.MarketValueInBaseCurrency)</MudTd>
+                            <MudTd DataLabel="+/− €" Style="@PnlStyle(h.UnrealizedPnlInBaseCurrency)">@EurOrDash(h.UnrealizedPnlInBaseCurrency)</MudTd>
+                            <MudTd DataLabel="+/− %" Style="@PnlStyle(h.UnrealizedPnlInBaseCurrency)">@PctOrDash(h.UnrealizedPnlPct)</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </ChildContent>
+            </SectionCard>
+        </MudItem>
+        <MudItem xs="12" md="5">
+            <SectionCard>
+                <ChildContent>
+                    <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);">Kursverlauf</MudText>
+                    <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Chart folgt in Task 8.</MudText>
+                </ChildContent>
+            </SectionCard>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _refreshing;
+    private string? _error;
+    private PortfolioDashboardReport? _report;
+    private string _selectedKey = "ALL";
+
+    private DashboardView? Current => _report?.Views.FirstOrDefault(v => v.AccountKey == _selectedKey) ?? _report?.Views.FirstOrDefault();
+    private bool IsStale => _report is not null && _report.ValuationDate.DayNumber - _report.EffectivePriceDate.DayNumber > 4;
+
+    private readonly DonutChartOptions _chartOptions = new()
+    {
+        ChartPalette = new[] { "#34D399", "#60A5FA", "#A78BFA", "#FBBF24", "#F472B6", "#22D3EE" },
+        ShowLegend = true,
+    };
+
+    private List<ChartSeries<double>> AllocationSeries => new()
+    {
+        new ChartSeries<double>
+        {
+            Name = "Allokation",
+            Data = (Current?.Allocation ?? Array.Empty<DashboardAllocationSlice>())
+                .Select(s => Math.Round((double)s.ValueInBaseCurrency, 2)).ToArray(),
+        }
+    };
+
+    private string[] AllocationLabels => (Current?.Allocation ?? Array.Empty<DashboardAllocationSlice>())
+        .Select(s => s.AssetClass).ToArray();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var service = scope.ServiceProvider.GetRequiredService<PortfolioDashboardService>();
+            _report = await service.GenerateAsync(DateOnly.FromDateTime(DateTime.Today));
+            if (_report.Views.All(v => v.AccountKey != _selectedKey))
+            {
+                _selectedKey = _report.Views.FirstOrDefault()?.AccountKey ?? "ALL";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Portfolio konnte nicht geladen werden: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OnViewChanged(string key)
+    {
+        _selectedKey = key;
+    }
+
+    private async Task RefreshPricesAsync()
+    {
+        _refreshing = true;
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var refresh = scope.ServiceProvider.GetRequiredService<WealthIQ.Application.MarketData.HistoricalPriceRefreshService>();
+            var result = await refresh.RefreshAsync(DateOnly.FromDateTime(DateTime.Today), forceFullReload: false, CancellationToken.None);
+            if (result.HasBlockingDiagnostics)
+            {
+                Snackbar.Add("Kurse aktualisiert mit Fehlern — Details auf der Diagnose-Seite.", Severity.Warning);
+            }
+            else
+            {
+                Snackbar.Add($"Kurse aktualisiert: {result.Added} neu, {result.Updated} aktualisiert.", Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Aktualisierung fehlgeschlagen: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _refreshing = false;
+        }
+        await LoadAsync();
+    }
+
+    private void OnHoldingRowClick(TableRowClickEventArgs<DashboardHolding> args) { }
+
+    private static string PctHint(decimal pct) => (pct >= 0 ? "+" : "") + (pct * 100m).ToString("N1", De) + " %";
+    private static string AccountHint(int count) => count == 1 ? "1 Konto" : $"{count} Konten";
+
+    private static string AvgBuyText(DashboardHolding h)
+        => h.AverageBuyPriceNative is { } native && h.NativeCurrency is { } cur
+            ? native.ToString("N2", De) + " " + Symbol(cur)
+            : h.AverageBuyPriceInBaseCurrency.ToString("N2", De) + " €";
+
+    private static string PriceText(DashboardHolding h)
+        => h.PriceMissing || h.ClosePrice is null
+            ? "Kurs fehlt"
+            : h.ClosePrice.Value.ToString("N2", De) + (h.PriceCurrency is { } c ? " " + Symbol(c) : "");
+
+    private static string EurOrDash(decimal? amount) => amount is null ? "—" : amount.Value.ToString("N2", De) + " €";
+    private static string PctOrDash(decimal? pct) => pct is null ? "—" : (pct.Value >= 0 ? "+" : "") + (pct.Value * 100m).ToString("N1", De);
+    private static string PnlStyle(decimal? pnl) => "text-align:right;color:" + (pnl is null ? "inherit" : pnl.Value >= 0 ? "#34D399" : "#F87171") + ";";
+
+    private static string Symbol(WealthIQ.Domain.Enumeration.Currency c) => c switch
+    {
+        WealthIQ.Domain.Enumeration.Currency.EUR => "€",
+        WealthIQ.Domain.Enumeration.Currency.USD => "$",
+        WealthIQ.Domain.Enumeration.Currency.GBP => "£",
+        _ => c.ToString()
+    };
+
+    private static readonly System.Globalization.CultureInfo De = System.Globalization.CultureInfo.GetCultureInfo("de-DE");
+}
