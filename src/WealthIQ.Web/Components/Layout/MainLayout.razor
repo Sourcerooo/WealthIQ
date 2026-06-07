@@ -20,8 +20,11 @@
             </div>
 
             <MudNavMenu>
+                <div class="wiq-nav-label">Portfolio</div>
+                <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Outlined.Dashboard">Mein Portfolio</MudNavLink>
+
                 <div class="wiq-nav-label">Bericht</div>
-                <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Outlined.ReceiptLong">Steuerreport</MudNavLink>
+                <MudNavLink Href="/steuerreport" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Outlined.ReceiptLong">Steuerreport</MudNavLink>
 
                 <div class="wiq-nav-label">Daten erfassen</div>
                 <MudNavLink Href="/import" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Outlined.UploadFile">Import</MudNavLink>
