@@ -137,6 +137,10 @@ builder.Services.AddScoped<InstrumentCatalogBuilder>();
 builder.Services.AddScoped<GermanTaxCalculator>();
 builder.Services.AddScoped<AnnualTaxReportService>();
 
+// --- Portfolio dashboard ---
+builder.Services.AddScoped<WealthIQ.Application.Valuation.PortfolioValuationService>();
+builder.Services.AddScoped<WealthIQ.Application.Dashboard.PortfolioDashboardService>();
+
 var app = builder.Build();
 
 // --- Startup: migrate + seed ---
