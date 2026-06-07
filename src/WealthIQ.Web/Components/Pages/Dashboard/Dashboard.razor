@@ -1,9 +1,16 @@
 @page "/"
 @using MudBlazor.Charts
 @using WealthIQ.Application.Dashboard
+@using Microsoft.EntityFrameworkCore
+@using WealthIQ.Application.MarketData
+@using WealthIQ.Infrastructure.Persistence
+@using WealthIQ.Web.Services
 @inject IServiceScopeFactory ScopeFactory
 @inject ISnackbar Snackbar
 @inject IJSRuntime JS
+@inject ThemePreferenceService ThemePreference
+@inject ChartSelectionState ChartSelection
+@using CurrencyCode = WealthIQ.Domain.Enumeration.Currency
 
 <PageTitle>WealthIQ — Mein Portfolio</PageTitle>
 
@@ -119,8 +126,35 @@ else
         <MudItem xs="12" md="5">
             <SectionCard>
                 <ChildContent>
-                    <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);">Kursverlauf</MudText>
-                    <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Chart folgt in Task 8.</MudText>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+                        <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);">Kursverlauf</MudText>
+                        <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined">
+                            <MudButton Color="@RangeColor(30)" OnClick="() => SetRange(30)">1M</MudButton>
+                            <MudButton Color="@RangeColor(180)" OnClick="() => SetRange(180)">6M</MudButton>
+                            <MudButton Color="@RangeColor(365)" OnClick="() => SetRange(365)">1J</MudButton>
+                        </MudButtonGroup>
+                    </div>
+                    <MudSelect T="ChartInstrument" Value="_selectedChart" ValueChanged="OnChartInstrumentChanged"
+                               ToStringFunc="o => o is null ? string.Empty : o.Label"
+                               Label="Instrument" Variant="Variant.Outlined" Dense="true" Class="mb-2" Style="width:100%;">
+                        @foreach (var ci in _chartInstruments)
+                        {
+                            <MudSelectItem T="ChartInstrument" Value="@ci">@ci.Label</MudSelectItem>
+                        }
+                    </MudSelect>
+                    @if (_selectedChart is null)
+                    {
+                        <MudText Typo="Typo.body2">Position anklicken oder Instrument wählen.</MudText>
+                    }
+                    else if (_candles.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2">Keine Kursdaten für @_selectedChart.Label.</MudText>
+                    }
+                    else
+                    {
+                        <LightweightChart Kind="candlestick" Candles="_candles" Dark="_dark"
+                                          InitialRangeDays="_rangeDays" ReferencePrice="_referencePrice" Height="320px" />
+                    }
                 </ChildContent>
             </SectionCard>
         </MudItem>
@@ -160,10 +194,88 @@ else
     private string[] AllocationLabels => (Current?.Allocation ?? Array.Empty<DashboardAllocationSlice>())
         .Select(s => s.AssetClass).ToArray();
 
+    // Chart state
+    public sealed record ChartInstrument(string ProviderSymbol, string Isin, string Currency)
+    {
+        public string Label => $"{ProviderSymbol} — {Isin} ({Currency})";
+    }
+
+    private List<ChartInstrument> _chartInstruments = new();
+    private ChartInstrument? _selectedChart;
+    private List<LightweightChart.Candle> _candles = new();
+    private decimal? _referencePrice;
+    private int _rangeDays = 365;
+    private bool _dark = true;
+
+    private Color RangeColor(int days) => _rangeDays == days ? Color.Primary : Color.Default;
+
+    private async Task SetRange(int days)
+    {
+        _rangeDays = days;
+        await Task.CompletedTask; // re-render re-pushes InitialRangeDays to the chart
+    }
+
+    private async Task LoadChartInstrumentsAsync()
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<WealthIqDbContext>();
+        var rows = await db.InstrumentListings
+            .Where(x => x.ProviderSymbol != "")
+            .OrderBy(x => x.ProviderSymbol)
+            .Select(x => new { x.ProviderSymbol, x.Isin, x.Currency })
+            .ToListAsync();
+        _chartInstruments = rows.Select(x => new ChartInstrument(x.ProviderSymbol, x.Isin, x.Currency)).ToList();
+    }
+
+    private async Task OnHoldingRowClickImpl(DashboardHolding h)
+    {
+        if (h.ProviderSymbol is null) return;
+        var match = _chartInstruments.FirstOrDefault(c => c.ProviderSymbol == h.ProviderSymbol);
+        if (match is not null)
+        {
+            _referencePrice = h.AverageBuyPriceNative; // null for mixed-currency / combined rows
+            await OnChartInstrumentChanged(match, keepReference: true);
+        }
+    }
+
+    private async Task OnChartInstrumentChanged(ChartInstrument? option) => await OnChartInstrumentChanged(option, keepReference: false);
+
+    private async Task OnChartInstrumentChanged(ChartInstrument? option, bool keepReference)
+    {
+        _selectedChart = option;
+        ChartSelection.SelectedPriceSymbol = option?.ProviderSymbol;
+        if (!keepReference)
+        {
+            _referencePrice = Current?.Holdings
+                .FirstOrDefault(h => h.ProviderSymbol == option?.ProviderSymbol)?.AverageBuyPriceNative;
+        }
+        _candles = new();
+        if (option is null) return;
+
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<WealthIqDbContext>();
+        var currency = Enum.TryParse<CurrencyCode>(option.Currency, out var c) ? c : CurrencyCode.EUR;
+        var rows = await db.HistoricalPrices
+            .Where(x => x.ProviderSymbol == option.ProviderSymbol)
+            .OrderBy(x => x.Date)
+            .ToListAsync();
+        var bars = rows.Select(x => new PriceBar(x.Date, x.ProviderSymbol, currency,
+            x.Open, x.High, x.Low, x.Close, x.AdjustedClose, x.Volume)).ToList();
+        _candles = AdjustedPriceCalculator.ToAdjusted(bars)
+            .Select(b => new LightweightChart.Candle(b.Date.ToString("yyyy-MM-dd"),
+                decimal.Round(b.Open, 4), decimal.Round(b.High, 4), decimal.Round(b.Low, 4), decimal.Round(b.Close, 4)))
+            .ToList();
+    }
+
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender)
+        {
+            _dark = await ThemePreference.LoadIsDarkAsync();
+            StateHasChanged();
+        }
         if (_animatePending && !_loading && Current is not null && Current.Holdings.Count > 0)
         {
             _animatePending = false;
@@ -185,6 +297,14 @@ else
             {
                 _selectedKey = _report.Views.FirstOrDefault()?.AccountKey ?? "ALL";
             }
+
+            await LoadChartInstrumentsAsync();
+            // Restore remembered selection, else the largest holding, else the first instrument.
+            var remembered = ChartSelection.SelectedPriceSymbol;
+            var initial = (remembered is not null ? _chartInstruments.FirstOrDefault(c => c.ProviderSymbol == remembered) : null)
+                ?? _chartInstruments.FirstOrDefault(c => c.ProviderSymbol == Current?.Holdings.FirstOrDefault(h => !h.PriceMissing)?.ProviderSymbol)
+                ?? _chartInstruments.FirstOrDefault();
+            if (initial is not null) await OnChartInstrumentChanged(initial);
         }
         catch (Exception ex)
         {
@@ -230,7 +350,10 @@ else
         await LoadAsync();
     }
 
-    private void OnHoldingRowClick(TableRowClickEventArgs<DashboardHolding> args) { }
+    private async Task OnHoldingRowClick(TableRowClickEventArgs<DashboardHolding> args)
+    {
+        if (args.Item is { } holding) await OnHoldingRowClickImpl(holding);
+    }
 
     private static string PctHint(decimal pct) => (pct >= 0 ? "+" : "") + (pct * 100m).ToString("N1", De) + " %";
     private static string AccountHint(int count) => count == 1 ? "1 Konto" : $"{count} Konten";
