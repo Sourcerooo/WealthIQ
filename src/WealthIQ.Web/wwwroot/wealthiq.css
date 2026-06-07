@@ -57,6 +57,14 @@
 .wiq-rise-2 { animation: wiq-rise .45s var(--wiq-ease) .08s both; }
 .wiq-rise-3 { animation: wiq-rise .45s var(--wiq-ease) .16s both; }
 
+/* Dashboard KPI strip: responsive single-row glance cards that wrap on narrow screens. */
+.wiq-kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
 /* Route transition: fade body content on navigation. */
 .wiq-page { animation: wiq-rise .35s var(--wiq-ease) both; }
 

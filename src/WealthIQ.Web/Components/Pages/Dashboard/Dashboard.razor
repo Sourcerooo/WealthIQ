@@ -60,39 +60,20 @@ else if (Current is null || Current.Holdings.Count == 0)
 }
 else
 {
-    <MudGrid Class="mb-4 wiq-rise" @key="@($"hero-{_selectedKey}")">
-        <MudItem xs="12" md="5">
-            <MudPaper Elevation="0" Class="wiq-card" Style="height:100%;padding:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;">
-                <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);align-self:flex-start;">Allokation · Anlageklasse</MudText>
-                @if (Current.Allocation.Count > 0)
-                {
-                    <MudChart T="double" ChartType="ChartType.Donut" Width="220px" Height="220px"
-                              ChartSeries="@AllocationSeries" ChartLabels="@AllocationLabels"
-                              ChartOptions="@_chartOptions" />
-                }
-                else
-                {
-                    <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);padding:32px 0;">Keine bewerteten Bestände.</MudText>
-                }
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" md="7">
-            <MudGrid @key="@($"kpi-{_selectedKey}")">
-                <MudItem xs="12" sm="6"><StatCard Caption="Gesamtwert (Wertpapiere)" Value="@Current.Kpis.TotalSecuritiesValueInBaseCurrency" Accent="true" CountUp="true" /></MudItem>
-                <MudItem xs="12" sm="6"><StatCard Caption="Nicht realisierter G/V" Value="@Current.Kpis.UnrealizedPnlInBaseCurrency" Hint="@PctHint(Current.Kpis.UnrealizedPnlPct)" CountUp="true" /></MudItem>
-                <MudItem xs="12" sm="6"><StatCard Caption="@($"Dividenden {_report!.ValuationDate.Year}")" Value="@Current.Kpis.DividendsYtdInBaseCurrency" CountUp="true" /></MudItem>
-                <MudItem xs="12" sm="6"><StatCard Caption="@($"Realisiert {_report!.ValuationDate.Year}")" Value="@Current.Kpis.RealizedYtdInBaseCurrency" CountUp="true" /></MudItem>
-                <MudItem xs="12" sm="6"><StatCard Caption="Positionen" ValueText="@Current.Kpis.PositionCount.ToString()" Hint="@AccountHint(Current.Kpis.AccountCount)" /></MudItem>
-                @if (Current.Kpis.PriceMissingCount > 0)
-                {
-                    <MudItem xs="12" sm="6"><StatCard Caption="Ohne Kurs" ValueText="@Current.Kpis.PriceMissingCount.ToString()" Hint="aus Summe ausgeschlossen" /></MudItem>
-                }
-            </MudGrid>
-        </MudItem>
-    </MudGrid>
+    <div class="wiq-kpi-strip wiq-rise" @key="@($"kpi-{_selectedKey}-{_loadVersion}")">
+        <StatCard Dense="true" Caption="Gesamtwert (Wertpapiere)" Value="@Current.Kpis.TotalSecuritiesValueInBaseCurrency" Accent="true" CountUp="true" />
+        <StatCard Dense="true" Caption="Nicht realisierter G/V" Value="@Current.Kpis.UnrealizedPnlInBaseCurrency" Hint="@PctHint(Current.Kpis.UnrealizedPnlPct)" CountUp="true" />
+        <StatCard Dense="true" Caption="@($"Dividenden {_report!.ValuationDate.Year}")" Value="@Current.Kpis.DividendsYtdInBaseCurrency" CountUp="true" />
+        <StatCard Dense="true" Caption="@($"Realisiert {_report!.ValuationDate.Year}")" Value="@Current.Kpis.RealizedYtdInBaseCurrency" CountUp="true" />
+        <StatCard Dense="true" Caption="Positionen" ValueText="@Current.Kpis.PositionCount.ToString()" Hint="@AccountHint(Current.Kpis.AccountCount)" />
+        @if (Current.Kpis.PriceMissingCount > 0)
+        {
+            <StatCard Dense="true" Caption="Ohne Kurs" ValueText="@Current.Kpis.PriceMissingCount.ToString()" Hint="aus Summe ausgeschlossen" />
+        }
+    </div>
 
     <MudGrid Class="wiq-rise-2">
-        <MudItem xs="12" md="7">
+        <MudItem xs="12" lg="8">
             <SectionCard>
                 <ChildContent>
                     <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);">Positionen (gruppiert nach ISIN)</MudText>
@@ -106,6 +87,7 @@ else
                             <MudTh Style="text-align:right">Wert €</MudTh>
                             <MudTh Style="text-align:right">+/− €</MudTh>
                             <MudTh Style="text-align:right">+/− %</MudTh>
+                            <MudTh Style="text-align:right">Anteil</MudTh>
                         </HeaderContent>
                         <RowTemplate Context="h">
                             <MudTd DataLabel="Instrument">
@@ -118,45 +100,65 @@ else
                             <MudTd DataLabel="Wert €" Style="text-align:right">@EurOrDash(h.MarketValueInBaseCurrency)</MudTd>
                             <MudTd DataLabel="+/− €" Style="@PnlStyle(h.UnrealizedPnlInBaseCurrency)">@EurOrDash(h.UnrealizedPnlInBaseCurrency)</MudTd>
                             <MudTd DataLabel="+/− %" Style="@PnlStyle(h.UnrealizedPnlInBaseCurrency)">@PctOrDash(h.UnrealizedPnlPct)</MudTd>
+                            <MudTd DataLabel="Anteil" Style="text-align:right">@AnteilText(h)</MudTd>
                         </RowTemplate>
                     </MudTable>
                 </ChildContent>
             </SectionCard>
         </MudItem>
-        <MudItem xs="12" md="5">
-            <SectionCard>
-                <ChildContent>
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
-                        <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);">Kursverlauf</MudText>
-                        <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined">
-                            <MudButton Color="@RangeColor(30)" OnClick="() => SetRange(30)">1M</MudButton>
-                            <MudButton Color="@RangeColor(180)" OnClick="() => SetRange(180)">6M</MudButton>
-                            <MudButton Color="@RangeColor(365)" OnClick="() => SetRange(365)">1J</MudButton>
-                        </MudButtonGroup>
-                    </div>
-                    <MudSelect T="ChartInstrument" Value="_selectedChart" ValueChanged="OnChartInstrumentChanged"
-                               ToStringFunc="o => o is null ? string.Empty : o.Label"
-                               Label="Instrument" Variant="Variant.Outlined" Dense="true" Class="mb-2" Style="width:100%;">
-                        @foreach (var ci in _chartInstruments)
+        <MudItem xs="12" lg="4">
+            <div style="display:flex;flex-direction:column;gap:16px;">
+                <SectionCard>
+                    <ChildContent>
+                        <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);">Allokation · Anlageklasse</MudText>
+                        @if (Current.Allocation.Count > 0)
                         {
-                            <MudSelectItem T="ChartInstrument" Value="@ci">@ci.Label</MudSelectItem>
+                            <div style="display:flex;justify-content:center;">
+                                <MudChart T="double" ChartType="ChartType.Donut" Width="170px" Height="170px"
+                                          ChartSeries="@AllocationSeries" ChartLabels="@AllocationLabels"
+                                          ChartOptions="@_chartOptions" />
+                            </div>
                         }
-                    </MudSelect>
-                    @if (_selectedChart is null)
-                    {
-                        <MudText Typo="Typo.body2">Position anklicken oder Instrument wählen.</MudText>
-                    }
-                    else if (_candles.Count == 0)
-                    {
-                        <MudText Typo="Typo.body2">Keine Kursdaten für @_selectedChart.Label.</MudText>
-                    }
-                    else
-                    {
-                        <LightweightChart Kind="candlestick" Candles="_candles" Dark="_dark"
-                                          InitialRangeDays="_rangeDays" ReferencePrice="_referencePrice" Height="320px" />
-                    }
-                </ChildContent>
-            </SectionCard>
+                        else
+                        {
+                            <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);padding:16px 0;">Keine bewerteten Bestände.</MudText>
+                        }
+                    </ChildContent>
+                </SectionCard>
+                <SectionCard>
+                    <ChildContent>
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+                            <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);">Kursverlauf</MudText>
+                            <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined">
+                                <MudButton Color="@RangeColor(30)" OnClick="() => SetRange(30)">1M</MudButton>
+                                <MudButton Color="@RangeColor(180)" OnClick="() => SetRange(180)">6M</MudButton>
+                                <MudButton Color="@RangeColor(365)" OnClick="() => SetRange(365)">1J</MudButton>
+                            </MudButtonGroup>
+                        </div>
+                        <MudSelect T="ChartInstrument" Value="_selectedChart" ValueChanged="OnChartInstrumentChanged"
+                                   ToStringFunc="o => o is null ? string.Empty : o.Label"
+                                   Label="Instrument" Variant="Variant.Outlined" Dense="true" Class="mb-2" Style="width:100%;">
+                            @foreach (var ci in _chartInstruments)
+                            {
+                                <MudSelectItem T="ChartInstrument" Value="@ci">@ci.Label</MudSelectItem>
+                            }
+                        </MudSelect>
+                        @if (_selectedChart is null)
+                        {
+                            <MudText Typo="Typo.body2">Position anklicken oder Instrument wählen.</MudText>
+                        }
+                        else if (_candles.Count == 0)
+                        {
+                            <MudText Typo="Typo.body2">Keine Kursdaten für @_selectedChart.Label.</MudText>
+                        }
+                        else
+                        {
+                            <LightweightChart Kind="candlestick" Candles="_candles" Dark="_dark"
+                                              InitialRangeDays="_rangeDays" ReferencePrice="_referencePrice" Height="320px" />
+                        }
+                    </ChildContent>
+                </SectionCard>
+            </div>
         </MudItem>
     </MudGrid>
 }
@@ -165,6 +167,7 @@ else
     private bool _loading = true;
     private bool _refreshing;
     private string? _error;
+    private int _loadVersion;
     private PortfolioDashboardReport? _report;
     private string _selectedKey = "ALL";
 
@@ -286,6 +289,7 @@ else
     private async Task LoadAsync()
     {
         _loading = true;
+        _loadVersion++;
         _animatePending = true;
         _error = null;
         try
@@ -353,6 +357,13 @@ else
     private async Task OnHoldingRowClick(TableRowClickEventArgs<DashboardHolding> args)
     {
         if (args.Item is { } holding) await OnHoldingRowClickImpl(holding);
+    }
+
+    private string AnteilText(DashboardHolding h)
+    {
+        var total = Current?.Kpis.TotalSecuritiesValueInBaseCurrency ?? 0m;
+        if (h.MarketValueInBaseCurrency is null || total == 0m) return "—";
+        return (h.MarketValueInBaseCurrency.Value / total * 100m).ToString("N1", De) + " %";
     }
 
     private static string PctHint(decimal pct) => (pct >= 0 ? "+" : "") + (pct * 100m).ToString("N1", De) + " %";

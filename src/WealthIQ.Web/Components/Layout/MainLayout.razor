@@ -1,5 +1,7 @@
 @inherits LayoutComponentBase
 @inject ThemePreferenceService ThemePreference
+@implements IDisposable
+@inject NavigationManager Nav
 
 <MudThemeProvider Theme="WealthIqTheme.Instance" @bind-IsDarkMode="_isDark" />
 <MudPopoverProvider />
@@ -60,7 +62,7 @@
     </MudDrawer>
 
     <MudMainContent>
-        <MudContainer MaxWidth="MaxWidth.Large" Class="my-6">
+        <MudContainer MaxWidth="@_maxWidth" Class="my-6">
             <div class="wiq-page" @key="_body">
                 @Body
             </div>
@@ -71,6 +73,28 @@
 @code {
     private bool _isDark = true; // default to the primary dark mode until localStorage loads
     private readonly object _body = new();
+    private MaxWidth _maxWidth = MaxWidth.Large;
+
+    protected override void OnInitialized()
+    {
+        UpdateWidth();
+        Nav.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        UpdateWidth();
+        InvokeAsync(StateHasChanged);
+    }
+
+    // Dashboard ("/") uses the full window width; all other pages keep the comfortable Large cap.
+    private void UpdateWidth()
+    {
+        var path = Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0].Trim('/');
+        _maxWidth = string.IsNullOrEmpty(path) ? MaxWidth.False : MaxWidth.Large;
+    }
+
+    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

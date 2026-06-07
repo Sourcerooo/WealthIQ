@@ -1,9 +1,9 @@
 @* KPI card: caption + figure, with optional emerald accent and count-up. *@
-<MudPaper Elevation="0" Class="@RootClass" Style="height:100%;padding:18px 18px 16px;">
+<MudPaper Elevation="0" Class="@RootClass" Style="@($"height:100%;padding:{(Dense ? "10px 12px 9px" : "18px 18px 16px")};")">
     <MudText Typo="Typo.caption" Style="text-transform:uppercase;letter-spacing:.06em;color:var(--mud-palette-text-secondary);">
         @Caption
     </MudText>
-    <div class="wiq-figure @FigureClass" style="font-size:1.6rem;margin-top:6px;">
+    <div class="wiq-figure @FigureClass" style="@($"font-size:{(Dense ? "1.15rem" : "1.6rem")};margin-top:{(Dense ? "3px" : "6px")};")">
         @if (!string.IsNullOrWhiteSpace(ValueText))
         {
             @ValueText
@@ -33,6 +33,9 @@
     /// <summary>When set, rendered verbatim instead of the "N2 €" formatting of <see cref="Value"/>.
     /// Use for non-currency figures (counts, percentages).</summary>
     [Parameter] public string? ValueText { get; set; }
+
+    /// <summary>Compact variant: smaller padding and figure for dense KPI strips.</summary>
+    [Parameter] public bool Dense { get; set; }
 
     private string Display => Value.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("de-DE")) + " €";
     private string RootClass => "wiq-card" + (Accent ? " wiq-card--accent" : "");
