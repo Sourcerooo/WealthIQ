@@ -20,6 +20,8 @@ public sealed class PortfolioDashboardService(
     IFxRateLookup fxRateLookup)
 {
     private const string AllKey = "ALL";
+    // Used by the YTD KPI accumulation (DividendsYtdByAccount / RealizedYtdByAccount), which convert
+    // ledger amounts to EUR at the event's own date. (Those methods are filled in by a follow-up task.)
     private readonly FxConverter _fxConverter = new(fxRateLookup, CurrencyCode.EUR);
 
     public async Task<PortfolioDashboardReport> GenerateAsync(DateOnly today, CancellationToken ct = default)

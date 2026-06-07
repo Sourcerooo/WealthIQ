@@ -18,15 +18,21 @@ public sealed record DashboardHolding(
     decimal CostBasisInBaseCurrency,
     decimal? MarketValueInBaseCurrency,
     decimal? UnrealizedPnlInBaseCurrency,
+    /// <summary>Unrealized P&amp;L as a RATIO of cost basis (0.0714 = 7.14 %), not a pre-multiplied percentage.</summary>
     decimal? UnrealizedPnlPct,
     string? ProviderSymbol,
     bool PriceMissing);
 
-public sealed record DashboardAllocationSlice(string AssetClass, decimal ValueInBaseCurrency, decimal Percent);
+public sealed record DashboardAllocationSlice(
+    string AssetClass,
+    decimal ValueInBaseCurrency,
+    /// <summary>Share of the priced total as a PERCENTAGE already multiplied by 100 (e.g. 52.0 = 52 %).</summary>
+    decimal Percent);
 
 public sealed record DashboardKpis(
     decimal TotalSecuritiesValueInBaseCurrency,
     decimal UnrealizedPnlInBaseCurrency,
+    /// <summary>Unrealized P&amp;L as a RATIO of cost basis (0.0714 = 7.14 %), not a pre-multiplied percentage.</summary>
     decimal UnrealizedPnlPct,
     decimal DividendsYtdInBaseCurrency,
     decimal RealizedYtdInBaseCurrency,
