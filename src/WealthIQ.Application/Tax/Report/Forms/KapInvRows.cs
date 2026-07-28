@@ -52,9 +52,3 @@ public static class KapInvRows
             "28", "Einkünfte aus fiktiven Verkäufen von Anteilen an sonstigen Fonds")
     ];
 }
-
-public static class TaxAssetClassFormExtensions
-{
-    /// <summary>Investment funds are declared on Anlage KAP-INV; everything else on Anlage KAP.</summary>
-    public static bool IsFund(this TaxAssetClass value) => value is not (TaxAssetClass.Share or TaxAssetClass.OtherSecurity);
-}
