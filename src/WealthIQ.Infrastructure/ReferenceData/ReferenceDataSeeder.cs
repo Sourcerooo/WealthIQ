@@ -137,6 +137,19 @@ public sealed class ReferenceDataSeeder(WealthIqDbContext db) : IReferenceDataSe
                 throw new InvalidOperationException($"Invalid tfs_quote for instrument '{isin}'.");
             }
 
+            // Committed reference data: an unmappable tax_asset_class is a repo defect, and letting
+            // it into the database would break every later read (tax report and admin page alike).
+            string? assetClassCode;
+            try
+            {
+                assetClassCode = TaxAssetClassCode.ToCode(TaxAssetClassCode.Parse(dto.TaxAssetClass));
+            }
+            catch (ArgumentException ex)
+            {
+                throw new InvalidOperationException(
+                    $"Invalid tax_asset_class for instrument '{isin}' in '{Path.GetFileName(path)}': {ex.Message}", ex);
+            }
+
             yield return new InstrumentProfileRow
             {
                 Isin = isin,
@@ -144,7 +157,7 @@ public sealed class ReferenceDataSeeder(WealthIqDbContext db) : IReferenceDataSe
                 Type = dto.Type,
                 Teilfreistellungsquote = tfs,
                 SubjectToVorabpauschale = dto.SubjectToVorabpauschale,
-                TaxAssetClass = dto.TaxAssetClass
+                TaxAssetClass = assetClassCode
             };
         }
     }

@@ -110,4 +110,54 @@ public sealed class DbInstrumentReferenceAdminTests
 
         Assert.Null(listed.AssetClass);
     }
+
+    [Fact]
+    public async Task SaveAsync_UndefinedAssetClass_Throws()
+    {
+        using var db = NewDb();
+        var admin = new DbInstrumentReferenceAdmin(db);
+
+        var dto = new InstrumentAdminDto(
+            "TESTISIN0003", "Probe", "ETF_EQUITY", 0.30m, true, (TaxAssetClass)99, []);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => admin.SaveAsync(dto));
+        Assert.Empty(db.InstrumentProfiles);
+    }
+
+    [Fact]
+    public async Task UploadAsync_InvalidTaxAssetClass_SkipsTheRowWithAWarning()
+    {
+        using var db = NewDb();
+        var admin = new DbInstrumentReferenceAdmin(db);
+
+        // "aktienfonds" is not a code — it must not be persisted, because every later read parses
+        // the stored value, including the admin page that would have to repair it.
+        var instrumentsJson = """
+            {
+              "IE00B3XXRP09":{"name":"Good","type":"ETF_EQUITY","tfs_quote":0.30,"tax_asset_class":"equity_fund"},
+              "IE00BSKRJZ44":{"name":"Bad","type":"ETF_EQUITY","tfs_quote":0.30,"tax_asset_class":"aktienfonds"}
+            }
+            """;
+
+        var result = await admin.UploadAsync(instrumentsJson, "{}", UploadMode.Merge);
+
+        Assert.Equal(1, result.Profiles);
+        Assert.Contains(result.Warnings, w => w.Contains("aktienfonds") && w.Contains("IE00BSKRJZ44"));
+        Assert.Single(db.InstrumentProfiles);
+        Assert.Equal("equity_fund", db.InstrumentProfiles.Single().TaxAssetClass);
+    }
+
+    [Fact]
+    public async Task UploadAsync_MixedCaseTaxAssetClass_IsStoredCanonically()
+    {
+        using var db = NewDb();
+        var admin = new DbInstrumentReferenceAdmin(db);
+
+        var instrumentsJson =
+            """{"IE00B3XXRP09":{"name":"Good","type":"ETF_EQUITY","tfs_quote":0.30,"tax_asset_class":"Equity_Fund"}}""";
+
+        await admin.UploadAsync(instrumentsJson, "{}", UploadMode.Merge);
+
+        Assert.Equal("equity_fund", db.InstrumentProfiles.Single().TaxAssetClass);
+    }
 }

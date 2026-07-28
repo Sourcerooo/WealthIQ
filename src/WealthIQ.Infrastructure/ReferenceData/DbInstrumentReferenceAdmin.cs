@@ -33,6 +33,11 @@ public sealed class DbInstrumentReferenceAdmin(WealthIqDbContext db) : IInstrume
         if (string.IsNullOrWhiteSpace(dto.Isin)) throw new ArgumentException("ISIN is required.");
         if (dto.Teilfreistellungsquote < 0m || dto.Teilfreistellungsquote > 1m)
             throw new ArgumentException($"Teilfreistellungsquote must be in [0, 1] but was {dto.Teilfreistellungsquote}.");
+        // An unmappable asset class must not reach the table: every later read parses the stored
+        // code, so a bad value would break the tax report AND this very admin page — the one screen
+        // that could repair it.
+        if (dto.AssetClass is { } assetClass && !Enum.IsDefined(assetClass))
+            throw new ArgumentException($"Unknown tax asset class '{(int)assetClass}' for {dto.Isin}.");
         if (dto.Listings.Any(l => string.IsNullOrWhiteSpace(l.ProviderSymbol)))
             throw new ArgumentException("All listings must have a non-empty ProviderSymbol.");
 
@@ -138,16 +143,30 @@ public sealed class DbInstrumentReferenceAdmin(WealthIqDbContext db) : IInstrume
                 continue;
             }
 
+            // Round-trip through the code map so a typo is rejected here rather than on every later
+            // read, and so the stored code is canonically spelled. Same treatment as tfs_quote:
+            // skip the row with a warning instead of aborting the whole upload.
+            string? assetClassCode;
+            try
+            {
+                assetClassCode = TaxAssetClassCode.ToCode(TaxAssetClassCode.Parse(dto.TaxAssetClass));
+            }
+            catch (ArgumentException)
+            {
+                warnings.Add($"Invalid tax_asset_class '{dto.TaxAssetClass}' for {isin}.");
+                continue;
+            }
+
             var existing = await db.InstrumentProfiles.FindAsync(new object[] { isin }, ct);
             if (existing is null)
             {
-                db.InstrumentProfiles.Add(new InstrumentProfileRow { Isin = isin, Name = dto.Name, Type = dto.Type, Teilfreistellungsquote = tfs, SubjectToVorabpauschale = dto.SubjectToVorabpauschale, TaxAssetClass = dto.TaxAssetClass });
+                db.InstrumentProfiles.Add(new InstrumentProfileRow { Isin = isin, Name = dto.Name, Type = dto.Type, Teilfreistellungsquote = tfs, SubjectToVorabpauschale = dto.SubjectToVorabpauschale, TaxAssetClass = assetClassCode });
             }
             else
             {
                 existing.Name = dto.Name; existing.Type = dto.Type;
                 existing.Teilfreistellungsquote = tfs; existing.SubjectToVorabpauschale = dto.SubjectToVorabpauschale;
-                existing.TaxAssetClass = dto.TaxAssetClass;
+                existing.TaxAssetClass = assetClassCode;
             }
 
             profileCount++;

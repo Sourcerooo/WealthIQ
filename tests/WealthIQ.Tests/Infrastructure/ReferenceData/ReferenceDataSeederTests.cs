@@ -76,6 +76,47 @@ public sealed class ReferenceDataSeederTests
     }
 
     [Fact]
+    public async Task SeedIfEmpty_InvalidTaxAssetClass_ThrowsNamingTheInstrument()
+    {
+        // The seed file is committed to the repo, so a bad code there is a repo defect and must not
+        // reach the database — a stored typo would break every later read, tax report and admin
+        // page alike.
+        using var db = new InMemorySqlite();
+        var dir = Path.Combine(Path.GetTempPath(), "wealthiq-seed-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var basisPath = Path.Combine(dir, "basiszins.csv");
+            await File.WriteAllTextAsync(basisPath, "year,rate\n2024,0.0255\n");
+            var historicalPricesPath = Path.Combine(dir, "historical_prices.csv");
+            await File.WriteAllTextAsync(historicalPricesPath, "date,provider_symbol,currency,open,high,low,close,adjusted_close,volume\n");
+            var instrumentsPath = Path.Combine(dir, "instruments.json");
+            await File.WriteAllTextAsync(instrumentsPath,
+                """{"IE00B3XXRP09":{"name":"Probe","type":"ETF_EQUITY","tfs_quote":0.30,"tax_asset_class":"aktienfonds"}}""");
+            var listingsPath = Path.Combine(dir, "listings.json");
+            await File.WriteAllTextAsync(listingsPath, "{}");
+            var fxPath = Path.Combine(dir, "fx_rates.csv");
+            await File.WriteAllTextAsync(fxPath, "date,currency,rate\n2024-01-02,USD,0.91\n");
+            var aliasCsvPath = Path.Combine(dir, "dividend_aliases.csv");
+            await File.WriteAllTextAsync(aliasCsvPath, "alias,isin\n");
+            var sources = new ReferenceDataSources(basisPath, historicalPricesPath, instrumentsPath, listingsPath, fxPath, aliasCsvPath);
+
+            await using var ctx = db.NewContext();
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => new ReferenceDataSeeder(ctx).SeedIfEmptyAsync(sources));
+
+            Assert.Contains("IE00B3XXRP09", ex.Message);
+            Assert.Contains("aktienfonds", ex.Message);
+            Assert.Empty(ctx.InstrumentProfiles);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task SeedIfEmpty_RunTwice_IsIdempotent()
     {
         using var db = new InMemorySqlite();
