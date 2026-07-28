@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using WealthIQ.Domain.Enumeration;
 
 namespace WealthIQ.Web.Services;
 
@@ -18,6 +19,19 @@ public static partial class TaxReportPrintFormat
 
     /// <summary>Negative amounts get a red class so losses read at a glance.</summary>
     public static string NegClass(decimal value) => value < 0m ? "wiq-p-neg" : "";
+
+    /// <summary>The asset class as Anlage KAP-INV Zeile 48 names it.</summary>
+    public static string AssetClassLabel(TaxAssetClass? value) => value switch
+    {
+        TaxAssetClass.EquityFund => "Aktienfonds",
+        TaxAssetClass.MixedFund => "Mischfonds",
+        TaxAssetClass.RealEstateFund => "Immobilienfonds",
+        TaxAssetClass.ForeignRealEstateFund => "Auslands-Immobilienfonds",
+        TaxAssetClass.OtherFund => "sonstiger Fonds",
+        TaxAssetClass.Share => "Aktie",
+        TaxAssetClass.OtherSecurity => "sonstiges Wertpapier",
+        _ => "—"
+    };
 
     /// <summary>
     /// The statement file as the user knows it. Ledger entries record the absolute path into the

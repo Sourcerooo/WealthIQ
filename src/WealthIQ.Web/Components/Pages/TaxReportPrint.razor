@@ -8,6 +8,7 @@
 @using Microsoft.Extensions.Options
 @using WealthIQ.Application.Tax.Report
 @using WealthIQ.Application.Tax.Report.Forms
+@using WealthIQ.Domain.Enumeration
 @using WealthIQ.Domain.Model.Tax
 @using WealthIQ.Web.Options
 @using static WealthIQ.Web.Services.TaxReportPrintFormat
@@ -111,7 +112,7 @@ else
 
             @* =================== Einzelnachweise =================== *@
             @NachweisSells()
-            @NachweisCash("B", "Dividenden", Current.Dividends, showIsin: true)
+            @NachweisCash("B", "Dividenden", Current.Dividends, showIsin: true, groupByAssetClass: true)
             @NachweisCash("C", "Zinsen", Current.Interest, showIsin: false)
             @NachweisVorabpauschale()
             @NachweisWithholding()
@@ -221,6 +222,15 @@ else
 
     private static string Beleg(string prefix, int index) => $"{prefix}-{(index + 1):D3}";
 
+    private static string SaleLineFor(TaxAssetClass? assetClass)
+        => KapInvRows.All.FirstOrDefault(r => r.Class == assetClass)?.SaleLine ?? "—";
+
+    private static string VorabLineFor(TaxAssetClass? assetClass)
+        => KapInvRows.All.FirstOrDefault(r => r.Class == assetClass)?.VorabLine ?? "—";
+
+    private static string DistributionLineFor(TaxAssetClass? assetClass)
+        => KapInvRows.All.FirstOrDefault(r => r.Class == assetClass)?.DistributionLine ?? "—";
+
     private RenderFragment SectionTitle(string letter, string title, string subtitle) => __builder =>
     {
         <div class="wiq-p-break">
@@ -255,12 +265,14 @@ else
     private RenderFragment NachweisSells() => __builder =>
     {
         var rows = Current!.Sells;
-        @SectionTitle("A", "Veräußerungen", $"{rows.Count} Positionen · FIFO-Zuordnung · Beträge in EUR")
+        @SectionTitle("A", "Veräußerungen",
+            $"{rows.Count} Positionen · FIFO-Zuordnung · Beträge in EUR · zugleich Ermittlung Anlage KAP-INV Zeilen 46 bis 56")
         <table class="wiq-p-table">
             <thead>
                 <tr>
                     <th>Beleg</th>
                     <th>Symbol / ISIN</th>
+                    <th>Fondsart</th>
                     <th>Eröffnet</th>
                     <th>Verkauft</th>
                     <th class="wiq-p-num">Stück</th>
@@ -274,27 +286,40 @@ else
                 </tr>
             </thead>
             <tbody>
-                @for (var i = 0; i < rows.Count; i++)
+                @{ var belegIndex = 0; }
+                @foreach (var group in rows.GroupBy(r => r.AssetClass))
                 {
-                    var r = rows[i];
-                    <tr>
-                        <td class="wiq-p-belegnr">@Beleg("A", i)</td>
-                        <td>@InstrumentCell(r)</td>
-                        <td>@Date(r.OpenedOn)</td>
-                        <td>@Date(r.Date)</td>
-                        <td class="wiq-p-num">@Qty(r.QuantitySold)</td>
-                        <td class="wiq-p-num">@Num(r.AcquisitionCosts)</td>
-                        <td class="wiq-p-num">@Num(r.SaleProceeds)</td>
-                        <td class="wiq-p-num">@Num(r.Fees)</td>
-                        <td class="wiq-p-num @NegClass(r.RawAmount)">@Num(r.RawAmount)</td>
-                        <td class="wiq-p-num">@Num(r.UsedVorabpauschale)</td>
-                        <td class="wiq-p-num @NegClass(r.TaxableAmount)"><b>@Num(r.TaxableAmount)</b></td>
-                    </tr>
-                    <tr class="wiq-p-srcline">
-                        <td></td>
-                        <td colspan="10">
-                            Kauf-Ref. @r.SourceReference · Verkauf-Ref. @r.CloseReference · Datei @SourceFileName(r.SourceFile)
-                        </td>
+                    foreach (var r in group)
+                    {
+                        var beleg = Beleg("A", belegIndex++);
+                        <tr>
+                            <td class="wiq-p-belegnr">@beleg</td>
+                            <td>@InstrumentCell(r)</td>
+                            <td>@AssetClassLabel(r.AssetClass)</td>
+                            <td>@Date(r.OpenedOn)</td>
+                            <td>@Date(r.Date)</td>
+                            <td class="wiq-p-num">@Qty(r.QuantitySold)</td>
+                            <td class="wiq-p-num">@Num(r.AcquisitionCosts)</td>
+                            <td class="wiq-p-num">@Num(r.SaleProceeds)</td>
+                            <td class="wiq-p-num">@Num(r.Fees)</td>
+                            <td class="wiq-p-num @NegClass(r.RawAmount)">@Num(r.RawAmount)</td>
+                            <td class="wiq-p-num">@Num(r.UsedVorabpauschale)</td>
+                            <td class="wiq-p-num @NegClass(r.TaxableAmount)"><b>@Num(r.TaxableAmount)</b></td>
+                        </tr>
+                        <tr class="wiq-p-srcline">
+                            <td></td>
+                            <td colspan="11">
+                                Kauf-Ref. @r.SourceReference · Verkauf-Ref. @r.CloseReference · Datei @SourceFileName(r.SourceFile)
+                            </td>
+                        </tr>
+                    }
+                    @* A Roh-G/V subtotal DOES hold inside one fund class — the Teilfreistellung
+                       quota is uniform there — and it is exactly the figure the form wants. *@
+                    <tr class="wiq-p-memo">
+                        <td colspan="9">Summe @AssetClassLabel(group.Key) → Anlage KAP-INV Zeile @SaleLineFor(group.Key)</td>
+                        <td class="wiq-p-num @NegClass(group.Sum(r => r.RawAmount))">@Num(group.Sum(r => r.RawAmount))</td>
+                        <td class="wiq-p-num">@Num(group.Sum(r => r.UsedVorabpauschale))</td>
+                        <td class="wiq-p-num">@Num(group.Sum(r => r.TaxableAmount))</td>
                     </tr>
                 }
             </tbody>
@@ -303,26 +328,33 @@ else
                has the offset Vorabpauschale deducted. *@
             <tfoot>
                 <tr>
-                    <td colspan="10">Summe steuerpflichtig (Nachweis A)</td>
+                    <td colspan="11">Summe steuerpflichtig (Nachweis A)</td>
                     <td class="wiq-p-num @NegClass(rows.Sum(r => r.TaxableAmount))">@Num(rows.Sum(r => r.TaxableAmount))</td>
                 </tr>
                 <tr class="wiq-p-memo">
-                    <td colspan="10">nachrichtlich: darin verrechnete Vorabpauschalen der Vorjahre</td>
+                    <td colspan="11">nachrichtlich: darin verrechnete Vorabpauschalen der Vorjahre</td>
                     <td class="wiq-p-num">@Num(rows.Sum(r => r.UsedVorabpauschale))</td>
                 </tr>
             </tfoot>
         </table>
     };
 
-    private RenderFragment NachweisCash(string letter, string title, IReadOnlyList<GermanTaxEntry> rows, bool showIsin) => __builder =>
+    private RenderFragment NachweisCash(string letter, string title, IReadOnlyList<GermanTaxEntry> rows,
+        bool showIsin, bool groupByAssetClass = false) => __builder =>
     {
-        @SectionTitle(letter, title, $"{rows.Count} Buchungen · Beträge in EUR (Originalwährung in der Belegzeile)")
+        var subtitle = $"{rows.Count} Buchungen · Beträge in EUR (Originalwährung in der Belegzeile)"
+            + (groupByAssetClass ? " · zugleich Ermittlung zu Zeilen 4 bis 8" : "");
+        @SectionTitle(letter, title, subtitle)
         <table class="wiq-p-table">
             <thead>
                 <tr>
                     <th>Beleg</th>
                     <th>Datum</th>
                     <th>Symbol@(showIsin ? " / ISIN" : "")</th>
+                    @if (groupByAssetClass)
+                    {
+                        <th>Fondsart</th>
+                    }
                     <th class="wiq-p-num">Brutto</th>
                     <th class="wiq-p-num">Teilfreistellung</th>
                     <th class="wiq-p-num">Steuerpfl.</th>
@@ -330,42 +362,92 @@ else
                 </tr>
             </thead>
             <tbody>
-                @for (var i = 0; i < rows.Count; i++)
+                @{ var belegIndex = 0; }
+                @if (groupByAssetClass)
                 {
-                    var r = rows[i];
-                    <tr>
-                        <td class="wiq-p-belegnr">@Beleg(letter, i)</td>
-                        <td>@Date(r.Date)</td>
-                        <td>
-                            @if (showIsin)
-                            {
-                                @InstrumentCell(r)
-                            }
-                            else
-                            {
-                                <b>@SymbolOrBlank(r)</b>
-                            }
-                        </td>
-                        <td class="wiq-p-num">@Num(r.RawAmount)</td>
-                        <td class="wiq-p-num wiq-p-muted">@Num(r.RawAmount - r.TaxableAmount)</td>
-                        <td class="wiq-p-num"><b>@Num(r.TaxableAmount)</b></td>
-                        <td class="wiq-p-num">@Num(r.ForeignWithholdingTax)</td>
-                    </tr>
-                    <tr class="wiq-p-srcline">
-                        <td></td>
-                        <td colspan="6">
-                            Ref. @r.SourceReference · Datei @SourceFileName(r.SourceFile)
-                            @if (!string.IsNullOrWhiteSpace(r.OriginalCurrency))
-                            {
-                                <text> · Original @Num(r.OriginalAmount) @r.OriginalCurrency</text>
-                            }
-                        </td>
-                    </tr>
+                    @foreach (var group in rows.GroupBy(r => r.AssetClass))
+                    {
+                        foreach (var r in group)
+                        {
+                            var beleg = Beleg(letter, belegIndex++);
+                            <tr>
+                                <td class="wiq-p-belegnr">@beleg</td>
+                                <td>@Date(r.Date)</td>
+                                <td>
+                                    @if (showIsin)
+                                    {
+                                        @InstrumentCell(r)
+                                    }
+                                    else
+                                    {
+                                        <b>@SymbolOrBlank(r)</b>
+                                    }
+                                </td>
+                                <td>@AssetClassLabel(r.AssetClass)</td>
+                                <td class="wiq-p-num">@Num(r.RawAmount)</td>
+                                <td class="wiq-p-num wiq-p-muted">@Num(r.RawAmount - r.TaxableAmount)</td>
+                                <td class="wiq-p-num"><b>@Num(r.TaxableAmount)</b></td>
+                                <td class="wiq-p-num">@Num(r.ForeignWithholdingTax)</td>
+                            </tr>
+                            <tr class="wiq-p-srcline">
+                                <td></td>
+                                <td colspan="7">
+                                    Ref. @r.SourceReference · Datei @SourceFileName(r.SourceFile)
+                                    @if (!string.IsNullOrWhiteSpace(r.OriginalCurrency))
+                                    {
+                                        <text> · Original @Num(r.OriginalAmount) @r.OriginalCurrency</text>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        <tr class="wiq-p-memo">
+                            <td colspan="4">Summe @AssetClassLabel(group.Key) → Anlage KAP-INV Zeile @DistributionLineFor(group.Key)</td>
+                            <td class="wiq-p-num">@Num(group.Sum(r => r.RawAmount))</td>
+                            <td class="wiq-p-num">@Num(group.Sum(r => r.RawAmount - r.TaxableAmount))</td>
+                            <td class="wiq-p-num">@Num(group.Sum(r => r.TaxableAmount))</td>
+                            <td class="wiq-p-num">@Num(group.Sum(r => r.ForeignWithholdingTax))</td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    for (var i = 0; i < rows.Count; i++)
+                    {
+                        var r = rows[i];
+                        <tr>
+                            <td class="wiq-p-belegnr">@Beleg(letter, i)</td>
+                            <td>@Date(r.Date)</td>
+                            <td>
+                                @if (showIsin)
+                                {
+                                    @InstrumentCell(r)
+                                }
+                                else
+                                {
+                                    <b>@SymbolOrBlank(r)</b>
+                                }
+                            </td>
+                            <td class="wiq-p-num">@Num(r.RawAmount)</td>
+                            <td class="wiq-p-num wiq-p-muted">@Num(r.RawAmount - r.TaxableAmount)</td>
+                            <td class="wiq-p-num"><b>@Num(r.TaxableAmount)</b></td>
+                            <td class="wiq-p-num">@Num(r.ForeignWithholdingTax)</td>
+                        </tr>
+                        <tr class="wiq-p-srcline">
+                            <td></td>
+                            <td colspan="6">
+                                Ref. @r.SourceReference · Datei @SourceFileName(r.SourceFile)
+                                @if (!string.IsNullOrWhiteSpace(r.OriginalCurrency))
+                                {
+                                    <text> · Original @Num(r.OriginalAmount) @r.OriginalCurrency</text>
+                                }
+                            </td>
+                        </tr>
+                    }
                 }
             </tbody>
             <tfoot>
                 <tr>
-                    <td colspan="3">Summe Nachweis @letter</td>
+                    <td colspan="@(groupByAssetClass ? 4 : 3)">Summe Nachweis @letter</td>
                     <td class="wiq-p-num">@Num(rows.Sum(r => r.RawAmount))</td>
                     <td class="wiq-p-num">@Num(rows.Sum(r => r.RawAmount - r.TaxableAmount))</td>
                     <td class="wiq-p-num">@Num(rows.Sum(r => r.TaxableAmount))</td>
@@ -378,13 +460,15 @@ else
     private RenderFragment NachweisVorabpauschale() => __builder =>
     {
         var rows = Current!.Vorabpauschale;
-        @SectionTitle("D", "Vorabpauschalen", $"{rows.Count} Positionen · Beträge in EUR")
+        @SectionTitle("D", "Vorabpauschalen",
+            $"{rows.Count} Positionen · Beträge in EUR · zugleich Ermittlung Anlage KAP-INV Zeilen 30 bis 45")
         <table class="wiq-p-table">
             <thead>
                 <tr>
                     <th>Beleg</th>
                     <th>Stichtag</th>
                     <th>Symbol / ISIN</th>
+                    <th>Fondsart</th>
                     <th class="wiq-p-num">Stück</th>
                     <th class="wiq-p-num">Kurs 01.01.</th>
                     <th class="wiq-p-num">Kurs 31.12.</th>
@@ -396,28 +480,38 @@ else
                 </tr>
             </thead>
             <tbody>
-                @for (var i = 0; i < rows.Count; i++)
+                @{ var belegIndex = 0; }
+                @foreach (var group in rows.GroupBy(r => r.AssetClass))
                 {
-                    var r = rows[i];
-                    <tr>
-                        <td class="wiq-p-belegnr">@Beleg("D", i)</td>
-                        <td>@Date(r.Date)</td>
-                        <td>@InstrumentCell(r)</td>
-                        <td class="wiq-p-num">@Qty(r.HeldQuantity)</td>
-                        <td class="wiq-p-num">@Num(r.YearStartPrice)</td>
-                        <td class="wiq-p-num">@Num(r.YearEndPrice)</td>
-                        <td class="wiq-p-num">@Percent(r.BasisRate)</td>
-                        <td class="wiq-p-num">@Num(r.DistributionPerShare)</td>
-                        @* A factor like 0,58 is unreadable; the underlying rule counts months. *@
-                        <td class="wiq-p-num">@(Math.Round(r.MonthFactor * 12m, 0).ToString("0")) / 12</td>
-                        <td class="wiq-p-num">@Num(r.RawAmount)</td>
-                        <td class="wiq-p-num"><b>@Num(r.TaxableAmount)</b></td>
+                    foreach (var r in group)
+                    {
+                        var beleg = Beleg("D", belegIndex++);
+                        <tr>
+                            <td class="wiq-p-belegnr">@beleg</td>
+                            <td>@Date(r.Date)</td>
+                            <td>@InstrumentCell(r)</td>
+                            <td>@AssetClassLabel(r.AssetClass)</td>
+                            <td class="wiq-p-num">@Qty(r.HeldQuantity)</td>
+                            <td class="wiq-p-num">@Num(r.YearStartPrice)</td>
+                            <td class="wiq-p-num">@Num(r.YearEndPrice)</td>
+                            <td class="wiq-p-num">@Percent(r.BasisRate)</td>
+                            <td class="wiq-p-num">@Num(r.DistributionPerShare)</td>
+                            @* A factor like 0,58 is unreadable; the underlying rule counts months. *@
+                            <td class="wiq-p-num">@(Math.Round(r.MonthFactor * 12m, 0).ToString("0")) / 12</td>
+                            <td class="wiq-p-num">@Num(r.RawAmount)</td>
+                            <td class="wiq-p-num"><b>@Num(r.TaxableAmount)</b></td>
+                        </tr>
+                    }
+                    <tr class="wiq-p-memo">
+                        <td colspan="10">Summe @AssetClassLabel(group.Key) → Anlage KAP-INV Zeile @VorabLineFor(group.Key)</td>
+                        <td class="wiq-p-num">@Num(group.Sum(r => r.RawAmount))</td>
+                        <td class="wiq-p-num">@Num(group.Sum(r => r.TaxableAmount))</td>
                     </tr>
                 }
             </tbody>
             <tfoot>
                 <tr>
-                    <td colspan="9">Summe Nachweis D</td>
+                    <td colspan="10">Summe Nachweis D</td>
                     <td class="wiq-p-num">@Num(rows.Sum(r => r.RawAmount))</td>
                     <td class="wiq-p-num">@Num(rows.Sum(r => r.TaxableAmount))</td>
                 </tr>
