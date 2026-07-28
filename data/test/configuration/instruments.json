@@ -10,7 +10,7 @@
     "name": "iShares Physical Gold ETC",
     "type": "ETC",
     "tfs_quote": 0.00,
-    "subject_to_vorabpauschale": true,
+    "subject_to_vorabpauschale": false,
     "tax_asset_class": "other_security"
   },
   "IE00BSKRJZ44": {

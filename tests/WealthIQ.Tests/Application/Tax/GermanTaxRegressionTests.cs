@@ -18,11 +18,9 @@ namespace WealthIQ.Tests.Application.Tax;
 ///
 /// Key Vorabpauschale arithmetic for 2023 year-end (Basiszins = 2.55%, basisFactor = 0.01785):
 ///
-/// IGLN.L (USD, no distributions):
-///   startEur = 34.75 USD × FX(USD, 2023-01-02=0.9360666479) = 32.5283 EUR/share
-///   endEur   = 40.1225 USD × FX(USD, 2023-12-29=0.9049773756) = 36.310 EUR/share
-///   basisErtrag = 32.5283 × 0.01785 = 0.58063 EUR/share  (cap = 3.782, not binding)
-///   vorab/share = 0.58063 × qty  →  Lot A(14sh)=8.13, Lot B(400sh)=232.25, Lot C(416sh)=241.54
+/// IGLN.L is an ETC (a secured debt security, not an investment fund): the InvStG does not apply,
+/// so it carries no Vorabpauschale at all. Its 2024 sells therefore have UsedVorabpauschale = 0 and
+/// RawAmount is the plain FIFO gain. See docs/superpowers/specs/2026-07-28-tax-form-line-mapping-design.md §6.3.
 ///
 /// VUSA.L (GBP, quarterly USD distributions≈1.021 EUR/share in 2023):
 ///   startEur = 57.40 GBP × FX(GBP, 2023-01-02=1.1282861334) = 64.764 EUR/share
@@ -91,8 +89,7 @@ public sealed class GermanTaxRegressionTests
         //   No Vorabpauschale: bonds depreciated in 2023 (cap=0) and no 2022 vorab (negative Basiszins).
         //   TaxableAmount = RawAmount × (1 - TFS=0.00) = RawAmount.
         // IGLN: 3 FIFO consumptions from Jun 2024 sell (-830 shares).
-        //   UsedVorabpauschale = 2023 accumulated vorab for each lot (TFS=0.00 → taxable=raw).
-        //   Lot A(14sh): usedVorab=8.13; Lot B(400sh): usedVorab=241.54; Lot C(416sh): usedVorab=232.25.
+        //   No Vorabpauschale — ETC, outside the InvStG (TFS=0.00 → taxable=raw).
         // VUSA: 6 FIFO consumptions from Jun 2024 sell (-392 shares):
         //   EUR lot(85sh): usedVorab=0 (basisErtrag absorbed by distributions, see class comment).
         //   GBP lots A-D: usedVorab equals each lot's 2023 Vorabpauschale accumulation.
@@ -104,9 +101,9 @@ public sealed class GermanTaxRegressionTests
             ("IDTL", -1115.67m, 0.00m, -1115.67m),
             ("IDTL", -1057.69m, 0m, -1057.69m),
             ("IDTL", -34.80m, 0m, -34.80m),
-            ("IGLN", 177.19m, 8.13m, 177.19m),    // Lot A 14sh: usedVorab = 0.58063 × 14 = 8.13
-            ("IGLN", 3838.59m, 241.54m, 3838.59m), // Lot C 416sh: usedVorab = 0.58063 × 416 = 241.54
-            ("IGLN", 4439.52m, 232.25m, 4439.52m), // Lot B 400sh: usedVorab = 0.58063 × 400 = 232.25
+            ("IGLN", 185.32m, 0m, 185.32m),      // Lot A 14sh: no Vorabpauschale — ETC, outside the InvStG
+            ("IGLN", 4080.14m, 0m, 4080.14m),    // Lot C 416sh: no Vorabpauschale — ETC, outside the InvStG
+            ("IGLN", 4671.78m, 0m, 4671.78m),    // Lot B 400sh: no Vorabpauschale — ETC, outside the InvStG
             ("VUSA", 18.84m, 0.14m, 13.18m),        // GBP lot A 1sh: usedVorab=0.135×1=0.14
             ("VUSA", 283.90m, 1.49m, 198.73m),      // GBP lot B 11sh: usedVorab=0.135×11=1.49
             ("VUSA", 652.41m, 5.54m, 456.69m),      // GBP lot E partial 41sh: usedVorab=29.19×(41/216)=5.54
@@ -122,7 +119,7 @@ public sealed class GermanTaxRegressionTests
                 .ThenBy(x => x.UsedVorabpauschale),
             sellEntries);
         Assert.Equal(
-            10882.06m,
+            11363.98m,
             decimal.Round(result.Entries.Where(x => x.Year == 2024 && x.Type == GermanTaxEntryType.Sell).Sum(x => x.TaxableAmount), 2));
 
         var vorabEntries = result.Entries
@@ -137,9 +134,7 @@ public sealed class GermanTaxRegressionTests
 
         // Year=2024 Vorabpauschale = computed at 2023 year-end, posted Jan 1, 2024.
         // Basiszins 2023 = 2.55%, basisFactor = 0.01785.
-        // IGLN.L (TFS=0.00 → taxable = raw):
-        //   vorab/share = startEur(32.528) × 0.01785 = 0.58063  (cap = 3.782, not binding; no distributions)
-        //   Lot A(14sh): 0.58063×14=8.13; Lot B(400sh): 0.58063×400=232.25; Lot C(416sh): 0.58063×416=241.54
+        // IGLN.L: no entry — ETC, outside the InvStG (see class comment).
         // VUSA.L GBP lots (TFS=0.30 → taxable = raw × 0.70):
         //   vorabFull/share = startEur(64.764)×0.01785 − distPerShare(≈1.021) ≈ 0.13512
         //   All 6 GBP lots opened pre-2023 → monthFactor=1
@@ -149,10 +144,6 @@ public sealed class GermanTaxRegressionTests
         // IDTL: no entry (bonds depreciated, cap=0).
         var expectedVorabEntries = new (string Symbol, decimal RawAmount, decimal TaxableAmount)[]
         {
-            // IGLN lots — TFS=0.00, taxable=raw
-            ("IGLN", 8.13m, 8.13m),      // Lot A: 0.58063 × 14 sh
-            ("IGLN", 232.25m, 232.25m),  // Lot B: 0.58063 × 400 sh
-            ("IGLN", 241.54m, 241.54m),  // Lot C: 0.58063 × 416 sh
             // VUSA GBP lots — TFS=0.30, taxable=raw×0.70; vorabFull/sh≈0.13512
             ("VUSA", 0.14m, 0.09m),      // GBP lot A: 0.13512 × 1 sh
             ("VUSA", 1.49m, 1.04m),      // GBP lot B: 0.13512 × 11 sh
@@ -168,7 +159,7 @@ public sealed class GermanTaxRegressionTests
                 .ThenBy(x => x.RawAmount),
             vorabEntries);
         Assert.Equal(
-            541.23m,
+            59.30m,
             decimal.Round(result.Entries.Where(x => x.Year == 2024 && x.Type == GermanTaxEntryType.Vorabpauschale).Sum(x => x.TaxableAmount), 2));
     }
 
