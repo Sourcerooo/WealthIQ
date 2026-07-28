@@ -125,6 +125,9 @@ public sealed class GermanTaxRegressionTests
                 .OrderBy(x => x.Symbol)
                 .ThenBy(x => x.RawAmount),
             vorabEntries);
+        // 59.30, not 59.29: the rows listed above are each rounded to cents before being added
+        // (0.09 + 1.04 + 8.13 + 13.71 + 15.89 + 20.43 = 59.29), whereas this assertion rounds the
+        // engine's UNROUNDED sum exactly once. The one-cent gap is that difference, not a bug.
         Assert.Equal(
             59.30m,
             decimal.Round(result.Entries.Where(x => x.Year == 2024 && x.Type == GermanTaxEntryType.Vorabpauschale).Sum(x => x.TaxableAmount), 2));
