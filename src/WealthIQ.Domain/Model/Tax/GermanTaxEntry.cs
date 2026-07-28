@@ -37,4 +37,8 @@ public readonly record struct GermanTaxEntry(
     decimal MonthFactor = 0m,
     // --- Per-account reporting + broker-withheld German KeSt (display/aggregation only) ---
     AccountId AccountId = default,
-    decimal WithheldKESt = 0m);
+    decimal WithheldKESt = 0m,
+    // --- Form-line mapping (display/aggregation only, never tax math) ---
+    // Anlage KAP-INV needs the fund category per line and the fund name in the Ermittlung.
+    TaxAssetClass? AssetClass = null,
+    string InstrumentName = "");

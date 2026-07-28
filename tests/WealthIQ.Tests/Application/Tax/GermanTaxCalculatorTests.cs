@@ -35,7 +35,7 @@ public sealed class GermanTaxCalculatorTests
                 accountId,
                 new DateTimeOffset(2024, 1, 15, 10, 0, 0, TimeSpan.Zero),
                 new DateOnly(2024, 1, 15),
-                CreateSourceProvenance("BUY-1"),
+                TaxCalculatorTestDoubles.SourceProvenance("BUY-1"),
                 instrumentId,
                 TradeSide.Buy,
                 new Quantity(10m),
@@ -47,7 +47,7 @@ public sealed class GermanTaxCalculatorTests
                 accountId,
                 new DateTimeOffset(2024, 6, 10, 12, 0, 0, TimeSpan.Zero),
                 new DateOnly(2024, 6, 10),
-                CreateSourceProvenance("DIV-1"),
+                TaxCalculatorTestDoubles.SourceProvenance("DIV-1"),
                 InstrumentId.NewId(),
                 CashFlowType.Dividend,
                 new Money(5m, CurrencyCode.EUR),
@@ -59,7 +59,7 @@ public sealed class GermanTaxCalculatorTests
                 accountId,
                 new DateTimeOffset(2025, 2, 1, 9, 0, 0, TimeSpan.Zero),
                 new DateOnly(2025, 2, 1),
-                CreateSourceProvenance("SELL-1"),
+                TaxCalculatorTestDoubles.SourceProvenance("SELL-1"),
                 instrumentId,
                 TradeSide.Sell,
                 new Quantity(10m),
@@ -116,7 +116,7 @@ public sealed class GermanTaxCalculatorTests
                 accountId,
                 new DateTimeOffset(2024, 1, 15, 10, 0, 0, TimeSpan.Zero),
                 new DateOnly(2024, 1, 15),
-                CreateSourceProvenance("BUY-1"),
+                TaxCalculatorTestDoubles.SourceProvenance("BUY-1"),
                 instrumentId,
                 TradeSide.Buy,
                 new Quantity(10m),
@@ -129,7 +129,7 @@ public sealed class GermanTaxCalculatorTests
                 accountId,
                 new DateTimeOffset(2025, 2, 1, 9, 0, 0, TimeSpan.Zero),
                 new DateOnly(2025, 2, 1),
-                CreateSourceProvenance("SELL-1"),
+                TaxCalculatorTestDoubles.SourceProvenance("SELL-1"),
                 instrumentId,
                 TradeSide.Sell,
                 new Quantity(10m),
@@ -172,7 +172,7 @@ public sealed class GermanTaxCalculatorTests
                 accountId,
                 new DateTimeOffset(2025, 3, 10, 12, 0, 0, TimeSpan.Zero),
                 new DateOnly(2025, 3, 10),
-                CreateSourceProvenance("INT-1"),
+                TaxCalculatorTestDoubles.SourceProvenance("INT-1"),
                 instrumentId,
                 CashFlowType.Interest,
                 new Money(17.42m, CurrencyCode.EUR),
@@ -183,7 +183,7 @@ public sealed class GermanTaxCalculatorTests
                 accountId,
                 new DateTimeOffset(2025, 3, 11, 12, 0, 0, TimeSpan.Zero),
                 new DateOnly(2025, 3, 11),
-                CreateSourceProvenance("WHT-1"),
+                TaxCalculatorTestDoubles.SourceProvenance("WHT-1"),
                 instrumentId,
                 CashFlowType.WithholdingTax,
                 new Money(-3.11m, CurrencyCode.EUR),
@@ -201,47 +201,4 @@ public sealed class GermanTaxCalculatorTests
         Assert.Equal(3.11m, withholdingTaxEntry.ForeignWithholdingTax);
     }
 
-    private sealed class StubInterestRateProvider(params (int Year, decimal Rate)[] rates) : IBasisInterestRateProvider
-    {
-        private readonly Dictionary<int, decimal> _rates = rates.ToDictionary(x => x.Year, x => x.Rate);
-
-        public decimal? GetRate(int year) => _rates.TryGetValue(year, out var rate) ? rate : null;
-    }
-
-    private sealed class StubYearEndPriceProvider(params (string Isin, int Year, decimal Price)[] prices) : IInstrumentPriceProvider
-    {
-        private readonly Dictionary<(string Isin, int Year), decimal> _prices = prices.ToDictionary(x => (x.Isin, x.Year), x => x.Price);
-
-        public InstrumentQuote? GetQuote(string isin, CurrencyCode currency, DateOnly pricingDate, PriceQuoteHandling handling)
-            => _prices.TryGetValue((isin, pricingDate.Year), out var price)
-                ? new InstrumentQuote(price, CurrencyCode.EUR, pricingDate)
-                : null;
-    }
-
-    /// <summary>Returns a distinct start price (EarliestOnOrAfter) and end price (LatestOnOrBefore) per ISIN+year.</summary>
-    private sealed class StubYearStartAndEndPriceProvider(params (string Isin, int Year, decimal Start, decimal End)[] prices) : IInstrumentPriceProvider
-    {
-        public InstrumentQuote? GetQuote(string isin, CurrencyCode currency, DateOnly pricingDate, PriceQuoteHandling handling)
-        {
-            var entry = prices.FirstOrDefault(p => p.Isin == isin && p.Year == pricingDate.Year);
-            if (entry == default) return null;
-            var price = handling == PriceQuoteHandling.EarliestOnOrAfter ? entry.Start : entry.End;
-            return new InstrumentQuote(price, CurrencyCode.EUR, pricingDate);
-        }
-    }
-
-    private sealed class StubFxRateLookup : IFxRateLookup
-    {
-        public decimal GetRate(DateOnly conversionDate, CurrencyCode sourceCurrency, CurrencyCode targetCurrency, FxRateLookupDateHandling dateHandling = FxRateLookupDateHandling.ExactDate)
-            => sourceCurrency == targetCurrency && targetCurrency == CurrencyCode.EUR ? 1m : throw new InvalidOperationException("Unexpected FX lookup in unit test.");
-    }
-
-    private static SourceProvenance CreateSourceProvenance(string sourceReference)
-        => new()
-        {
-            SourceSystem = "IBKR",
-            ImportFormat = "TEST",
-            SourceLocation = "unit-test",
-            SourceRecordReference = sourceReference
-        };
 }

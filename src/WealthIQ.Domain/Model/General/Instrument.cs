@@ -1,4 +1,6 @@
-﻿namespace WealthIQ.Domain.Model.General;
+﻿using WealthIQ.Domain.Enumeration;
+
+namespace WealthIQ.Domain.Model.General;
 
 public readonly record struct InstrumentId(Guid Value)
 {
@@ -21,6 +23,11 @@ public sealed record Instrument(
     /// A held instrument with no profile is a blocking error at tax replay (spec §2, §6.4).
     /// <c>null</c> = not yet enriched / no profile on file.</summary>
     public bool? SubjectToVorabpauschale { get; init; }
+
+    /// <summary>Which asset class the German tax forms put this instrument in. Set explicitly by the
+    /// profile; there is no inference. <c>null</c> = not yet enriched / no profile on file.
+    /// Drives only the report's form-line mapping, never the tax math.</summary>
+    public TaxAssetClass? AssetClass { get; init; }
 
     public override string ToString() => $"{Name} ({Symbol}, {ISIN})";
 }

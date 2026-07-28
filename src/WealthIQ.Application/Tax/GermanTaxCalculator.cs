@@ -134,7 +134,9 @@ public sealed class GermanTaxCalculator(
                 CloseReference: tradeEntry.SourceProvenance.SourceRecordReference,
                 SourceFile: tradeEntry.SourceProvenance.SourceLocation,
                 AccountId: tradeEntry.AccountId,
-                WithheldKESt: kestSlice));
+                WithheldKESt: kestSlice,
+                AssetClass: instrument.AssetClass,
+                InstrumentName: instrument.Name));
         }
 
         openLots.Clear();
@@ -172,7 +174,9 @@ public sealed class GermanTaxCalculator(
                     SourceFile: cashEntry.SourceProvenance.SourceLocation,
                     OriginalAmount: cashEntry.GrossAmount.Amount,
                     OriginalCurrency: cashEntry.GrossAmount.Currency.ToString(),
-                    AccountId: cashEntry.AccountId));
+                    AccountId: cashEntry.AccountId,
+                    AssetClass: dividendInstrument.AssetClass,
+                    InstrumentName: dividendInstrument.Name));
 
                 var heldLots = openLots
                     .Where(x => x.AccountId == cashEntry.AccountId
@@ -207,7 +211,9 @@ public sealed class GermanTaxCalculator(
                     SourceFile: cashEntry.SourceProvenance.SourceLocation,
                     OriginalAmount: cashEntry.GrossAmount.Amount,
                     OriginalCurrency: cashEntry.GrossAmount.Currency.ToString(),
-                    AccountId: cashEntry.AccountId));
+                    AccountId: cashEntry.AccountId,
+                    AssetClass: interestInstrument.AssetClass,
+                    InstrumentName: interestInstrument.Name));
                 break;
 
             case CashFlowType.WithholdingTax:
@@ -236,7 +242,9 @@ public sealed class GermanTaxCalculator(
                     SourceFile: cashEntry.SourceProvenance.SourceLocation,
                     OriginalAmount: cashEntry.GrossAmount.Amount,
                     OriginalCurrency: cashEntry.GrossAmount.Currency.ToString(),
-                    AccountId: cashEntry.AccountId));
+                    AccountId: cashEntry.AccountId,
+                    AssetClass: withholdingInstrument.AssetClass,
+                    InstrumentName: withholdingInstrument.Name));
                 break;
         }
     }
@@ -346,7 +354,9 @@ public sealed class GermanTaxCalculator(
                     HeldQuantity: lot.RemainingQuantity.Value,
                     DistributionPerShare: distributionPerShare,
                     MonthFactor: monthFactor,
-                    AccountId: lot.AccountId));
+                    AccountId: lot.AccountId,
+                    AssetClass: instrument.AssetClass,
+                    InstrumentName: instrument.Name));
             }
         }
     }
