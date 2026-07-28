@@ -231,6 +231,19 @@ else
     private static string DistributionLineFor(TaxAssetClass? assetClass)
         => KapInvRows.All.FirstOrDefault(r => r.Class == assetClass)?.DistributionLine ?? "—";
 
+    // Groups read top-to-bottom in the same order the form block lists its Zeilen (4/9/14 etc.),
+    // so a reader transcribing line by line doesn't have to hunt for each fund class. A class not
+    // in KapInvRows.All (Share, OtherSecurity, or a missing AssetClass) sorts last instead of
+    // vanishing from the ordering.
+    private static int GroupOrderFor(TaxAssetClass? assetClass)
+    {
+        for (var i = 0; i < KapInvRows.All.Count; i++)
+        {
+            if (KapInvRows.All[i].Class == assetClass) return i;
+        }
+        return int.MaxValue;
+    }
+
     private RenderFragment SectionTitle(string letter, string title, string subtitle) => __builder =>
     {
         <div class="wiq-p-break">
@@ -287,7 +300,7 @@ else
             </thead>
             <tbody>
                 @{ var belegIndex = 0; }
-                @foreach (var group in rows.GroupBy(r => r.AssetClass))
+                @foreach (var group in rows.GroupBy(r => r.AssetClass).OrderBy(g => GroupOrderFor(g.Key)))
                 {
                     foreach (var r in group)
                     {
@@ -315,7 +328,7 @@ else
                     }
                     @* A Roh-G/V subtotal DOES hold inside one fund class — the Teilfreistellung
                        quota is uniform there — and it is exactly the figure the form wants. *@
-                    <tr class="wiq-p-memo">
+                    <tr class="wiq-p-subtotal">
                         <td colspan="9">Summe @AssetClassLabel(group.Key) → Anlage KAP-INV Zeile @SaleLineFor(group.Key)</td>
                         <td class="wiq-p-num @NegClass(group.Sum(r => r.RawAmount))">@Num(group.Sum(r => r.RawAmount))</td>
                         <td class="wiq-p-num">@Num(group.Sum(r => r.UsedVorabpauschale))</td>
@@ -332,8 +345,9 @@ else
                     <td class="wiq-p-num @NegClass(rows.Sum(r => r.TaxableAmount))">@Num(rows.Sum(r => r.TaxableAmount))</td>
                 </tr>
                 <tr class="wiq-p-memo">
-                    <td colspan="11">nachrichtlich: darin verrechnete Vorabpauschalen der Vorjahre</td>
+                    <td colspan="10">nachrichtlich: darin verrechnete Vorabpauschalen der Vorjahre</td>
                     <td class="wiq-p-num">@Num(rows.Sum(r => r.UsedVorabpauschale))</td>
+                    <td></td>
                 </tr>
             </tfoot>
         </table>
@@ -362,60 +376,21 @@ else
                 </tr>
             </thead>
             <tbody>
-                @{ var belegIndex = 0; }
-                @if (groupByAssetClass)
-                {
-                    @foreach (var group in rows.GroupBy(r => r.AssetClass))
-                    {
-                        foreach (var r in group)
-                        {
-                            var beleg = Beleg(letter, belegIndex++);
-                            <tr>
-                                <td class="wiq-p-belegnr">@beleg</td>
-                                <td>@Date(r.Date)</td>
-                                <td>
-                                    @if (showIsin)
-                                    {
-                                        @InstrumentCell(r)
-                                    }
-                                    else
-                                    {
-                                        <b>@SymbolOrBlank(r)</b>
-                                    }
-                                </td>
-                                <td>@AssetClassLabel(r.AssetClass)</td>
-                                <td class="wiq-p-num">@Num(r.RawAmount)</td>
-                                <td class="wiq-p-num wiq-p-muted">@Num(r.RawAmount - r.TaxableAmount)</td>
-                                <td class="wiq-p-num"><b>@Num(r.TaxableAmount)</b></td>
-                                <td class="wiq-p-num">@Num(r.ForeignWithholdingTax)</td>
-                            </tr>
-                            <tr class="wiq-p-srcline">
-                                <td></td>
-                                <td colspan="7">
-                                    Ref. @r.SourceReference · Datei @SourceFileName(r.SourceFile)
-                                    @if (!string.IsNullOrWhiteSpace(r.OriginalCurrency))
-                                    {
-                                        <text> · Original @Num(r.OriginalAmount) @r.OriginalCurrency</text>
-                                    }
-                                </td>
-                            </tr>
-                        }
-                        <tr class="wiq-p-memo">
-                            <td colspan="4">Summe @AssetClassLabel(group.Key) → Anlage KAP-INV Zeile @DistributionLineFor(group.Key)</td>
-                            <td class="wiq-p-num">@Num(group.Sum(r => r.RawAmount))</td>
-                            <td class="wiq-p-num">@Num(group.Sum(r => r.RawAmount - r.TaxableAmount))</td>
-                            <td class="wiq-p-num">@Num(group.Sum(r => r.TaxableAmount))</td>
-                            <td class="wiq-p-num">@Num(group.Sum(r => r.ForeignWithholdingTax))</td>
-                        </tr>
-                    }
+                @{
+                    var belegIndex = 0;
+                    // Ungrouped (Nachweis C) uses one pseudo-group holding every row in original
+                    // order, so both branches share the same loop shape below.
+                    var groups = groupByAssetClass
+                        ? rows.GroupBy(r => r.AssetClass).OrderBy(g => GroupOrderFor(g.Key))
+                        : rows.GroupBy(r => (TaxAssetClass?)null);
                 }
-                else
+                @foreach (var group in groups)
                 {
-                    for (var i = 0; i < rows.Count; i++)
+                    foreach (var r in group)
                     {
-                        var r = rows[i];
+                        var beleg = Beleg(letter, belegIndex++);
                         <tr>
-                            <td class="wiq-p-belegnr">@Beleg(letter, i)</td>
+                            <td class="wiq-p-belegnr">@beleg</td>
                             <td>@Date(r.Date)</td>
                             <td>
                                 @if (showIsin)
@@ -427,6 +402,10 @@ else
                                     <b>@SymbolOrBlank(r)</b>
                                 }
                             </td>
+                            @if (groupByAssetClass)
+                            {
+                                <td>@AssetClassLabel(r.AssetClass)</td>
+                            }
                             <td class="wiq-p-num">@Num(r.RawAmount)</td>
                             <td class="wiq-p-num wiq-p-muted">@Num(r.RawAmount - r.TaxableAmount)</td>
                             <td class="wiq-p-num"><b>@Num(r.TaxableAmount)</b></td>
@@ -434,13 +413,23 @@ else
                         </tr>
                         <tr class="wiq-p-srcline">
                             <td></td>
-                            <td colspan="6">
+                            <td colspan="@(groupByAssetClass ? 7 : 6)">
                                 Ref. @r.SourceReference · Datei @SourceFileName(r.SourceFile)
                                 @if (!string.IsNullOrWhiteSpace(r.OriginalCurrency))
                                 {
                                     <text> · Original @Num(r.OriginalAmount) @r.OriginalCurrency</text>
                                 }
                             </td>
+                        </tr>
+                    }
+                    @if (groupByAssetClass)
+                    {
+                        <tr class="wiq-p-subtotal">
+                            <td colspan="4">Summe @AssetClassLabel(group.Key) → Anlage KAP-INV Zeile @DistributionLineFor(group.Key)</td>
+                            <td class="wiq-p-num">@Num(group.Sum(r => r.RawAmount))</td>
+                            <td class="wiq-p-num">@Num(group.Sum(r => r.RawAmount - r.TaxableAmount))</td>
+                            <td class="wiq-p-num">@Num(group.Sum(r => r.TaxableAmount))</td>
+                            <td class="wiq-p-num">@Num(group.Sum(r => r.ForeignWithholdingTax))</td>
                         </tr>
                     }
                 }
@@ -481,7 +470,7 @@ else
             </thead>
             <tbody>
                 @{ var belegIndex = 0; }
-                @foreach (var group in rows.GroupBy(r => r.AssetClass))
+                @foreach (var group in rows.GroupBy(r => r.AssetClass).OrderBy(g => GroupOrderFor(g.Key)))
                 {
                     foreach (var r in group)
                     {
@@ -502,7 +491,7 @@ else
                             <td class="wiq-p-num"><b>@Num(r.TaxableAmount)</b></td>
                         </tr>
                     }
-                    <tr class="wiq-p-memo">
+                    <tr class="wiq-p-subtotal">
                         <td colspan="10">Summe @AssetClassLabel(group.Key) → Anlage KAP-INV Zeile @VorabLineFor(group.Key)</td>
                         <td class="wiq-p-num">@Num(group.Sum(r => r.RawAmount))</td>
                         <td class="wiq-p-num">@Num(group.Sum(r => r.TaxableAmount))</td>

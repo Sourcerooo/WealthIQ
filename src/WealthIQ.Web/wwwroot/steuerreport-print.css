@@ -301,6 +301,13 @@
     color: #52606d;
 }
 
+/* Per-fund-class subtotal inside a Nachweis: this is the figure transcribed into the
+   KAP-INV Ermittlung, so it reads as a subtotal, not as the aside wiq-p-memo styles. */
+.wiq-p-table tbody tr.wiq-p-subtotal td {
+    border-top: 0.5pt solid #9aa5b1;
+    font-weight: 600;
+}
+
 .wiq-p-belegnr {
     font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
     font-size: 6.8pt;
