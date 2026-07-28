@@ -22,6 +22,8 @@ public sealed class TaxAssetClassMigrationTests : IDisposable
     [InlineData("STOCK", false, "share", false)]
     [InlineData("ETC", true, "other_security", false)]
     [InlineData("ETC", false, "other_security", false)]
+    [InlineData("ETF_METAL", true, "other_security", false)]
+    [InlineData("ETF_METAL", false, "other_security", false)]
     [InlineData("SOMETHING_ELSE", true, null, true)]
     public async Task Migrate_BackfillsTaxAssetClassFromTypeAndClearsVorabpauschaleForEtcs(
         string type, bool subjectBefore, string? expectedClass, bool expectedSubjectAfter)
