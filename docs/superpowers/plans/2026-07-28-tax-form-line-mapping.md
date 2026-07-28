@@ -59,6 +59,8 @@
 - Modify: `src/WealthIQ.Domain/Model/General/Instrument.cs`
 - Modify: `src/WealthIQ.Domain/Model/Tax/GermanTaxEntry.cs`
 - Modify: `src/WealthIQ.Application/Tax/GermanTaxCalculator.cs`
+- Create: `tests/WealthIQ.Tests/Application/Tax/TaxCalculatorTestDoubles.cs` (aus `GermanTaxCalculatorTests` ausgezogen)
+- Modify: `tests/WealthIQ.Tests/Application/Tax/GermanTaxCalculatorTests.cs` (private Stubs entfernen)
 - Test: `tests/WealthIQ.Tests/Application/Tax/GermanTaxCalculatorAssetClassTests.cs`
 
 **Interfaces:**
@@ -68,7 +70,24 @@
 
 - [ ] **Step 1: Schreibe den fehlschlagenden Test**
 
-Neue Datei `tests/WealthIQ.Tests/Application/Tax/GermanTaxCalculatorAssetClassTests.cs`. Das Szenario ist bewusst dasselbe wie in `GermanTaxCalculatorTests.Calculate_BuyDividendVorabAndSell_ProducesExpectedTaxEntries` — Kauf, Dividende, Vorabpauschale zum Jahreswechsel, Verkauf — damit alle drei Entry-Typen in einem Lauf entstehen. Die vier Stub-Klassen sind in `GermanTaxCalculatorTests` `private` und daher nicht wiederverwendbar; sie werden hier wörtlich kopiert (Quelle: `GermanTaxCalculatorTests.cs:204-246`).
+**Zuerst: gemeinsame Test-Doubles ausziehen.** Die vier Helfer sind in `GermanTaxCalculatorTests` `private` und damit nicht wiederverwendbar. Verschiebe sie unverändert nach `tests/WealthIQ.Tests/Application/Tax/TaxCalculatorTestDoubles.cs` und mache sie `internal`:
+
+- `StubInterestRateProvider`, `StubYearEndPriceProvider`, `StubYearStartAndEndPriceProvider`, `StubFxRateLookup` → `internal sealed class`
+- `CreateSourceProvenance` → `internal static class TaxCalculatorTestDoubles { internal static SourceProvenance SourceProvenance(string sourceReference) => ... }`
+
+Quelle wörtlich: `GermanTaxCalculatorTests.cs:204-246`. Lösche die privaten Kopien dort und passe die Aufrufe an (`CreateSourceProvenance(...)` → `TaxCalculatorTestDoubles.SourceProvenance(...)`). Namespace bleibt `WealthIQ.Tests.Application.Tax`, damit keine `using`-Änderungen nötig sind.
+
+`VorabpauschaleCorrectionTests.cs` hat eigene private Kopien — **die bleiben unangetastet**. Sie aufzuräumen wäre ein Drive-by-Refactor außerhalb dieses Vorhabens.
+
+Prüfe nach dem Verschieben:
+
+```
+dotnet test WealthIQ.slnx --filter "FullyQualifiedName~GermanTaxCalculatorTests"
+```
+
+Erwartet: unverändert PASS. Erst danach den neuen Test schreiben.
+
+**Dann der eigentliche Test:** neue Datei `tests/WealthIQ.Tests/Application/Tax/GermanTaxCalculatorAssetClassTests.cs`. Das Szenario ist bewusst dasselbe wie in `GermanTaxCalculatorTests.Calculate_BuyDividendVorabAndSell_ProducesExpectedTaxEntries` — Kauf, Dividende, Vorabpauschale zum Jahreswechsel, Verkauf — damit alle drei Entry-Typen in einem Lauf entstehen. Nutze die ausgezogenen Doubles statt eigener Kopien.
 
 ```csharp
 using WealthIQ.Application.Currency.Interface;
@@ -176,40 +195,10 @@ public sealed class GermanTaxCalculatorAssetClassTests
         ]), instruments);
     }
 
-    private sealed class StubInterestRateProvider(params (int Year, decimal Rate)[] rates) : IBasisInterestRateProvider
-    {
-        private readonly Dictionary<int, decimal> _rates = rates.ToDictionary(x => x.Year, x => x.Rate);
-
-        public decimal? GetRate(int year) => _rates.TryGetValue(year, out var rate) ? rate : null;
-    }
-
-    private sealed class StubYearStartAndEndPriceProvider(params (string Isin, int Year, decimal Start, decimal End)[] prices) : IInstrumentPriceProvider
-    {
-        public InstrumentQuote? GetQuote(string isin, CurrencyCode currency, DateOnly pricingDate, PriceQuoteHandling handling)
-        {
-            var entry = prices.FirstOrDefault(p => p.Isin == isin && p.Year == pricingDate.Year);
-            if (entry == default) return null;
-            var price = handling == PriceQuoteHandling.EarliestOnOrAfter ? entry.Start : entry.End;
-            return new InstrumentQuote(price, CurrencyCode.EUR, pricingDate);
-        }
-    }
-
-    private sealed class StubFxRateLookup : IFxRateLookup
-    {
-        public decimal GetRate(DateOnly conversionDate, CurrencyCode sourceCurrency, CurrencyCode targetCurrency, FxRateLookupDateHandling dateHandling = FxRateLookupDateHandling.ExactDate)
-            => sourceCurrency == targetCurrency && targetCurrency == CurrencyCode.EUR ? 1m : throw new InvalidOperationException("Unexpected FX lookup in unit test.");
-    }
-
-    private static SourceProvenance CreateSourceProvenance(string sourceReference)
-        => new()
-        {
-            SourceSystem = "IBKR",
-            ImportFormat = "TEST",
-            SourceLocation = "unit-test",
-            SourceRecordReference = sourceReference
-        };
 }
 ```
+
+Die `CreateSourceProvenance`-Aufrufe im obigen Testcode heißen nach dem Ausziehen `TaxCalculatorTestDoubles.SourceProvenance("BUY-1")` usw.
 
 - [ ] **Step 2: Test laufen lassen, Fehlschlag bestätigen**
 
@@ -1171,6 +1160,7 @@ git commit -m "feat: add tax form line model and KAP-INV line schema"
 
 **Files:**
 - Create: `src/WealthIQ.Application/Tax/Report/Forms/TaxFormReportBuilder.cs`
+- Create: `tests/WealthIQ.Tests/Application/Tax/Forms/TaxFormTestData.cs` (gemeinsame Helfer, auch von Task 7 genutzt)
 - Test: `tests/WealthIQ.Tests/Application/Tax/Forms/TaxFormReportBuilderKapInvTests.cs`
 
 **Interfaces:**
@@ -1179,7 +1169,7 @@ git commit -m "feat: add tax form line model and KAP-INV line schema"
 
 - [ ] **Step 1: Schreibe den fehlschlagenden Test**
 
-`tests/WealthIQ.Tests/Application/Tax/Forms/TaxFormReportBuilderKapInvTests.cs`:
+Lege die drei Helfer als **gemeinsame** Datei `tests/WealthIQ.Tests/Application/Tax/Forms/TaxFormTestData.cs` an, damit Task 7 sie mitnutzt statt sie zu duplizieren:
 
 ```csharp
 using WealthIQ.Application.Tax.Report;
@@ -1189,8 +1179,27 @@ using WealthIQ.Domain.Model.Tax;
 
 namespace WealthIQ.Tests.Application.Tax.Forms;
 
+internal static class TaxFormTestData
+{
+    internal static GermanTaxEntry Entry(
+```
+
+(Rumpf wie unten, aber `internal static` statt `private static`; `Report` und `Line` ebenso.)
+
+Dann `tests/WealthIQ.Tests/Application/Tax/Forms/TaxFormReportBuilderKapInvTests.cs`, das die Helfer über `using static WealthIQ.Tests.Application.Tax.Forms.TaxFormTestData;` einbindet:
+
+```csharp
+using WealthIQ.Application.Tax.Report;
+using WealthIQ.Application.Tax.Report.Forms;
+using WealthIQ.Domain.Enumeration;
+using WealthIQ.Domain.Model.Tax;
+using static WealthIQ.Tests.Application.Tax.Forms.TaxFormTestData;
+
+namespace WealthIQ.Tests.Application.Tax.Forms;
+
 public sealed class TaxFormReportBuilderKapInvTests
 {
+    // --- die folgenden drei Helfer gehören in TaxFormTestData, nicht hierher ---
     private static GermanTaxEntry Entry(
         GermanTaxEntryType type, TaxAssetClass? assetClass,
         decimal raw, decimal taxable, DateOnly? openedOn = null)
@@ -1484,7 +1493,7 @@ git commit -m "feat: map fund income onto Anlage KAP-INV lines"
 
 - [ ] **Step 1: Schreibe den fehlschlagenden Test**
 
-`tests/WealthIQ.Tests/Application/Tax/Forms/TaxFormReportBuilderKapTests.cs`. Übernimm die privaten Helfer `Entry`, `Report` und `Line` wörtlich aus `TaxFormReportBuilderKapInvTests` (sie sind privat und damit nicht wiederverwendbar; das Duplikat ist gewollt, damit jede Testklasse für sich lesbar bleibt).
+`tests/WealthIQ.Tests/Application/Tax/Forms/TaxFormReportBuilderKapTests.cs`. Die Helfer `Entry`, `Report` und `Line` kommen aus `TaxFormTestData` (Task 6) — binde sie mit `using static WealthIQ.Tests.Application.Tax.Forms.TaxFormTestData;` ein und definiere sie **nicht** erneut.
 
 ```csharp
     [Fact]
