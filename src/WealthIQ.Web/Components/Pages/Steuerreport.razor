@@ -1,5 +1,6 @@
 @page "/steuerreport"
 @using WealthIQ.Application.Tax.Report
+@using WealthIQ.Application.Tax.Report.Forms
 @using WealthIQ.Domain.Enumeration
 @using WealthIQ.Domain.Model.Tax
 @using MudBlazor.Charts
@@ -105,6 +106,17 @@ else if (Current is not null)
         <MudItem xs="12" sm="6" md="4"><StatCard Caption="Geschätzte Steuer" Value="@Current.Summary.EstimatedTax" Accent="true" CountUp="true" /></MudItem>
     </MudGrid>
 
+    @if (Forms is not null)
+    {
+        <div class="wiq-rise-3 mb-4">
+            <SectionCard Title="Eingabehilfe Steuerformulare">
+                <ChildContent>
+                    <TaxFormBlock Report="Forms" />
+                </ChildContent>
+            </SectionCard>
+        </div>
+    }
+
     @* Drill-down detail. *@
     <div class="wiq-rise-3">
         <MudExpansionPanels MultiExpansion="true" Elevation="0">
@@ -140,6 +152,9 @@ else if (Current is not null)
     private AccountTaxReport? CurrentAccount => _accounts.FirstOrDefault(a => a.AccountId == _selectedAccountId);
     private IReadOnlyList<AnnualTaxReport> _reports => CurrentAccount?.Years ?? Array.Empty<AnnualTaxReport>();
     private AnnualTaxReport? Current => _reports.FirstOrDefault(r => r.Year == _selectedYear);
+
+    // Rebuilt on every render; a pure regrouping of Current and cheap enough not to cache.
+    private TaxFormReport? Forms => Current is null ? null : TaxFormReportBuilder.Build(Current);
 
     private readonly DonutChartOptions _chartOptions = new()
     {

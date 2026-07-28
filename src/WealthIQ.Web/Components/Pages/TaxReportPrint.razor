@@ -7,6 +7,7 @@
 @layout PrintLayout
 @using Microsoft.Extensions.Options
 @using WealthIQ.Application.Tax.Report
+@using WealthIQ.Application.Tax.Report.Forms
 @using WealthIQ.Domain.Model.Tax
 @using WealthIQ.Web.Options
 @using static WealthIQ.Web.Services.TaxReportPrintFormat
@@ -66,71 +67,8 @@ else
                 Alle Beträge in EUR, umgerechnet zum Kurs des jeweiligen Ereignistages.
             </p>
 
-            @* ---- Anlage KAP ---- *@
-            <table class="wiq-p-form">
-                <tbody>
-                    <tr class="wiq-p-formhead">
-                        <td colspan="4">Anlage KAP: Kapitalerträge ohne inländischen Steuerabzug</td>
-                    </tr>
-                    <tr>
-                        <td class="wiq-p-form__line">Zeile 19</td>
-                        <td>Gewinne / Verluste aus der Veräußerung von Wertpapieren (nach Teilfreistellung)</td>
-                        <td class="wiq-p-form__amount @NegClass(Summary.NetRealizedGainsTaxable)">@Num(Summary.NetRealizedGainsTaxable)</td>
-                        <td class="wiq-p-form__ref">→ Nachweis&nbsp;A</td>
-                    </tr>
-                    <tr>
-                        <td class="wiq-p-form__line">Zeile 19</td>
-                        <td>Dividenden (nach Teilfreistellung)</td>
-                        <td class="wiq-p-form__amount">@Num(Summary.DividendsTaxable)</td>
-                        <td class="wiq-p-form__ref">→ Nachweis&nbsp;B</td>
-                    </tr>
-                    <tr>
-                        <td class="wiq-p-form__line">Zeile 19</td>
-                        <td>Zinserträge</td>
-                        <td class="wiq-p-form__amount">@Num(Summary.InterestTaxable)</td>
-                        <td class="wiq-p-form__ref">→ Nachweis&nbsp;C</td>
-                    </tr>
-                    <tr>
-                        <td class="wiq-p-form__line">Zeile 41</td>
-                        <td>Anrechenbare ausländische Quellensteuer</td>
-                        <td class="wiq-p-form__amount">@Num(Summary.ForeignWithholdingTax)</td>
-                        <td class="wiq-p-form__ref">→ Nachweis&nbsp;E</td>
-                    </tr>
-                    <tr>
-                        <td class="wiq-p-form__line">Zeile 37</td>
-                        <td>Bereits einbehaltene deutsche Kapitalertragsteuer</td>
-                        <td class="wiq-p-form__amount">@Num(Summary.WithheldKESt)</td>
-                        <td class="wiq-p-form__ref"></td>
-                    </tr>
-                </tbody>
-            </table>
-
-            @* ---- Anlage KAP-INV ---- *@
-            <table class="wiq-p-form">
-                <tbody>
-                    <tr class="wiq-p-formhead">
-                        <td colspan="4">Anlage KAP-INV: Investmenterträge</td>
-                    </tr>
-                    <tr>
-                        <td class="wiq-p-form__line">Zeile 9</td>
-                        <td>Vorabpauschalen (§ 18 InvStG, nach Teilfreistellung)</td>
-                        <td class="wiq-p-form__amount">@Num(Summary.VorabpauschaleTaxable)</td>
-                        <td class="wiq-p-form__ref">→ Nachweis&nbsp;D</td>
-                    </tr>
-                    <tr>
-                        <td class="wiq-p-form__line">nachr.</td>
-                        <td class="wiq-p-muted">Vorabpauschalen vor Teilfreistellung</td>
-                        <td class="wiq-p-form__amount wiq-p-muted">@Num(Current.Vorabpauschale.Sum(v => v.RawAmount))</td>
-                        <td class="wiq-p-form__ref"></td>
-                    </tr>
-                    <tr>
-                        <td class="wiq-p-form__line">nachr.</td>
-                        <td class="wiq-p-muted">Beim Verkauf verrechnete Vorabpauschalen (Vorjahre)</td>
-                        <td class="wiq-p-form__amount wiq-p-muted">@Num(Current.Sells.Sum(s => s.UsedVorabpauschale))</td>
-                        <td class="wiq-p-form__ref"></td>
-                    </tr>
-                </tbody>
-            </table>
+            @* ---- Anlage KAP / KAP-INV ---- *@
+            <TaxFormBlock Report="Forms" />
 
             @* ---- Ergebnis ---- *@
             <table class="wiq-p-form">
@@ -210,6 +148,8 @@ else
 
     private decimal TaxBase => Summary.NetRealizedGainsTaxable + Summary.DividendsTaxable
         + Summary.InterestTaxable + Summary.VorabpauschaleTaxable;
+
+    private TaxFormReport Forms => TaxFormReportBuilder.Build(Current!);
 
     private decimal GrossTax => Math.Max(0m, TaxBase) * 0.26375m;
 
