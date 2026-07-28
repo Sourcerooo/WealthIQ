@@ -1,0 +1,38 @@
+@* Renders a TaxFormReport as the lines you type into Anlage KAP / KAP-INV. Deliberately plain
+   HTML: PrintLayout loads no MudBlazor chrome, so the same markup has to work on paper and on
+   screen. Screen styling lives in wealthiq.css scoped under .wiq-page, paper styling in
+   steuerreport-print.css. *@
+@using WealthIQ.Application.Tax.Report.Forms
+@using static WealthIQ.Web.Services.TaxReportPrintFormat
+
+@foreach (var section in Report.Sections)
+{
+    <table class="wiq-form">
+        <tbody>
+            <tr class="wiq-form__head">
+                <td colspan="4">@section.Title</td>
+            </tr>
+            @if (!string.IsNullOrWhiteSpace(section.Note))
+            {
+                <tr class="wiq-form__note">
+                    <td colspan="4">@section.Note</td>
+                </tr>
+            }
+            @foreach (var line in section.Lines)
+            {
+                <tr class="@(line.Muted ? "wiq-form--muted" : null)">
+                    <td class="wiq-form__line">Zeile @line.Line</td>
+                    <td class="wiq-form__caption">@line.Caption</td>
+                    <td class="wiq-form__amount @(line.Amount < 0m ? "wiq-form__neg" : null)">@Num(line.Amount)</td>
+                    <td class="wiq-form__ref">@(string.IsNullOrEmpty(line.Nachweis) ? "" : $"→ Nachweis {line.Nachweis}")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<p class="wiq-form__vintage">@TaxFormReport.Vintage</p>
+
+@code {
+    [Parameter, EditorRequired] public TaxFormReport Report { get; set; } = default!;
+}

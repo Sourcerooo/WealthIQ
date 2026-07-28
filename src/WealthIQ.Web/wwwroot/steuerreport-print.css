@@ -315,3 +315,69 @@
     font-size: 6.6pt;
     color: #9aa5b1;
 }
+
+/* ---- Formularzeilen-Block (TaxFormBlock.razor) ---- */
+.wiq-form {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 4mm;
+}
+
+.wiq-form__head td {
+    background: #1f2933;
+    color: #fff;
+    font-weight: 600;
+    font-size: 8pt;
+    padding: 1.6mm 2mm;
+    letter-spacing: 0.04em;
+}
+
+.wiq-form td {
+    padding: 1.1mm 2mm;
+    border-bottom: 0.25pt solid #cbd2d9;
+    vertical-align: baseline;
+}
+
+.wiq-form__note td {
+    font-size: 6.8pt;
+    font-style: italic;
+    color: #52606d;
+    border-bottom: 0.25pt solid #cbd2d9;
+}
+
+.wiq-form__line {
+    width: 18mm;
+    color: #7b8794;
+    font-size: 7pt;
+    white-space: nowrap;
+}
+
+.wiq-form__amount {
+    width: 32mm;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    font-weight: 600;
+}
+
+.wiq-form__ref {
+    width: 26mm;
+    font-size: 6.8pt;
+    color: #7b8794;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.wiq-form__neg {
+    color: #b42318;
+}
+
+.wiq-form--muted td {
+    color: #9aa5b1;
+    font-weight: 400;
+}
+
+.wiq-form__vintage {
+    font-size: 6.8pt;
+    color: #7b8794;
+    margin: 0 0 4mm;
+}
