@@ -1,3 +1,4 @@
+using WealthIQ.Domain.Enumeration;
 using WealthIQ.Domain.Model.General;
 using WealthIQ.Infrastructure.Ibkr.Tax;
 using Xunit;
@@ -69,6 +70,31 @@ public sealed class JsonInstrumentProfileEnricherTests : IDisposable
         var enriched = Enricher().Enrich(new Instrument(InstrumentId.NewId(), "", "EUR", "", 0m));
 
         Assert.Equal(0m, enriched.Teilfreistellungsquote);
+    }
+
+    [Fact]
+    public void Enrich_ProfileWithTaxAssetClass_AppliesItToTheInstrument()
+    {
+        var enricher = new JsonInstrumentProfileEnricher(Write(
+            """
+            {
+              "IE00B3XXRP09": { "name": "Vanguard S&P 500", "type": "ETF_EQUITY", "tfs_quote": 0.30,
+                                "subject_to_vorabpauschale": true, "tax_asset_class": "equity_fund" }
+            }
+            """));
+
+        var enriched = enricher.Enrich(new Instrument(InstrumentId.NewId(), "IE00B3XXRP09", "VUSA", "raw", 0m));
+
+        Assert.Equal(TaxAssetClass.EquityFund, enriched.AssetClass);
+    }
+
+    [Fact]
+    public void Enrich_ProfileWithoutTaxAssetClass_LeavesAssetClassNull()
+    {
+        // Same default fixture as Enricher(), but its profiles carry no "tax_asset_class" key.
+        var enriched = Enricher().Enrich(new Instrument(InstrumentId.NewId(), "IE00B3XXRP09", "VUSA", "raw", 0m));
+
+        Assert.Null(enriched.AssetClass);
     }
 
     [Fact]

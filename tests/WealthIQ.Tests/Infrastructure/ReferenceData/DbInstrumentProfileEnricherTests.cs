@@ -1,3 +1,4 @@
+using WealthIQ.Domain.Enumeration;
 using WealthIQ.Domain.Model.General;
 using WealthIQ.Infrastructure.Persistence.Rows;
 using WealthIQ.Infrastructure.ReferenceData;
@@ -71,5 +72,37 @@ public sealed class DbInstrumentProfileEnricherTests
         using var ctx = db.NewContext();
         var enriched = new DbInstrumentProfileEnricher(ctx).Enrich(Raw("", "EUR", name: ""));
         Assert.Equal(0m, enriched.Teilfreistellungsquote);
+    }
+
+    [Fact]
+    public void Enrich_ProfileWithTaxAssetClass_AppliesItToTheInstrument()
+    {
+        using var db = new InMemorySqlite();
+        using (var seedCtx = db.NewContext())
+        {
+            seedCtx.InstrumentProfiles.Add(new InstrumentProfileRow
+            {
+                Isin = "IE00B3XXRP09",
+                Name = "Vanguard S&P 500",
+                Teilfreistellungsquote = 0.30m,
+                TaxAssetClass = "equity_fund"
+            });
+            seedCtx.SaveChanges();
+        }
+
+        using var ctx = db.NewContext();
+        var enriched = new DbInstrumentProfileEnricher(ctx).Enrich(Raw("IE00B3XXRP09", "VUSA"));
+
+        Assert.Equal(TaxAssetClass.EquityFund, enriched.AssetClass);
+    }
+
+    [Fact]
+    public void Enrich_ProfileWithoutTaxAssetClass_LeavesAssetClassNull()
+    {
+        using var db = SeededDb();
+        using var ctx = db.NewContext();
+        var enriched = new DbInstrumentProfileEnricher(ctx).Enrich(Raw("IE00B3XXRP09", "VUSA"));
+
+        Assert.Null(enriched.AssetClass);
     }
 }

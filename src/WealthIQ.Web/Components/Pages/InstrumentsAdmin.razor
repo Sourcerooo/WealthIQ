@@ -1,6 +1,7 @@
 @page "/data-admin/instruments"
 @using WealthIQ.Application.ReferenceData
 @using WealthIQ.Application.ReferenceData.Interface
+@using WealthIQ.Domain.Enumeration
 @using CurrencyCode = WealthIQ.Domain.Enumeration.Currency
 @inject IInstrumentReferenceAdmin Admin
 @inject IDialogService DialogService
@@ -219,6 +220,10 @@
         public string Type { get; set; } = "";
         public decimal Teilfreistellungsquote { get; set; } = 0m;
         public bool SubjectToVorabpauschale { get; set; } = false;
+
+        // No editor control yet (Task 11 wires up the UI); carried through unchanged so this
+        // page does not silently wipe a classification set elsewhere (import, seed, or the DB directly).
+        public TaxAssetClass? AssetClass { get; set; }
         public List<ListingEditModel> Listings { get; set; } = new();
     }
 
@@ -270,6 +275,7 @@
             Type = dto.Type,
             Teilfreistellungsquote = dto.Teilfreistellungsquote,
             SubjectToVorabpauschale = dto.SubjectToVorabpauschale,
+            AssetClass = dto.AssetClass,
             Listings = dto.Listings.Select(l => new ListingEditModel
             {
                 Currency = l.Currency,
@@ -303,6 +309,7 @@
                 _editModel.Type,
                 _editModel.Teilfreistellungsquote,
                 _editModel.SubjectToVorabpauschale,
+                _editModel.AssetClass,
                 _editModel.Listings.Select(l => new InstrumentListingDto(
                     l.Currency,
                     l.ProviderSymbol,

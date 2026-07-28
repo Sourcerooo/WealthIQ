@@ -1,3 +1,4 @@
+using WealthIQ.Domain.Enumeration;
 using CurrencyCode = WealthIQ.Domain.Enumeration.Currency;
 
 namespace WealthIQ.Application.ReferenceData;
@@ -15,6 +16,7 @@ public sealed record InstrumentAdminDto(
     string Type,
     decimal Teilfreistellungsquote,
     bool SubjectToVorabpauschale,
+    TaxAssetClass? AssetClass,
     IReadOnlyList<InstrumentListingDto> Listings);
 
 public enum UploadMode { Merge, Replace }

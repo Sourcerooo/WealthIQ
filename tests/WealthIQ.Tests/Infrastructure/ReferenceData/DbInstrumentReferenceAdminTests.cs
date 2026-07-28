@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using WealthIQ.Application.ReferenceData;
+using WealthIQ.Domain.Enumeration;
 using WealthIQ.Infrastructure.Persistence;
 using WealthIQ.Infrastructure.Persistence.Rows;
 using WealthIQ.Infrastructure.ReferenceData;
@@ -25,7 +26,7 @@ public sealed class DbInstrumentReferenceAdminTests
         var admin = new DbInstrumentReferenceAdmin(db);
 
         var dto = new InstrumentAdminDto(
-            "IE00B3XXRP09", "Vanguard S&P 500", "ETF_EQUITY", 0.30m, true,
+            "IE00B3XXRP09", "Vanguard S&P 500", "ETF_EQUITY", 0.30m, true, null,
             [new InstrumentListingDto(CurrencyCode.GBP, "VUSA.L", "YahooFinance", "LSE", null)]);
 
         await admin.SaveAsync(dto);
@@ -45,7 +46,7 @@ public sealed class DbInstrumentReferenceAdminTests
         using var db = NewDb();
         var admin = new DbInstrumentReferenceAdmin(db);
 
-        var dto = new InstrumentAdminDto("IE00B3XXRP09", "Test", "ETF_EQUITY", 1.5m, true, []);
+        var dto = new InstrumentAdminDto("IE00B3XXRP09", "Test", "ETF_EQUITY", 1.5m, true, null, []);
 
         await Assert.ThrowsAsync<ArgumentException>(() => admin.SaveAsync(dto));
     }
@@ -80,5 +81,33 @@ public sealed class DbInstrumentReferenceAdminTests
         Assert.Equal(1, result.Listings);
         Assert.Single(db.InstrumentProfiles);
         Assert.Single(db.InstrumentListings);
+    }
+
+    [Fact]
+    public async Task SaveAsync_ThenListAsync_RoundTripsTheAssetClass()
+    {
+        using var db = NewDb();
+        var admin = new DbInstrumentReferenceAdmin(db);
+
+        await admin.SaveAsync(new InstrumentAdminDto(
+            "TESTISIN0001", "Probe", "ETF_EQUITY", 0.30m, true, TaxAssetClass.EquityFund, []));
+
+        var listed = (await admin.ListAsync()).Single(x => x.Isin == "TESTISIN0001");
+
+        Assert.Equal(TaxAssetClass.EquityFund, listed.AssetClass);
+    }
+
+    [Fact]
+    public async Task SaveAsync_WithoutAssetClass_RoundTripsAsNull()
+    {
+        using var db = NewDb();
+        var admin = new DbInstrumentReferenceAdmin(db);
+
+        await admin.SaveAsync(new InstrumentAdminDto(
+            "TESTISIN0002", "Probe", "SOMETHING", 0m, false, null, []));
+
+        var listed = (await admin.ListAsync()).Single(x => x.Isin == "TESTISIN0002");
+
+        Assert.Null(listed.AssetClass);
     }
 }

@@ -58,6 +58,24 @@ public sealed class ReferenceDataSeederTests
     }
 
     [Fact]
+    public async Task SeedAsync_ProfileWithTaxAssetClass_StoresTheRawCode()
+    {
+        // Seed from the Fixtures/instruments.json, which carries "tax_asset_class" after this task.
+        using var db = new InMemorySqlite();
+
+        await using (var ctx = db.NewContext())
+        {
+            await new ReferenceDataSeeder(ctx).SeedIfEmptyAsync(Sources());
+        }
+
+        await using (var ctx = db.NewContext())
+        {
+            var row = await ctx.InstrumentProfiles.SingleAsync(x => x.Isin == "IE00B3XXRP09");
+            Assert.Equal("equity_fund", row.TaxAssetClass);
+        }
+    }
+
+    [Fact]
     public async Task SeedIfEmpty_RunTwice_IsIdempotent()
     {
         using var db = new InMemorySqlite();

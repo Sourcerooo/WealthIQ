@@ -21,6 +21,7 @@ public sealed class DbInstrumentReferenceAdmin(WealthIqDbContext db) : IInstrume
 
         return profiles.Select(p => new InstrumentAdminDto(
             p.Isin, p.Name, p.Type, p.Teilfreistellungsquote, p.SubjectToVorabpauschale,
+            TaxAssetClassCode.Parse(p.TaxAssetClass),
             listingsByIsin.TryGetValue(p.Isin, out var lst)
                 ? lst.Select(MapListing).ToList()
                 : []))
@@ -46,7 +47,8 @@ public sealed class DbInstrumentReferenceAdmin(WealthIqDbContext db) : IInstrume
                 Name = dto.Name,
                 Type = dto.Type,
                 Teilfreistellungsquote = dto.Teilfreistellungsquote,
-                SubjectToVorabpauschale = dto.SubjectToVorabpauschale
+                SubjectToVorabpauschale = dto.SubjectToVorabpauschale,
+                TaxAssetClass = TaxAssetClassCode.ToCode(dto.AssetClass)
             });
         }
         else
@@ -54,6 +56,7 @@ public sealed class DbInstrumentReferenceAdmin(WealthIqDbContext db) : IInstrume
             existing.Name = dto.Name; existing.Type = dto.Type;
             existing.Teilfreistellungsquote = dto.Teilfreistellungsquote;
             existing.SubjectToVorabpauschale = dto.SubjectToVorabpauschale;
+            existing.TaxAssetClass = TaxAssetClassCode.ToCode(dto.AssetClass);
         }
 
         // Replace all listings for this ISIN
@@ -138,12 +141,13 @@ public sealed class DbInstrumentReferenceAdmin(WealthIqDbContext db) : IInstrume
             var existing = await db.InstrumentProfiles.FindAsync(new object[] { isin }, ct);
             if (existing is null)
             {
-                db.InstrumentProfiles.Add(new InstrumentProfileRow { Isin = isin, Name = dto.Name, Type = dto.Type, Teilfreistellungsquote = tfs, SubjectToVorabpauschale = dto.SubjectToVorabpauschale });
+                db.InstrumentProfiles.Add(new InstrumentProfileRow { Isin = isin, Name = dto.Name, Type = dto.Type, Teilfreistellungsquote = tfs, SubjectToVorabpauschale = dto.SubjectToVorabpauschale, TaxAssetClass = dto.TaxAssetClass });
             }
             else
             {
                 existing.Name = dto.Name; existing.Type = dto.Type;
                 existing.Teilfreistellungsquote = tfs; existing.SubjectToVorabpauschale = dto.SubjectToVorabpauschale;
+                existing.TaxAssetClass = dto.TaxAssetClass;
             }
 
             profileCount++;
@@ -188,6 +192,7 @@ public sealed class DbInstrumentReferenceAdmin(WealthIqDbContext db) : IInstrume
         [JsonPropertyName("type")] public string Type { get; init; } = "";
         [JsonPropertyName("tfs_quote")] public object? TfsRaw { get; init; }
         [JsonPropertyName("subject_to_vorabpauschale")] public bool SubjectToVorabpauschale { get; init; }
+        [JsonPropertyName("tax_asset_class")] public string? TaxAssetClass { get; init; }
     }
 
     private sealed class ListingDto

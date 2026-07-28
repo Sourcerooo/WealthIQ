@@ -1,8 +1,8 @@
 {
-  "FR0010510800": { "name": "Amundi EUR Overnight Return UCITS ETF Acc", "type": "ETF_MONEY_MARKET", "tfs_quote": 0.00, "subject_to_vorabpauschale": true },
-  "FR0010342592": { "name": "Amundi Nasdaq-100 Daily (2x) Leveraged UCITS ETF Acc", "type": "ETF_EQUITY", "tfs_quote": 0.30, "subject_to_vorabpauschale": true },
-  "IE00B53SZB19": { "name": "iShares NASDAQ 100 UCITS ETF USD Acc", "type": "ETF_EQUITY", "tfs_quote": 0.30, "subject_to_vorabpauschale": true },
-  "IE00B3XXRP09": { "name": "Vanguard S&P 500 UCITS ETF", "type": "ETF_EQUITY", "tfs_quote": 0.30, "subject_to_vorabpauschale": true },
-  "IE00BSKRJZ44": { "name": "iShares USD Treasury Bond 20+yr", "type": "ETF_BOND", "tfs_quote": 0.00, "subject_to_vorabpauschale": true },
-  "DE000A0S9GB0": { "name": "Xetra-Gold", "type": "ETC", "tfs_quote": 0.00, "subject_to_vorabpauschale": false }
+  "FR0010510800": { "name": "Amundi EUR Overnight Return UCITS ETF Acc", "type": "ETF_MONEY_MARKET", "tfs_quote": 0.00, "subject_to_vorabpauschale": true, "tax_asset_class": "other_fund" },
+  "FR0010342592": { "name": "Amundi Nasdaq-100 Daily (2x) Leveraged UCITS ETF Acc", "type": "ETF_EQUITY", "tfs_quote": 0.30, "subject_to_vorabpauschale": true, "tax_asset_class": "equity_fund" },
+  "IE00B53SZB19": { "name": "iShares NASDAQ 100 UCITS ETF USD Acc", "type": "ETF_EQUITY", "tfs_quote": 0.30, "subject_to_vorabpauschale": true, "tax_asset_class": "equity_fund" },
+  "IE00B3XXRP09": { "name": "Vanguard S&P 500 UCITS ETF", "type": "ETF_EQUITY", "tfs_quote": 0.30, "subject_to_vorabpauschale": true, "tax_asset_class": "equity_fund" },
+  "IE00BSKRJZ44": { "name": "iShares USD Treasury Bond 20+yr", "type": "ETF_BOND", "tfs_quote": 0.00, "subject_to_vorabpauschale": true, "tax_asset_class": "other_fund" },
+  "DE000A0S9GB0": { "name": "Xetra-Gold", "type": "ETC", "tfs_quote": 0.00, "subject_to_vorabpauschale": false, "tax_asset_class": "other_security" }
 }

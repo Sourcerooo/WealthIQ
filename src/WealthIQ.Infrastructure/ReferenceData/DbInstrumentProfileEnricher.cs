@@ -1,4 +1,5 @@
 using WealthIQ.Application.Tax.Interface;
+using WealthIQ.Domain.Enumeration;
 using WealthIQ.Domain.Model.General;
 using WealthIQ.Infrastructure.Persistence;
 
@@ -12,13 +13,14 @@ namespace WealthIQ.Infrastructure.ReferenceData;
 /// </summary>
 public sealed class DbInstrumentProfileEnricher : IInstrumentProfileEnricher
 {
-    private readonly Dictionary<string, (string Name, string Type, decimal Teilfreistellungsquote, bool SubjectToVorabpauschale)> _profiles;
+    private readonly Dictionary<string, (string Name, string Type, decimal Teilfreistellungsquote, bool SubjectToVorabpauschale, TaxAssetClass? AssetClass)> _profiles;
 
     public DbInstrumentProfileEnricher(WealthIqDbContext db)
     {
         _profiles = db.InstrumentProfiles.ToDictionary(
             x => x.Isin,
-            x => (x.Name, x.Type, x.Teilfreistellungsquote, x.SubjectToVorabpauschale),
+            x => (x.Name, x.Type, x.Teilfreistellungsquote, x.SubjectToVorabpauschale,
+                  TaxAssetClassCode.Parse(x.TaxAssetClass)),
             StringComparer.OrdinalIgnoreCase);
     }
 
@@ -33,6 +35,7 @@ public sealed class DbInstrumentProfileEnricher : IInstrumentProfileEnricher
                 Type = profile.Type,
                 Teilfreistellungsquote = profile.Teilfreistellungsquote,
                 SubjectToVorabpauschale = profile.SubjectToVorabpauschale,
+                AssetClass = profile.AssetClass,
                 Symbol = string.IsNullOrWhiteSpace(instrument.Symbol) ? "Unknown" : instrument.Symbol
             };
         }

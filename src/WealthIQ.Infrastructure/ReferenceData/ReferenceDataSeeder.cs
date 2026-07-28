@@ -143,7 +143,8 @@ public sealed class ReferenceDataSeeder(WealthIqDbContext db) : IReferenceDataSe
                 Name = dto.Name,
                 Type = dto.Type,
                 Teilfreistellungsquote = tfs,
-                SubjectToVorabpauschale = dto.SubjectToVorabpauschale
+                SubjectToVorabpauschale = dto.SubjectToVorabpauschale,
+                TaxAssetClass = dto.TaxAssetClass
             };
         }
     }
@@ -241,6 +242,9 @@ public sealed class ReferenceDataSeeder(WealthIqDbContext db) : IReferenceDataSe
 
         [JsonPropertyName("subject_to_vorabpauschale")]
         public bool SubjectToVorabpauschale { get; init; }
+
+        [JsonPropertyName("tax_asset_class")]
+        public string? TaxAssetClass { get; init; }
     }
 
     private sealed class ListingDto

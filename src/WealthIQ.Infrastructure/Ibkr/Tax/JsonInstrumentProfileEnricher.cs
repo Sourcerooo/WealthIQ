@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using WealthIQ.Application.Tax.Interface;
+using WealthIQ.Domain.Enumeration;
 using WealthIQ.Domain.Model.General;
 
 namespace WealthIQ.Infrastructure.Ibkr.Tax;
@@ -26,6 +27,7 @@ public sealed class JsonInstrumentProfileEnricher : IInstrumentProfileEnricher
                 Type = profile.Type,
                 Teilfreistellungsquote = profile.Teilfreistellungsquote,
                 SubjectToVorabpauschale = profile.SubjectToVorabpauschale,
+                AssetClass = profile.AssetClass,
                 Symbol = string.IsNullOrWhiteSpace(instrument.Symbol) ? profile.SymbolFallback : instrument.Symbol
             };
         }
@@ -53,11 +55,15 @@ public sealed class JsonInstrumentProfileEnricher : IInstrumentProfileEnricher
                 throw new ApplicationException($"Invalid teilfreistellungsquote for instrument '{isin}'.");
             }
 
-            _profiles[isin] = new InstrumentProfile(profile.Name, profile.Type, teilfreistellungsquote, profile.SubjectToVorabpauschale);
+            _profiles[isin] = new InstrumentProfile(
+                profile.Name, profile.Type, teilfreistellungsquote, profile.SubjectToVorabpauschale,
+                WealthIQ.Infrastructure.ReferenceData.TaxAssetClassCode.Parse(profile.TaxAssetClass));
         }
     }
 
-    private sealed record InstrumentProfile(string Name, string Type, decimal Teilfreistellungsquote, bool SubjectToVorabpauschale)
+    private sealed record InstrumentProfile(
+        string Name, string Type, decimal Teilfreistellungsquote,
+        bool SubjectToVorabpauschale, TaxAssetClass? AssetClass)
     {
         public string SymbolFallback => "Unknown";
     }
@@ -75,5 +81,8 @@ public sealed class JsonInstrumentProfileEnricher : IInstrumentProfileEnricher
 
         [JsonPropertyName("subject_to_vorabpauschale")]
         public bool SubjectToVorabpauschale { get; init; }
+
+        [JsonPropertyName("tax_asset_class")]
+        public string? TaxAssetClass { get; init; }
     }
 }
