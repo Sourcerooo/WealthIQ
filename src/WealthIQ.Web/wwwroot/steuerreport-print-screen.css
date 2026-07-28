@@ -1,0 +1,93 @@
+/* Screen-only chrome for the print preview at /steuerreport/print.
+   Deliberately separate from steuerreport-print.css: Paged.js is handed that file
+   as the document stylesheet, and none of these rules belong on paper. */
+
+body:has(.wiq-print-shell) {
+    background: #6b7280;
+    margin: 0;
+}
+
+.wiq-print-shell {
+    min-height: 100vh;
+}
+
+/* Paged.js emits one .pagedjs_page per sheet; make them look like sheets. */
+.pagedjs_page {
+    background: #fff;
+    margin: 10mm auto;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, .35);
+}
+
+.wiq-print-status {
+    font-family: Inter, sans-serif;
+    color: #fff;
+    text-align: center;
+    padding: 80px 24px;
+    font-size: 14px;
+    letter-spacing: .04em;
+}
+
+.wiq-print-status a {
+    color: #34d399;
+}
+
+/* Floating action bar: not part of the document, hidden when printing. */
+.wiq-print-bar {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    display: flex;
+    align-items: stretch;
+    background: #111827;
+    color: #fff;
+    border-radius: 999px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, .45);
+    font-family: Inter, sans-serif;
+    font-size: 13px;
+    overflow: hidden;
+}
+
+.wiq-print-bar__label {
+    padding: 12px 18px;
+    white-space: nowrap;
+    opacity: .75;
+}
+
+.wiq-print-bar button,
+.wiq-print-bar a {
+    background: none;
+    border: none;
+    border-left: 1px solid #374151;
+    color: #fff;
+    cursor: pointer;
+    padding: 0 20px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+}
+
+.wiq-print-bar button:hover,
+.wiq-print-bar a:hover {
+    background: #1f2937;
+}
+
+@media print {
+    body:has(.wiq-print-shell) {
+        background: #fff;
+    }
+
+    .wiq-print-bar,
+    .wiq-print-status {
+        display: none !important;
+    }
+
+    .pagedjs_page {
+        margin: 0;
+        box-shadow: none;
+    }
+}

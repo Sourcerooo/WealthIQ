@@ -25,6 +25,12 @@ public sealed class AnnualTaxReportService(
 
         var accountNumbers = ledger.Accounts.ToDictionary(a => a.AccountId, a => a.AccountNumber);
 
+        // An account is fed by exactly one broker; take the first entry's source system rather
+        // than inferring the broker from the account number's shape.
+        var sourceSystems = ledger.Entries
+            .GroupBy(e => e.AccountId)
+            .ToDictionary(g => g.Key, g => g.First().SourceProvenance.SourceSystem);
+
         string NumberFor(AccountId id) =>
             accountNumbers.TryGetValue(id, out var number) ? number : id.ToString();
 
@@ -38,7 +44,8 @@ public sealed class AnnualTaxReportService(
                     .GroupBy(e => e.Year)
                     .OrderBy(y => y.Key)
                     .Select(BuildAnnualReport)
-                    .ToList()))
+                    .ToList(),
+                sourceSystems.GetValueOrDefault(accountGroup.Key, string.Empty)))
             .ToList();
     }
 

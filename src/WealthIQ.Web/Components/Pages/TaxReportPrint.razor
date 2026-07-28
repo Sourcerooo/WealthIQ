@@ -1,0 +1,528 @@
+@* Printable German tax report: the aggregation shaped like the Anlage KAP / KAP-INV lines you
+   type into, followed by the numbered Einzelnachweise each line points at.
+
+   Paged.js turns the markup into paper-sized pages with a repeating header and real page
+   numbers; the browser's print dialog produces the PDF. *@
+@page "/steuerreport/print"
+@layout PrintLayout
+@using Microsoft.Extensions.Options
+@using WealthIQ.Application.Tax.Report
+@using WealthIQ.Domain.Model.Tax
+@using WealthIQ.Web.Options
+@using static WealthIQ.Web.Services.TaxReportPrintFormat
+@inject AnnualTaxReportService ReportService
+@inject IOptions<TaxpayerProfileOptions> ProfileOptions
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>WealthIQ · Steuerreport @(Current?.Year) drucken</PageTitle>
+
+<HeadContent>
+    <link rel="stylesheet" href="steuerreport-print-screen.css" />
+</HeadContent>
+
+@if (_error is not null)
+{
+    <div class="wiq-print-status">Bericht konnte nicht erstellt werden: @_error</div>
+}
+else if (_loading)
+{
+    <div class="wiq-print-status">Bericht wird berechnet …</div>
+}
+else if (Account is null || Current is null)
+{
+    <div class="wiq-print-status">
+        Keine Steuerdaten vorhanden. Importiere zuerst ein Broker-Statement.
+    </div>
+}
+else
+{
+    @if (!_paginated)
+    {
+        <div class="wiq-print-status">Seiten werden gesetzt …</div>
+    }
+
+    @if (string.IsNullOrWhiteSpace(Profile.Name))
+    {
+        @* Screen-only: the header would otherwise print an empty identity block. *@
+        <div class="wiq-print-status">
+            Hinweis: Im Abschnitt <b>TaxpayerProfile</b> der <b>appsettings.json</b> sind noch
+            keine Angaben zu Name, Adresse und Steuer-ID hinterlegt. Der Kopf des Reports bleibt
+            deshalb leer.
+        </div>
+    }
+
+    @* Blazor renders the document here, hidden. Paged.js paginates a clone into
+       #wiq-print-target, which Blazor never re-renders. *@
+    <div id="wiq-print-source" style="display:none;">
+        <div class="wiq-p-doc">
+            <TaxReportPrintHeader Profile="Profile" AccountNumber="@Account.AccountNumber"
+                                  Year="Current.Year" SourceSystem="@Account.SourceSystem" />
+
+            <div class="wiq-p-doctitle">Steuerreport @Current.Year</div>
+
+            <p class="wiq-p-section-sub">
+                Alle Beträge in EUR, umgerechnet zum Kurs des jeweiligen Ereignistages.
+            </p>
+
+            @* ---- Anlage KAP ---- *@
+            <table class="wiq-p-form">
+                <tbody>
+                    <tr class="wiq-p-formhead">
+                        <td colspan="4">Anlage KAP: Kapitalerträge ohne inländischen Steuerabzug</td>
+                    </tr>
+                    <tr>
+                        <td class="wiq-p-form__line">Zeile 19</td>
+                        <td>Gewinne / Verluste aus der Veräußerung von Wertpapieren (nach Teilfreistellung)</td>
+                        <td class="wiq-p-form__amount @NegClass(Summary.NetRealizedGainsTaxable)">@Num(Summary.NetRealizedGainsTaxable)</td>
+                        <td class="wiq-p-form__ref">→ Nachweis&nbsp;A</td>
+                    </tr>
+                    <tr>
+                        <td class="wiq-p-form__line">Zeile 19</td>
+                        <td>Dividenden (nach Teilfreistellung)</td>
+                        <td class="wiq-p-form__amount">@Num(Summary.DividendsTaxable)</td>
+                        <td class="wiq-p-form__ref">→ Nachweis&nbsp;B</td>
+                    </tr>
+                    <tr>
+                        <td class="wiq-p-form__line">Zeile 19</td>
+                        <td>Zinserträge</td>
+                        <td class="wiq-p-form__amount">@Num(Summary.InterestTaxable)</td>
+                        <td class="wiq-p-form__ref">→ Nachweis&nbsp;C</td>
+                    </tr>
+                    <tr>
+                        <td class="wiq-p-form__line">Zeile 41</td>
+                        <td>Anrechenbare ausländische Quellensteuer</td>
+                        <td class="wiq-p-form__amount">@Num(Summary.ForeignWithholdingTax)</td>
+                        <td class="wiq-p-form__ref">→ Nachweis&nbsp;E</td>
+                    </tr>
+                    <tr>
+                        <td class="wiq-p-form__line">Zeile 37</td>
+                        <td>Bereits einbehaltene deutsche Kapitalertragsteuer</td>
+                        <td class="wiq-p-form__amount">@Num(Summary.WithheldKESt)</td>
+                        <td class="wiq-p-form__ref"></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            @* ---- Anlage KAP-INV ---- *@
+            <table class="wiq-p-form">
+                <tbody>
+                    <tr class="wiq-p-formhead">
+                        <td colspan="4">Anlage KAP-INV: Investmenterträge</td>
+                    </tr>
+                    <tr>
+                        <td class="wiq-p-form__line">Zeile 9</td>
+                        <td>Vorabpauschalen (§ 18 InvStG, nach Teilfreistellung)</td>
+                        <td class="wiq-p-form__amount">@Num(Summary.VorabpauschaleTaxable)</td>
+                        <td class="wiq-p-form__ref">→ Nachweis&nbsp;D</td>
+                    </tr>
+                    <tr>
+                        <td class="wiq-p-form__line">nachr.</td>
+                        <td class="wiq-p-muted">Vorabpauschalen vor Teilfreistellung</td>
+                        <td class="wiq-p-form__amount wiq-p-muted">@Num(Current.Vorabpauschale.Sum(v => v.RawAmount))</td>
+                        <td class="wiq-p-form__ref"></td>
+                    </tr>
+                    <tr>
+                        <td class="wiq-p-form__line">nachr.</td>
+                        <td class="wiq-p-muted">Beim Verkauf verrechnete Vorabpauschalen (Vorjahre)</td>
+                        <td class="wiq-p-form__amount wiq-p-muted">@Num(Current.Sells.Sum(s => s.UsedVorabpauschale))</td>
+                        <td class="wiq-p-form__ref"></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            @* ---- Ergebnis ---- *@
+            <table class="wiq-p-form">
+                <tbody>
+                    <tr class="wiq-p-formhead">
+                        <td colspan="4">Ermittlung der geschätzten Steuer</td>
+                    </tr>
+                    <tr>
+                        <td class="wiq-p-form__line"></td>
+                        <td>Bemessungsgrundlage (Summe der steuerpflichtigen Erträge)</td>
+                        <td class="wiq-p-form__amount @NegClass(TaxBase)">@Num(TaxBase)</td>
+                        <td class="wiq-p-form__ref"></td>
+                    </tr>
+                    <tr>
+                        <td class="wiq-p-form__line"></td>
+                        <td>Abgeltungsteuer 25 % zzgl. 5,5 % Solidaritätszuschlag = 26,375 %</td>
+                        <td class="wiq-p-form__amount">@Num(GrossTax)</td>
+                        <td class="wiq-p-form__ref"></td>
+                    </tr>
+                    <tr>
+                        <td class="wiq-p-form__line"></td>
+                        <td>abzüglich anrechenbarer ausländischer Quellensteuer</td>
+                        <td class="wiq-p-form__amount">−@Num(Summary.ForeignWithholdingTax)</td>
+                        <td class="wiq-p-form__ref"></td>
+                    </tr>
+                    <tr class="wiq-p-form__total">
+                        <td class="wiq-p-form__line"></td>
+                        <td>Geschätzte Steuer @Current.Year</td>
+                        <td class="wiq-p-form__amount">@Num(Summary.EstimatedTax) €</td>
+                        <td class="wiq-p-form__ref"></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <p class="wiq-p-tiny wiq-p-muted">
+                Schätzung ohne Sparer-Pauschbetrag, Kirchensteuer und Verlustverrechnungstöpfe.
+                Verluste werden ausschließlich innerhalb des Jahres @Current.Year verrechnet; ein
+                Verlustvortrag aus Vorjahren ist nicht berücksichtigt.
+            </p>
+
+            @* =================== Einzelnachweise =================== *@
+            @NachweisSells()
+            @NachweisCash("B", "Dividenden", Current.Dividends, showIsin: true)
+            @NachweisCash("C", "Zinsen", Current.Interest, showIsin: false)
+            @NachweisVorabpauschale()
+            @NachweisWithholding()
+        </div>
+    </div>
+
+    <div id="wiq-print-target"></div>
+
+    <div class="wiq-print-bar">
+        <span class="wiq-print-bar__label">Steuerreport @Current.Year · Konto @Account.AccountNumber</span>
+        <a href="/steuerreport">Zurück</a>
+        <button @onclick="PrintAsync">Drucken / PDF</button>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _paginated;
+    private string? _error;
+    private int _year;
+    private string? _accountNumber;
+    private IReadOnlyList<AccountTaxReport> _accounts = Array.Empty<AccountTaxReport>();
+    private IJSObjectReference? _module;
+
+    private TaxpayerProfileOptions Profile => ProfileOptions.Value;
+
+    private AccountTaxReport? Account => _accounts.FirstOrDefault(a => a.AccountNumber == _accountNumber)
+        ?? _accounts.FirstOrDefault();
+
+    private AnnualTaxReport? Current => Account?.Years.FirstOrDefault(y => y.Year == _year)
+        ?? Account?.Years.LastOrDefault();
+
+    private TaxReportSummary Summary => Current!.Summary;
+
+    private decimal TaxBase => Summary.NetRealizedGainsTaxable + Summary.DividendsTaxable
+        + Summary.InterestTaxable + Summary.VorabpauschaleTaxable;
+
+    private decimal GrossTax => Math.Max(0m, TaxBase) * 0.26375m;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ReadQuery();
+        try
+        {
+            _accounts = await ReportService.GenerateAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void ReadQuery()
+    {
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(
+            Nav.ToAbsoluteUri(Nav.Uri).Query);
+
+        if (query.TryGetValue("year", out var year) && int.TryParse(year, out var parsedYear))
+        {
+            _year = parsedYear;
+        }
+        if (query.TryGetValue("account", out var account))
+        {
+            _accountNumber = account.ToString();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || Current is null) return;
+
+        try
+        {
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "/steuerreport-print.js");
+            _paginated = await _module.InvokeAsync<bool>(
+                "paginate", "wiq-print-source", "wiq-print-target", "/steuerreport-print.css");
+        }
+        catch (JSException ex)
+        {
+            _error = $"Seitenumbruch fehlgeschlagen: {ex.Message}";
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task PrintAsync()
+    {
+        if (_module is not null)
+        {
+            await _module.InvokeVoidAsync("print");
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); } catch (JSDisconnectedException) { }
+        }
+    }
+
+    private static string Beleg(string prefix, int index) => $"{prefix}-{(index + 1):D3}";
+
+    private RenderFragment SectionTitle(string letter, string title, string subtitle) => __builder =>
+    {
+        <div class="wiq-p-break">
+            <h2 class="wiq-p-section-title">Nachweis @letter: @title</h2>
+            <p class="wiq-p-section-sub">@subtitle</p>
+        </div>
+    };
+
+    // Trader's Place statements carry no ticker, so its instruments are created with Symbol = ISIN.
+    // Printing both would read "IE00BSKRJZ44 / IE00BSKRJZ44"; show the ISIN once instead, with the
+    // weight the ticker would have had so the column stays even.
+    private static string SymbolOrBlank(GermanTaxEntry entry)
+        => string.IsNullOrWhiteSpace(entry.Symbol) || entry.Symbol == entry.Isin ? "" : entry.Symbol;
+
+    private RenderFragment InstrumentCell(GermanTaxEntry entry) => __builder =>
+    {
+        var symbol = SymbolOrBlank(entry);
+        if (symbol.Length == 0)
+        {
+            <b>@entry.Isin</b>
+        }
+        else
+        {
+            <b>@symbol</b>
+
+            <br />
+
+            <span class="wiq-p-tiny wiq-p-muted">@entry.Isin</span>
+        }
+    };
+
+    private RenderFragment NachweisSells() => __builder =>
+    {
+        var rows = Current!.Sells;
+        @SectionTitle("A", "Veräußerungen", $"{rows.Count} Positionen · FIFO-Zuordnung · Beträge in EUR")
+        <table class="wiq-p-table">
+            <thead>
+                <tr>
+                    <th>Beleg</th>
+                    <th>Symbol / ISIN</th>
+                    <th>Eröffnet</th>
+                    <th>Verkauft</th>
+                    <th class="wiq-p-num">Stück</th>
+                    <th class="wiq-p-num">Kauf ges.</th>
+                    <th class="wiq-p-num">Verkauf ges.</th>
+                    <th class="wiq-p-num">Kosten</th>
+                    <th class="wiq-p-num">Roh-G/V</th>
+                    @* "darin", not "abzgl.": the amount is already deducted inside Roh-G/V. *@
+                    <th class="wiq-p-num">darin Vorabp.</th>
+                    <th class="wiq-p-num">Steuerpfl.</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (var i = 0; i < rows.Count; i++)
+                {
+                    var r = rows[i];
+                    <tr>
+                        <td class="wiq-p-belegnr">@Beleg("A", i)</td>
+                        <td>@InstrumentCell(r)</td>
+                        <td>@Date(r.OpenedOn)</td>
+                        <td>@Date(r.Date)</td>
+                        <td class="wiq-p-num">@Qty(r.QuantitySold)</td>
+                        <td class="wiq-p-num">@Num(r.AcquisitionCosts)</td>
+                        <td class="wiq-p-num">@Num(r.SaleProceeds)</td>
+                        <td class="wiq-p-num">@Num(r.Fees)</td>
+                        <td class="wiq-p-num @NegClass(r.RawAmount)">@Num(r.RawAmount)</td>
+                        <td class="wiq-p-num">@Num(r.UsedVorabpauschale)</td>
+                        <td class="wiq-p-num @NegClass(r.TaxableAmount)"><b>@Num(r.TaxableAmount)</b></td>
+                    </tr>
+                    <tr class="wiq-p-srcline">
+                        <td></td>
+                        <td colspan="10">
+                            Kauf-Ref. @r.SourceReference · Verkauf-Ref. @r.CloseReference · Datei @SourceFileName(r.SourceFile)
+                        </td>
+                    </tr>
+                }
+            </tbody>
+            @* Only the taxable column is summed. A Roh-G/V total would read as an equation that
+               does not hold: the Teilfreistellung quota differs per instrument, and Roh-G/V already
+               has the offset Vorabpauschale deducted. *@
+            <tfoot>
+                <tr>
+                    <td colspan="10">Summe steuerpflichtig (Nachweis A)</td>
+                    <td class="wiq-p-num @NegClass(rows.Sum(r => r.TaxableAmount))">@Num(rows.Sum(r => r.TaxableAmount))</td>
+                </tr>
+                <tr class="wiq-p-memo">
+                    <td colspan="10">nachrichtlich: darin verrechnete Vorabpauschalen der Vorjahre</td>
+                    <td class="wiq-p-num">@Num(rows.Sum(r => r.UsedVorabpauschale))</td>
+                </tr>
+            </tfoot>
+        </table>
+    };
+
+    private RenderFragment NachweisCash(string letter, string title, IReadOnlyList<GermanTaxEntry> rows, bool showIsin) => __builder =>
+    {
+        @SectionTitle(letter, title, $"{rows.Count} Buchungen · Beträge in EUR (Originalwährung in der Belegzeile)")
+        <table class="wiq-p-table">
+            <thead>
+                <tr>
+                    <th>Beleg</th>
+                    <th>Datum</th>
+                    <th>Symbol@(showIsin ? " / ISIN" : "")</th>
+                    <th class="wiq-p-num">Brutto</th>
+                    <th class="wiq-p-num">Teilfreistellung</th>
+                    <th class="wiq-p-num">Steuerpfl.</th>
+                    <th class="wiq-p-num">Quellensteuer</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (var i = 0; i < rows.Count; i++)
+                {
+                    var r = rows[i];
+                    <tr>
+                        <td class="wiq-p-belegnr">@Beleg(letter, i)</td>
+                        <td>@Date(r.Date)</td>
+                        <td>
+                            @if (showIsin)
+                            {
+                                @InstrumentCell(r)
+                            }
+                            else
+                            {
+                                <b>@SymbolOrBlank(r)</b>
+                            }
+                        </td>
+                        <td class="wiq-p-num">@Num(r.RawAmount)</td>
+                        <td class="wiq-p-num wiq-p-muted">@Num(r.RawAmount - r.TaxableAmount)</td>
+                        <td class="wiq-p-num"><b>@Num(r.TaxableAmount)</b></td>
+                        <td class="wiq-p-num">@Num(r.ForeignWithholdingTax)</td>
+                    </tr>
+                    <tr class="wiq-p-srcline">
+                        <td></td>
+                        <td colspan="6">
+                            Ref. @r.SourceReference · Datei @SourceFileName(r.SourceFile)
+                            @if (!string.IsNullOrWhiteSpace(r.OriginalCurrency))
+                            {
+                                <text> · Original @Num(r.OriginalAmount) @r.OriginalCurrency</text>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="3">Summe Nachweis @letter</td>
+                    <td class="wiq-p-num">@Num(rows.Sum(r => r.RawAmount))</td>
+                    <td class="wiq-p-num">@Num(rows.Sum(r => r.RawAmount - r.TaxableAmount))</td>
+                    <td class="wiq-p-num">@Num(rows.Sum(r => r.TaxableAmount))</td>
+                    <td class="wiq-p-num">@Num(rows.Sum(r => r.ForeignWithholdingTax))</td>
+                </tr>
+            </tfoot>
+        </table>
+    };
+
+    private RenderFragment NachweisVorabpauschale() => __builder =>
+    {
+        var rows = Current!.Vorabpauschale;
+        @SectionTitle("D", "Vorabpauschalen", $"{rows.Count} Positionen · Beträge in EUR")
+        <table class="wiq-p-table">
+            <thead>
+                <tr>
+                    <th>Beleg</th>
+                    <th>Stichtag</th>
+                    <th>Symbol / ISIN</th>
+                    <th class="wiq-p-num">Stück</th>
+                    <th class="wiq-p-num">Kurs 01.01.</th>
+                    <th class="wiq-p-num">Kurs 31.12.</th>
+                    <th class="wiq-p-num">Basiszins</th>
+                    <th class="wiq-p-num">Ausschüttung je Anteil</th>
+                    <th class="wiq-p-num">Monatsanteil</th>
+                    <th class="wiq-p-num">Brutto</th>
+                    <th class="wiq-p-num">Steuerpfl.</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (var i = 0; i < rows.Count; i++)
+                {
+                    var r = rows[i];
+                    <tr>
+                        <td class="wiq-p-belegnr">@Beleg("D", i)</td>
+                        <td>@Date(r.Date)</td>
+                        <td>@InstrumentCell(r)</td>
+                        <td class="wiq-p-num">@Qty(r.HeldQuantity)</td>
+                        <td class="wiq-p-num">@Num(r.YearStartPrice)</td>
+                        <td class="wiq-p-num">@Num(r.YearEndPrice)</td>
+                        <td class="wiq-p-num">@Percent(r.BasisRate)</td>
+                        <td class="wiq-p-num">@Num(r.DistributionPerShare)</td>
+                        @* A factor like 0,58 is unreadable; the underlying rule counts months. *@
+                        <td class="wiq-p-num">@(Math.Round(r.MonthFactor * 12m, 0).ToString("0")) / 12</td>
+                        <td class="wiq-p-num">@Num(r.RawAmount)</td>
+                        <td class="wiq-p-num"><b>@Num(r.TaxableAmount)</b></td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="9">Summe Nachweis D</td>
+                    <td class="wiq-p-num">@Num(rows.Sum(r => r.RawAmount))</td>
+                    <td class="wiq-p-num">@Num(rows.Sum(r => r.TaxableAmount))</td>
+                </tr>
+            </tfoot>
+        </table>
+    };
+
+    private RenderFragment NachweisWithholding() => __builder =>
+    {
+        var rows = Current!.WithholdingTaxes;
+        @SectionTitle("E", "Anrechenbare Quellensteuer", $"{rows.Count} Buchungen · Beträge in EUR")
+        @* Narrow: five columns stretched across a landscape page would strand each figure
+           far from its heading. *@
+        <table class="wiq-p-table wiq-p-table--narrow">
+            <thead>
+                <tr>
+                    <th>Beleg</th>
+                    <th>Datum</th>
+                    <th>Herkunft</th>
+                    <th>ISIN</th>
+                    <th class="wiq-p-num">Quellensteuer</th>
+                    <th>Referenz</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (var i = 0; i < rows.Count; i++)
+                {
+                    var r = rows[i];
+                    <tr>
+                        <td class="wiq-p-belegnr">@Beleg("E", i)</td>
+                        <td>@Date(r.Date)</td>
+                        <td>@r.Origin</td>
+                        <td class="wiq-p-tiny">@r.Isin</td>
+                        <td class="wiq-p-num"><b>@Num(r.ForeignWithholdingTax)</b></td>
+                        <td class="wiq-p-tiny wiq-p-muted">@r.SourceReference</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="4">Summe Nachweis E</td>
+                    <td class="wiq-p-num">@Num(rows.Sum(r => r.ForeignWithholdingTax))</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    };
+}

@@ -115,4 +115,43 @@ public sealed class AnnualTaxReportServiceTests
         Assert.Equal(200m, a.Years.Single().Summary.NetRealizedGainsTaxable);  // 10 * (120-100)
         Assert.Equal(50m, b.Years.Single().Summary.NetRealizedGainsTaxable);   // 5 * (110-100)
     }
+
+    [Fact]
+    public async Task Generate_AccountsFromDifferentBrokers_CarryTheirOwnSourceSystem()
+    {
+        var ibkrAccount = AccountId.NewId();
+        var tradersPlaceAccount = AccountId.NewId();
+        var instrumentId = InstrumentId.NewId();
+        var instrument = new Instrument(instrumentId, "DE0001", "AAA", "Alpha", 0m)
+        {
+            SubjectToVorabpauschale = false
+        };
+
+        var buyIbkr = TaxEntries.Trade(ibkrAccount, instrumentId, TradeSide.Buy, 10m, 100m,
+            new DateTimeOffset(2024, 1, 10, 12, 0, 0, TimeSpan.Zero), "IB-BUY", sourceSystem: "IBKR");
+        var sellIbkr = TaxEntries.Trade(ibkrAccount, instrumentId, TradeSide.Sell, 10m, 120m,
+            new DateTimeOffset(2024, 6, 10, 12, 0, 0, TimeSpan.Zero), "IB-SELL", sourceSystem: "IBKR");
+        var buyTp = TaxEntries.Trade(tradersPlaceAccount, instrumentId, TradeSide.Buy, 5m, 100m,
+            new DateTimeOffset(2024, 1, 10, 12, 0, 0, TimeSpan.Zero), "TP-BUY", sourceSystem: "TradersPlace");
+        var sellTp = TaxEntries.Trade(tradersPlaceAccount, instrumentId, TradeSide.Sell, 5m, 110m,
+            new DateTimeOffset(2024, 6, 10, 12, 0, 0, TimeSpan.Zero), "TP-SELL", sourceSystem: "TradersPlace");
+
+        var ledger = new PortfolioLedger(
+            new PortfolioEntry[] { buyIbkr, sellIbkr, buyTp, sellTp },
+            new[] { instrument },
+            new[] { new Account(ibkrAccount, "U1"), new Account(tradersPlaceAccount, "A1") });
+
+        var service = new AnnualTaxReportService(
+            new FixedLedgerStore(ledger),
+            new InstrumentCatalogBuilder(new IdentityProfileEnricher()),
+            new GermanTaxCalculator(
+                new FakeBasisInterestRateProvider((2024, 0m)),
+                new FakeYearEndPriceProvider(),
+                new FakeFxRateLookup()));
+
+        var reports = await service.GenerateAsync();
+
+        Assert.Equal("IBKR", Assert.Single(reports, r => r.AccountNumber == "U1").SourceSystem);
+        Assert.Equal("TradersPlace", Assert.Single(reports, r => r.AccountNumber == "A1").SourceSystem);
+    }
 }

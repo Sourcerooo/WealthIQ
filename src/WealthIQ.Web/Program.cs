@@ -25,6 +25,10 @@ using WealthIQ.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Personal data (TaxpayerProfile: name, address, tax id) belongs here rather than in the
+// versioned appsettings.json. The file is gitignored and optional.
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+
 // --- Local data layout ---
 // Defaults are repo-relative (ContentRootPath = src/WealthIQ.Web → repo root is two levels up).
 // Optional config overrides: DataPaths:Root (the data/ folder) and DataPaths:Reference.
@@ -133,6 +137,8 @@ builder.Services.AddScoped<IReferenceDataClearService, DbReferenceDataClearServi
 builder.Services.AddScoped<IDataRefreshLog, DbDataRefreshLog>();
 
 // --- Tax replay ---
+builder.Services.Configure<WealthIQ.Web.Options.TaxpayerProfileOptions>(
+    builder.Configuration.GetSection(WealthIQ.Web.Options.TaxpayerProfileOptions.SectionName));
 builder.Services.AddScoped<InstrumentCatalogBuilder>();
 builder.Services.AddScoped<GermanTaxCalculator>();
 builder.Services.AddScoped<AnnualTaxReportService>();

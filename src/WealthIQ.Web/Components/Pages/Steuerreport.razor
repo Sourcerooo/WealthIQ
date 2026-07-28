@@ -30,6 +30,13 @@
                 }
             </MudSelect>
         }
+        @if (Current is not null)
+        {
+            <MudButton Href="@PrintUrl" Target="_blank" Variant="Variant.Outlined" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.PictureAsPdf" Class="ms-2">
+                PDF-Export
+            </MudButton>
+        }
     </Actions>
 </PageHeader>
 
@@ -226,6 +233,10 @@ else if (Current is not null)
         }
         _animatePending = true;
     }
+
+    // Opens the printable report for exactly the account + year shown here.
+    private string PrintUrl =>
+        $"/steuerreport/print?account={Uri.EscapeDataString(CurrentAccount?.AccountNumber ?? "")}&year={_selectedYear}";
 
     private static string Eur(decimal amount)
         => amount.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("de-DE")) + " €";

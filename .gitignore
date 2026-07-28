@@ -53,3 +53,5 @@
 /QueueImplementation/
 /data/design_template/
 /data/app/
+# Local, unversioned config overrides (personal data: TaxpayerProfile)
+appsettings.Local.json

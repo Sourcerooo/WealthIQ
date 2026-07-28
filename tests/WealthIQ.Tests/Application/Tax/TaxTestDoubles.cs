@@ -84,9 +84,9 @@ internal sealed class FakeFxRateLookup(params (DateOnly Date, CurrencyCode Curre
 
 internal static class TaxEntries
 {
-    public static SourceProvenance Provenance(string reference) => new()
+    public static SourceProvenance Provenance(string reference, string sourceSystem = "IBKR") => new()
     {
-        SourceSystem = "IBKR",
+        SourceSystem = sourceSystem,
         ImportFormat = "TEST",
         SourceLocation = "unit-test",
         SourceRecordReference = reference
@@ -102,13 +102,14 @@ internal static class TaxEntries
         string reference,
         CurrencyCode currency = CurrencyCode.EUR,
         decimal fees = 0m,
-        decimal taxes = 0m)
+        decimal taxes = 0m,
+        string sourceSystem = "IBKR")
         => new(
             PortfolioEntryId.NewId(),
             accountId,
             occurredAt,
             DateOnly.FromDateTime(occurredAt.UtcDateTime),
-            Provenance(reference),
+            Provenance(reference, sourceSystem),
             instrumentId,
             side,
             new Quantity(quantity),

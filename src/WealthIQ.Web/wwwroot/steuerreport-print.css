@@ -1,0 +1,317 @@
+/* ===========================================================================
+   Print stylesheet for the German tax report (/steuerreport/print).
+
+   Consumed twice: Paged.js is handed this file to lay the document out into
+   paper-sized pages, and the browser applies it to the resulting on-screen
+   preview. Screen-only chrome belongs in steuerreport-print-screen.css.
+   =========================================================================== */
+
+/* --- Page geometry -----------------------------------------------------
+   Landscape: the evidence tables carry up to eleven columns and need the width.
+   The top margin is deep because it holds the running header; the extra height
+   over the header's own size comes from the matching padding-top below. */
+@page {
+    size: A4 landscape;
+    margin: 36mm 16mm 16mm 16mm;
+
+    /* Printable width is 297 - 32 = 265mm; the two boxes tile it exactly. */
+    @top-left {
+        content: element(reportHeader);
+        width: 224mm;
+        vertical-align: top;
+    }
+
+    /* counter() only resolves inside a margin box, never inside a running
+       element, which is why the page number is its own box up here rather
+       than part of the header markup. */
+    @top-right {
+        content: "Seite " counter(page) " von " counter(pages);
+        width: 41mm;
+        vertical-align: top;
+        text-align: right;
+        font-size: 7.5pt;
+        color: #52606d;
+        letter-spacing: 0.02em;
+        padding-top: 9mm;
+    }
+
+    @bottom-left {
+        content: "Automatisch erzeugter Report auf Basis importierter Brokerstatements";
+        font-size: 6.5pt;
+        color: #9aa5b1;
+    }
+}
+
+/* Each Nachweis opens a fresh page. */
+.wiq-p-break {
+    break-before: page;
+}
+
+/* --- Base typography --------------------------------------------------- */
+.wiq-p-doc {
+    font-family: Inter, "Segoe UI", system-ui, sans-serif;
+    font-size: 8.5pt;
+    line-height: 1.45;
+    color: #1f2933;
+    -webkit-font-smoothing: antialiased;
+}
+
+.wiq-p-doc h1,
+.wiq-p-doc h2 {
+    margin: 0;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.wiq-p-num {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.wiq-p-neg {
+    color: #b42318;
+}
+
+.wiq-p-muted {
+    color: #7b8794;
+}
+
+.wiq-p-tiny {
+    font-size: 6.8pt;
+    line-height: 1.35;
+}
+
+/* =======================================================================
+   Running header
+   ======================================================================= */
+.wiq-p-header {
+    position: running(reportHeader);
+    font-family: Inter, "Segoe UI", system-ui, sans-serif;
+    font-size: 7.5pt;
+    color: #1f2933;
+    /* Air to the paper edge. Must match the page-number box's padding-top so
+       the two stay on the same baseline. */
+    padding-top: 9mm;
+    padding-bottom: 2mm;
+    border-bottom: 0.5pt solid #cbd2d9;
+}
+
+.wiq-p-header__top {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 2.5mm;
+}
+
+.wiq-p-logo {
+    font-size: 12pt;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1;
+}
+
+.wiq-p-logo--ibkr {
+    color: #0b3d6b;
+}
+
+.wiq-p-logo--ibkr b {
+    color: #d81222;
+    font-weight: 800;
+}
+
+.wiq-p-logo--tp {
+    color: #0f6f5c;
+}
+
+.wiq-p-logo--generic {
+    color: #1f2933;
+}
+
+.wiq-p-header__grid {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 6mm;
+}
+
+.wiq-p-header__ident {
+    display: grid;
+    grid-template-columns: 16mm auto;
+    column-gap: 2.5mm;
+    row-gap: 0.4mm;
+}
+
+.wiq-p-header__label {
+    color: #7b8794;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.wiq-p-header__value {
+    font-weight: 500;
+}
+
+.wiq-p-header__meta {
+    text-align: right;
+    color: #7b8794;
+    white-space: nowrap;
+}
+
+.wiq-p-header__meta b {
+    color: #1f2933;
+    font-weight: 500;
+}
+
+/* =======================================================================
+   Evidence tables
+   ======================================================================= */
+.wiq-p-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 7.6pt;
+    table-layout: auto;
+}
+
+.wiq-p-table th {
+    text-align: left;
+    font-weight: 600;
+    color: #52606d;
+    border-bottom: 0.75pt solid #616e7c;
+    padding: 1.2mm 1.5mm;
+    white-space: nowrap;
+}
+
+/* Numeric headers must follow their column, not the generic left rule above —
+   which outranks .wiq-p-num on specificity and would otherwise strand a header
+   at the far side of a wide column from its figures. */
+.wiq-p-table th.wiq-p-num {
+    text-align: right;
+}
+
+.wiq-p-table td {
+    padding: 1.1mm 1.5mm;
+    border-bottom: 0.25pt solid #e4e7eb;
+    vertical-align: top;
+}
+
+.wiq-p-table thead {
+    display: table-header-group; /* repeat the header across page breaks */
+}
+
+.wiq-p-table tr {
+    break-inside: avoid;
+}
+
+.wiq-p-table tfoot td {
+    border-top: 0.75pt solid #616e7c;
+    border-bottom: none;
+    font-weight: 700;
+}
+
+/* Keep single-figure evidence tables from stretching one column across the page. */
+.wiq-p-table--narrow {
+    width: 60%;
+}
+
+.wiq-p-section-title {
+    font-size: 11pt;
+    font-weight: 700;
+    margin: 0 0 1mm;
+}
+
+.wiq-p-section-sub {
+    font-size: 7.5pt;
+    color: #7b8794;
+    margin: 0 0 3mm;
+}
+
+/* =======================================================================
+   Summary page: the aggregation shaped like the form it is typed into.
+   ======================================================================= */
+.wiq-p-doctitle {
+    font-size: 14pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 1.5pt solid #1f2933;
+    padding-bottom: 2mm;
+    margin-bottom: 4mm;
+}
+
+/* Tight enough that the whole summary — three blocks plus the closing note —
+   fits on page one; otherwise the note spills onto a page of its own. */
+.wiq-p-form {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 4mm;
+}
+
+.wiq-p-formhead td {
+    background: #1f2933;
+    color: #fff;
+    font-weight: 600;
+    font-size: 8pt;
+    padding: 1.6mm 2mm;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.wiq-p-form td {
+    padding: 1.1mm 2mm;
+    border-bottom: 0.25pt solid #cbd2d9;
+    vertical-align: baseline;
+}
+
+.wiq-p-form__line {
+    width: 18mm;
+    color: #7b8794;
+    font-size: 7pt;
+    white-space: nowrap;
+}
+
+.wiq-p-form__amount {
+    width: 32mm;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    font-weight: 600;
+}
+
+.wiq-p-form__ref {
+    width: 24mm;
+    font-size: 6.8pt;
+    color: #7b8794;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.wiq-p-form__total td {
+    border-top: 1pt solid #1f2933;
+    border-bottom: 2.5pt double #1f2933;
+    font-weight: 700;
+    font-size: 9.5pt;
+    padding-top: 2mm;
+}
+
+/* Memo line under a total: carries a figure but is explicitly not part of the sum. */
+.wiq-p-memo td {
+    border-top: none;
+    font-weight: 400;
+    font-style: italic;
+    color: #52606d;
+}
+
+.wiq-p-belegnr {
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: 6.8pt;
+    color: #52606d;
+    white-space: nowrap;
+}
+
+/* Provenance line printed under each evidence row. */
+.wiq-p-srcline td {
+    border-bottom: 0.25pt solid #e4e7eb;
+    padding-top: 0;
+    font-size: 6.6pt;
+    color: #9aa5b1;
+}

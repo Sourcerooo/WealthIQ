@@ -1,0 +1,65 @@
+@* Running header of the printed tax report, repeated on every page by Paged.js.
+   Anatomy follows the broker's own statement: brand mark top-left, label/value identity block
+   bottom-left, report meta bottom-right. The page number is NOT here — CSS counters only
+   resolve inside a @@page margin box, so it lives in @@top-right (see steuerreport-print.css). *@
+@using WealthIQ.Web.Options
+
+<div class="wiq-p-header">
+    <div class="wiq-p-header__top">
+        @* Placeholder wordmarks. Replace with licensed brand assets before distributing
+           the report outside your own filing. *@
+        @if (IsInteractiveBrokers)
+        {
+            <div class="wiq-p-logo wiq-p-logo--ibkr">Interactive<b>Brokers</b></div>
+        }
+        else if (IsTradersPlace)
+        {
+            <div class="wiq-p-logo wiq-p-logo--tp">trader's&nbsp;place</div>
+        }
+        else
+        {
+            <div class="wiq-p-logo wiq-p-logo--generic">@BrokerName</div>
+        }
+    </div>
+
+    <div class="wiq-p-header__grid">
+        <div class="wiq-p-header__ident">
+            <span class="wiq-p-header__label">Name</span>
+            <span class="wiq-p-header__value">@Profile.Name</span>
+            <span class="wiq-p-header__label">Adresse</span>
+            <span class="wiq-p-header__value">@Profile.FormattedAddress</span>
+            <span class="wiq-p-header__label">Konto-ID</span>
+            <span class="wiq-p-header__value">@AccountNumber</span>
+            @if (!string.IsNullOrWhiteSpace(Profile.TaxId))
+            {
+                <span class="wiq-p-header__label">Steuer-ID</span>
+                <span class="wiq-p-header__value">@Profile.TaxId</span>
+            }
+        </div>
+        <div class="wiq-p-header__meta">
+            <div>Report-ID <b>@ReportId</b></div>
+            <div>Zeitraum <b>01.01.@Year – 31.12.@Year</b></div>
+            <div>Broker <b>@BrokerName</b></div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public TaxpayerProfileOptions Profile { get; set; } = default!;
+    [Parameter, EditorRequired] public string AccountNumber { get; set; } = "";
+    [Parameter, EditorRequired] public int Year { get; set; }
+
+    /// <summary>Importing broker as recorded on the ledger entries (<c>AccountTaxReport.SourceSystem</c>).</summary>
+    [Parameter] public string SourceSystem { get; set; } = "";
+
+    private bool IsInteractiveBrokers => SourceSystem.Equals("IBKR", StringComparison.OrdinalIgnoreCase);
+    private bool IsTradersPlace => SourceSystem.Equals("TradersPlace", StringComparison.OrdinalIgnoreCase);
+
+    private string BrokerName =>
+        IsInteractiveBrokers ? "Interactive Brokers"
+        : IsTradersPlace ? "Trader's Place"
+        : string.IsNullOrWhiteSpace(SourceSystem) ? "unbekannt" : SourceSystem;
+
+    // Stable and quotable, in the shape brokers use: <account>/<reporting date>.
+    private string ReportId => $"{AccountNumber}/{Year}1231";
+}
