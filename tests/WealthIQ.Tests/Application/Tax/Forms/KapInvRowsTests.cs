@@ -16,22 +16,23 @@ public sealed class KapInvRowsTests
         Assert.Equal(expected.OrderBy(x => x), covered.OrderBy(x => x));
     }
 
-    [Fact]
-    public void All_UsesTheVz2025LineNumbers()
+    [Theory]
+    [InlineData(TaxAssetClass.EquityFund, "4", "9", "14", "15", "16")]
+    [InlineData(TaxAssetClass.MixedFund, "5", "10", "17", "18", "19")]
+    [InlineData(TaxAssetClass.RealEstateFund, "6", "11", "20", "21", "22")]
+    [InlineData(TaxAssetClass.ForeignRealEstateFund, "7", "12", "23", "24", "25")]
+    [InlineData(TaxAssetClass.OtherFund, "8", "13", "26", "27", "28")]
+    public void All_UsesTheVz2025LineNumbers(
+        TaxAssetClass assetClass,
+        string distribution, string vorab, string sale, string alt, string fiktiv)
     {
-        var equity = KapInvRows.All.Single(x => x.Class == TaxAssetClass.EquityFund);
+        var row = KapInvRows.All.Single(x => x.Class == assetClass);
 
-        Assert.Equal("4", equity.DistributionLine);
-        Assert.Equal("9", equity.VorabLine);
-        Assert.Equal("14", equity.SaleLine);
-        Assert.Equal("15", equity.AltLine);
-        Assert.Equal("16", equity.FiktivLine);
-
-        var other = KapInvRows.All.Single(x => x.Class == TaxAssetClass.OtherFund);
-
-        Assert.Equal("8", other.DistributionLine);
-        Assert.Equal("13", other.VorabLine);
-        Assert.Equal("26", other.SaleLine);
+        Assert.Equal(distribution, row.DistributionLine);
+        Assert.Equal(vorab, row.VorabLine);
+        Assert.Equal(sale, row.SaleLine);
+        Assert.Equal(alt, row.AltLine);
+        Assert.Equal(fiktiv, row.FiktivLine);
     }
 
     [Fact]
