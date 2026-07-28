@@ -13,14 +13,17 @@ public static class TaxFormReportBuilder
     /// <summary>Bestandsgeschützte Alt-Anteile are units acquired before this date.</summary>
     private static readonly DateOnly AltAnteilCutoff = new(2009, 1, 1);
 
-    public static TaxFormReport Build(AnnualTaxReport report)
+    /// <param name="sourceSystem">The account's importing broker (<see cref="AccountTaxReport.SourceSystem"/>).
+    /// It — not the amount of KESt actually withheld — decides the route: a domestic paying agent
+    /// certifies the income on a Steuerbescheinigung even in a year where the Sparer-Pauschbetrag or
+    /// the broker's own Verlustverrechnung drove the withholding to zero.</param>
+    public static TaxFormReport Build(AnnualTaxReport report, string sourceSystem)
     {
         ArgumentNullException.ThrowIfNull(report);
 
-        // A German broker already withheld KESt, so the income is certified on a Steuerbescheinigung
-        // and declared on Anlage KAP Zeile 7 — Anlage KAP-INV is for income WITHOUT domestic
-        // withholding only.
-        var domestic = report.Summary.WithheldKESt > 0m;
+        // A German paying agent certifies the income on a Steuerbescheinigung, so it is declared on
+        // Anlage KAP Zeile 7 — Anlage KAP-INV is for income WITHOUT domestic withholding only.
+        var domestic = DomesticPayingAgents.IsDomestic(sourceSystem);
 
         var sections = new List<TaxFormSection>();
 
@@ -51,8 +54,26 @@ public static class TaxFormReportBuilder
                     Nachweis: "B"))
                 .ToList());
 
-    private static TaxFormSection BuildVorabpauschalen(AnnualTaxReport report) =>
-        new("KAP-INV",
+    private static TaxFormSection BuildVorabpauschalen(AnnualTaxReport report)
+    {
+        // Zeilen 9 to 13 cover the five fund classes and nothing else, so a Vorabpauschale booked on
+        // a Share/OtherSecurity would reach no form line at all while still counting toward
+        // Summary.VorabpauschaleTaxable — the form and the estimated tax on the same page would
+        // silently disagree. Fail loudly instead (CLAUDE.md: fail-fast everywhere).
+        foreach (var entry in report.Vorabpauschale)
+        {
+            var assetClass = ClassOf(entry);
+            if (!assetClass.IsFund())
+            {
+                throw new InvalidOperationException(
+                    $"Instrument '{entry.Isin}' is classified as '{assetClass}' but carries a "
+                    + "Vorabpauschale, which under § 18 InvStG can only arise on an investment fund. "
+                    + "Either the Assetklasse or the Vorabpauschale flag of this instrument is wrong. "
+                    + "Correct it under Stammdaten → Instrumente.");
+            }
+        }
+
+        return new TaxFormSection("KAP-INV",
             "Anlage KAP-INV: Vorabpauschalen (Zeilen 9 bis 13)",
             "Ermittlung je Fonds siehe Nachweis D (entspricht Zeilen 30 bis 45).",
             KapInvRows.All
@@ -62,6 +83,7 @@ public static class TaxFormReportBuilder
                     SumRaw(report.Vorabpauschale, row.Class),
                     Nachweis: "D"))
                 .ToList());
+    }
 
     private static TaxFormSection BuildSales(AnnualTaxReport report)
     {
@@ -132,10 +154,22 @@ public static class TaxFormReportBuilder
             .Where(e => ClassOf(e) == TaxAssetClass.OtherSecurity && e.RawAmount < 0m)
             .Sum(e => e.RawAmount);
 
+        // Safety net: this account is not treated as a domestic paying agent, yet German KESt was
+        // withheld on it. That is a genuine inconsistency — either the broker is a Zahlstelle after
+        // all (and the income belongs on Zeile 7) or the withheld amount is misattributed.
+        var note = "Ohne Investmenterträge — die stehen in der Anlage KAP-INV.";
+        if (report.Summary.WithheldKESt > 0m)
+        {
+            note += " Achtung: Auf diesem Konto wurde deutsche Kapitalertragsteuer einbehalten, "
+                + "obwohl es nicht als inländische Zahlstelle geführt wird. Bitte die "
+                + "Steuerbescheinigung des Kontos prüfen — die Erträge gehören dann in die "
+                + "Anlage KAP Zeile 7 statt in die Anlage KAP-INV.";
+        }
+
         return new TaxFormSection(
             "KAP",
             "Anlage KAP: Kapitalerträge ohne inländischen Steuerabzug",
-            "Ohne Investmenterträge — die stehen in der Anlage KAP-INV.",
+            note,
             [
                 new TaxFormLine("19", "Ausländische Kapitalerträge", total, Nachweis: "A · B · C"),
                 new TaxFormLine("20", "Darin enthaltene Gewinne aus Aktienveräußerungen", shareGains, Nachweis: "A",

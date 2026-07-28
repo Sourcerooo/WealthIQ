@@ -239,6 +239,17 @@
     margin-bottom: 4mm;
 }
 
+/* Stands in for the form block when it could not be built (e.g. an instrument with no
+   Assetklasse). Printed, not hidden: the reader has to see that this page is incomplete. */
+.wiq-p-notice {
+    border: 0.75pt solid #1f2933;
+    border-left-width: 2.5pt;
+    padding: 2.5mm 3mm;
+    margin-bottom: 4mm;
+    font-size: 8pt;
+    line-height: 1.5;
+}
+
 /* Tight enough that the whole summary — three blocks plus the closing note —
    fits on page one; otherwise the note spills onto a page of its own. */
 .wiq-p-form {

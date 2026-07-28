@@ -14,7 +14,7 @@ public sealed class TaxFormReportBuilderKapInvTests
             Entry(GermanTaxEntryType.Dividend, TaxAssetClass.EquityFund, raw: 1000m, taxable: 700m)
         ]);
 
-        var form = TaxFormReportBuilder.Build(report);
+        var form = TaxFormReportBuilder.Build(report, ForeignBroker);
 
         // 1000, not 700: KAP-INV wants the amount before Teilfreistellung.
         Assert.Equal(1000m, Line(form, "KAP-INV", "4").Amount);
@@ -29,7 +29,7 @@ public sealed class TaxFormReportBuilderKapInvTests
             Entry(GermanTaxEntryType.Vorabpauschale, TaxAssetClass.OtherFund, raw: 12m, taxable: 12m)
         ]);
 
-        var form = TaxFormReportBuilder.Build(report);
+        var form = TaxFormReportBuilder.Build(report, ForeignBroker);
 
         Assert.Equal(30m, Line(form, "KAP-INV", "10").Amount);
         Assert.Equal(12m, Line(form, "KAP-INV", "13").Amount);
@@ -45,7 +45,7 @@ public sealed class TaxFormReportBuilderKapInvTests
             Entry(GermanTaxEntryType.Sell, TaxAssetClass.EquityFund, raw: -200m, taxable: -140m)
         ]);
 
-        var form = TaxFormReportBuilder.Build(report);
+        var form = TaxFormReportBuilder.Build(report, ForeignBroker);
 
         Assert.Equal(600m, Line(form, "KAP-INV", "14").Amount);
     }
@@ -59,7 +59,7 @@ public sealed class TaxFormReportBuilderKapInvTests
                   openedOn: new DateOnly(2019, 3, 1))
         ]);
 
-        var form = TaxFormReportBuilder.Build(report);
+        var form = TaxFormReportBuilder.Build(report, ForeignBroker);
 
         var line15 = Line(form, "KAP-INV", "15");
         Assert.Equal(0m, line15.Amount);
@@ -75,7 +75,7 @@ public sealed class TaxFormReportBuilderKapInvTests
                   openedOn: new DateOnly(2007, 5, 4))
         ]);
 
-        var form = TaxFormReportBuilder.Build(report);
+        var form = TaxFormReportBuilder.Build(report, ForeignBroker);
 
         var line15 = Line(form, "KAP-INV", "15");
         Assert.Equal(800m, line15.Amount);
@@ -85,7 +85,7 @@ public sealed class TaxFormReportBuilderKapInvTests
     [Fact]
     public void Build_FiktiveVeraeusserungAndZwischengewinne_AreAlwaysZeroAndMuted()
     {
-        var form = TaxFormReportBuilder.Build(Report());
+        var form = TaxFormReportBuilder.Build(Report(), ForeignBroker);
 
         Assert.True(Line(form, "KAP-INV", "16").Muted);
         Assert.Equal(0m, Line(form, "KAP-INV", "16").Amount);
@@ -101,7 +101,7 @@ public sealed class TaxFormReportBuilderKapInvTests
             Entry(GermanTaxEntryType.Sell, assetClass: null, raw: 100m, taxable: 100m)
         ]);
 
-        var ex = Assert.Throws<InvalidOperationException>(() => TaxFormReportBuilder.Build(report));
+        var ex = Assert.Throws<InvalidOperationException>(() => TaxFormReportBuilder.Build(report, ForeignBroker));
 
         Assert.Contains("TESTISIN0001", ex.Message);
     }
@@ -114,7 +114,7 @@ public sealed class TaxFormReportBuilderKapInvTests
             Entry(GermanTaxEntryType.Sell, TaxAssetClass.OtherSecurity, raw: 500m, taxable: 500m)
         ]);
 
-        var form = TaxFormReportBuilder.Build(report);
+        var form = TaxFormReportBuilder.Build(report, ForeignBroker);
 
         var kapInvSaleLines = KapInvRows.All.Select(r => r.SaleLine);
         foreach (var line in kapInvSaleLines)

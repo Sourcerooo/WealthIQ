@@ -106,16 +106,26 @@ else if (Current is not null)
         <MudItem xs="12" sm="6" md="4"><StatCard Caption="Geschätzte Steuer" Value="@Current.Summary.EstimatedTax" Accent="true" CountUp="true" /></MudItem>
     </MudGrid>
 
-    @if (Forms is not null)
-    {
-        <div class="wiq-rise-3 mb-4">
-            <SectionCard Title="Eingabehilfe Steuerformulare">
-                <ChildContent>
-                    <TaxFormBlock Report="Forms" />
-                </ChildContent>
-            </SectionCard>
-        </div>
-    }
+    var (forms, formsError) = BuildForms();
+    <div class="wiq-rise-3 mb-4">
+        <SectionCard Title="Eingabehilfe Steuerformulare">
+            <ChildContent>
+                @if (forms is not null)
+                {
+                    <TaxFormBlock Report="forms" />
+                }
+                else
+                {
+                    @* The builder fails fast on data it cannot map to a form line. Show the reason
+                       here instead of letting it escape the render tree — the KPI cards and the
+                       drill-down tables below are what the user needs to find the culprit. *@
+                    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+                        Die Eingabehilfe konnte nicht erstellt werden: @formsError
+                    </MudAlert>
+                }
+            </ChildContent>
+        </SectionCard>
+    </div>
 
     @* Drill-down detail. *@
     <div class="wiq-rise-3">
@@ -154,7 +164,23 @@ else if (Current is not null)
     private AnnualTaxReport? Current => _reports.FirstOrDefault(r => r.Year == _selectedYear);
 
     // Rebuilt on every render; a pure regrouping of Current and cheap enough not to cache.
-    private TaxFormReport? Forms => Current is null ? null : TaxFormReportBuilder.Build(Current);
+    // Built defensively: TaxFormReportBuilder fails fast (e.g. on an instrument with no Assetklasse),
+    // and an exception escaping the render tree would tear down the Blazor circuit and replace the
+    // whole page — including the tables that identify the offending instrument — with the generic
+    // error screen. The message is surfaced verbatim instead.
+    private (TaxFormReport? Report, string? Error) BuildForms()
+    {
+        if (Current is null) return (null, null);
+
+        try
+        {
+            return (TaxFormReportBuilder.Build(Current, CurrentAccount?.SourceSystem ?? ""), null);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return (null, ex.Message);
+        }
+    }
 
     private readonly DonutChartOptions _chartOptions = new()
     {

@@ -30,7 +30,8 @@ public sealed class TaxFormReportGoldenTests
             entries.Where(x => x.Type == GermanTaxEntryType.WithholdingTax).ToList(),
             entries.Where(x => x.Type == GermanTaxEntryType.Vorabpauschale).ToList());
 
-        var form = TaxFormReportBuilder.Build(annual);
+        // "IBKR" is not an inländische Zahlstelle, so this takes the KAP / KAP-INV route.
+        var form = TaxFormReportBuilder.Build(annual, "IBKR");
 
         decimal Amount(string formName, string line) => form.Sections
             .Where(s => s.Form == formName).SelectMany(s => s.Lines).Single(x => x.Line == line).Amount;
@@ -59,6 +60,10 @@ public sealed class TaxFormReportGoldenTests
 
         // Baseline is 8937.22 (sum of rounded per-lot IGLN sells); a 1-cent difference from rounding
         // the unrounded sum is expected noise.
+        // NOTE: subtracting the interest isolates the gold ETC's gain only because this fixture
+        // carries no non-fund dividends — Zeile 19 is interest + non-fund sells + non-fund
+        // dividends. Adding a share dividend to the fixture later would silently weaken this
+        // assertion; split the expectation per income type at that point.
         var interest = annual.Interest.Sum(x => x.RawAmount);
         Assert.Equal(8937.23m, R(Amount("KAP", "19") - interest));
     }

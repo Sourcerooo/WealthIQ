@@ -9,6 +9,12 @@ namespace WealthIQ.Tests.Application.Tax.Forms;
 /// test classes construct entries/reports/line lookups the same way instead of duplicating them.</summary>
 internal static class TaxFormTestData
 {
+    /// <summary>A broker that is NOT an inländische Zahlstelle — the KAP-INV route.</summary>
+    internal const string ForeignBroker = "IBKR";
+
+    /// <summary>A broker on <see cref="DomesticPayingAgents.SourceSystems"/> — the Zeile-7 route.</summary>
+    internal const string DomesticBroker = "TradersPlace";
+
     internal static GermanTaxEntry Entry(
         GermanTaxEntryType type, TaxAssetClass? assetClass,
         decimal raw, decimal taxable, DateOnly? openedOn = null)

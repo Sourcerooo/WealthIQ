@@ -69,7 +69,22 @@ else
             </p>
 
             @* ---- Anlage KAP / KAP-INV ---- *@
-            <TaxFormBlock Report="Forms" />
+            @{
+                var (forms, formsError) = BuildForms();
+            }
+            @if (forms is not null)
+            {
+                <TaxFormBlock Report="forms" />
+            }
+            else
+            {
+                @* Plain markup: PrintLayout loads no MudBlazor. The Einzelnachweise below still
+                   render, so the document stays usable while naming what has to be fixed. *@
+                <div class="wiq-p-notice">
+                    <b>Die Eingabehilfe für Anlage KAP / KAP-INV konnte nicht erstellt werden.</b>
+                    @formsError
+                </div>
+            }
 
             @* ---- Ergebnis ---- *@
             <table class="wiq-p-form">
@@ -150,7 +165,20 @@ else
     private decimal TaxBase => Summary.NetRealizedGainsTaxable + Summary.DividendsTaxable
         + Summary.InterestTaxable + Summary.VorabpauschaleTaxable;
 
-    private TaxFormReport Forms => TaxFormReportBuilder.Build(Current!);
+    // Built defensively: the builder fails fast on data it cannot map to a form line, and an
+    // exception escaping the render tree would tear down the circuit and leave the user with the
+    // generic Blazor error page instead of a report. The rest of the document still renders.
+    private (TaxFormReport? Report, string? Error) BuildForms()
+    {
+        try
+        {
+            return (TaxFormReportBuilder.Build(Current!, Account?.SourceSystem ?? ""), null);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return (null, ex.Message);
+        }
+    }
 
     private decimal GrossTax => Math.Max(0m, TaxBase) * 0.26375m;
 
