@@ -222,14 +222,34 @@ else
 
     private static string Beleg(string prefix, int index) => $"{prefix}-{(index + 1):D3}";
 
-    private static string SaleLineFor(TaxAssetClass? assetClass)
-        => KapInvRows.All.FirstOrDefault(r => r.Class == assetClass)?.SaleLine ?? "—";
+    // A subtotal on a transcription document must name where the figure goes. Everything runs
+    // through one helper so the three Nachweis subtotals cannot drift apart.
+    private static string SaleDestinationFor(TaxAssetClass? assetClass)
+        => DestinationFor(assetClass, r => r.SaleLine);
 
-    private static string VorabLineFor(TaxAssetClass? assetClass)
-        => KapInvRows.All.FirstOrDefault(r => r.Class == assetClass)?.VorabLine ?? "—";
+    private static string DistributionDestinationFor(TaxAssetClass? assetClass)
+        => DestinationFor(assetClass, r => r.DistributionLine);
 
-    private static string DistributionLineFor(TaxAssetClass? assetClass)
-        => KapInvRows.All.FirstOrDefault(r => r.Class == assetClass)?.DistributionLine ?? "—";
+    // Anlage KAP has no Vorabpauschale line, and TaxFormReportBuilder rejects a Vorabpauschale on a
+    // non-fund outright, so this only ever prints when the instrument's classification is wrong.
+    private static string VorabDestinationFor(TaxAssetClass? assetClass)
+        => DestinationFor(assetClass, r => r.VorabLine,
+            nonFund: "kein Formularfeld — eine Vorabpauschale entsteht nur bei Investmentfonds");
+
+    /// <summary>Fund classes point at their KAP-INV line; Share and OtherSecurity at Anlage KAP
+    /// Zeile 19, which is where TaxFormReportBuilder actually puts those amounts.</summary>
+    private static string DestinationFor(
+        TaxAssetClass? assetClass,
+        Func<KapInvRows.FundRow, string> lineOf,
+        string nonFund = "Anlage KAP Zeile 19")
+    {
+        var row = KapInvRows.All.FirstOrDefault(r => r.Class == assetClass);
+        if (row is not null) return $"Anlage KAP-INV Zeile {lineOf(row)}";
+
+        return assetClass is null
+            ? "ohne Assetklasse — bitte unter Stammdaten → Instrumente setzen"
+            : nonFund;
+    }
 
     // Groups read top-to-bottom in the same order the form block lists its Zeilen (4/9/14 etc.),
     // so a reader transcribing line by line doesn't have to hunt for each fund class. A class not
@@ -329,7 +349,7 @@ else
                     @* A Roh-G/V subtotal DOES hold inside one fund class — the Teilfreistellung
                        quota is uniform there — and it is exactly the figure the form wants. *@
                     <tr class="wiq-p-subtotal">
-                        <td colspan="9">Summe @AssetClassLabel(group.Key) → Anlage KAP-INV Zeile @SaleLineFor(group.Key)</td>
+                        <td colspan="9">Summe @AssetClassLabel(group.Key) → @SaleDestinationFor(group.Key)</td>
                         <td class="wiq-p-num @NegClass(group.Sum(r => r.RawAmount))">@Num(group.Sum(r => r.RawAmount))</td>
                         <td class="wiq-p-num">@Num(group.Sum(r => r.UsedVorabpauschale))</td>
                         <td class="wiq-p-num">@Num(group.Sum(r => r.TaxableAmount))</td>
@@ -425,7 +445,7 @@ else
                     @if (groupByAssetClass)
                     {
                         <tr class="wiq-p-subtotal">
-                            <td colspan="4">Summe @AssetClassLabel(group.Key) → Anlage KAP-INV Zeile @DistributionLineFor(group.Key)</td>
+                            <td colspan="4">Summe @AssetClassLabel(group.Key) → @DistributionDestinationFor(group.Key)</td>
                             <td class="wiq-p-num">@Num(group.Sum(r => r.RawAmount))</td>
                             <td class="wiq-p-num">@Num(group.Sum(r => r.RawAmount - r.TaxableAmount))</td>
                             <td class="wiq-p-num">@Num(group.Sum(r => r.TaxableAmount))</td>
@@ -492,7 +512,7 @@ else
                         </tr>
                     }
                     <tr class="wiq-p-subtotal">
-                        <td colspan="10">Summe @AssetClassLabel(group.Key) → Anlage KAP-INV Zeile @VorabLineFor(group.Key)</td>
+                        <td colspan="10">Summe @AssetClassLabel(group.Key) → @VorabDestinationFor(group.Key)</td>
                         <td class="wiq-p-num">@Num(group.Sum(r => r.RawAmount))</td>
                         <td class="wiq-p-num">@Num(group.Sum(r => r.TaxableAmount))</td>
                     </tr>
