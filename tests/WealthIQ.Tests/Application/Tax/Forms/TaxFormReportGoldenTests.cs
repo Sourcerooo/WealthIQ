@@ -1,15 +1,7 @@
-using WealthIQ.Application.Import;
-using WealthIQ.Application.Import.Enumeration;
-using WealthIQ.Application.Tax;
 using WealthIQ.Application.Tax.Report;
 using WealthIQ.Application.Tax.Report.Forms;
 using WealthIQ.Domain.Enumeration;
-using WealthIQ.Domain.Model.General;
-using WealthIQ.Infrastructure.Ibkr.Currency;
-using WealthIQ.Infrastructure.Ibkr.Import;
-using WealthIQ.Infrastructure.Ibkr.MarketData;
-using WealthIQ.Infrastructure.Ibkr.Tax;
-using WealthIQ.Infrastructure.ReferenceData;
+using WealthIQ.Tests.Application.Tax;
 
 namespace WealthIQ.Tests.Application.Tax.Forms;
 
@@ -24,33 +16,9 @@ public sealed class TaxFormReportGoldenTests
     [Fact]
     public async Task Build_2024Fixture_KeepsFundIncomeOnKapInvAndTheGoldEtcOnKap()
     {
-        var repoRoot = FindRepositoryRoot();
-        var inputPath = Path.Combine(repoRoot, "data", "test", "statements");
-        var configurationPath = Path.Combine(repoRoot, "data", "test", "configuration");
-
-        var importer = new IbkrStatementImporter();
-        var importResult = await importer.ImportAsync(new ImportRequest
-        {
-            AccountId = (AccountId)Guid.Parse("11111111-1111-1111-1111-111111111111"),
-            Source = new ImportSource(Broker.InteractiveBrokers, Format.XML, inputPath)
-        }, CancellationToken.None);
+        var (importResult, result) = await TaxFixture.CalculateAsync();
 
         Assert.DoesNotContain(importResult.Diagnostics, x => x.Severity >= WealthIQ.Application.Import.Diagnostic.ImportDiagnosticSeverity.Error);
-
-        var instrumentCatalog = new InstrumentCatalogBuilder(
-            new JsonInstrumentProfileEnricher(Path.Combine(configurationPath, "instruments.json")))
-            .Build(importResult.Instruments);
-
-        var priceProvider = new DerivedInstrumentPriceProvider(
-            new JsonInstrumentMarketDataMap(Path.Combine(configurationPath, "listings.json")),
-            new CsvHistoricalPriceLookup(Path.Combine(configurationPath, "historical_prices.csv")));
-
-        var calculator = new GermanTaxCalculator(
-            new CsvBasisInterestRateProvider(Path.Combine(configurationPath, "basiszins.csv")),
-            priceProvider,
-            new CsvFxRateLookup(Path.Combine(configurationPath, "fx_rates.csv")));
-
-        var result = calculator.Calculate(importResult.PortfolioLedger, instrumentCatalog);
 
         var entries = result.Entries.Where(x => x.Year == 2024).ToList();
         var annual = new AnnualTaxReport(
@@ -93,21 +61,5 @@ public sealed class TaxFormReportGoldenTests
         // the unrounded sum is expected noise.
         var interest = annual.Interest.Sum(x => x.RawAmount);
         Assert.Equal(8937.23m, R(Amount("KAP", "19") - interest));
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "WealthIQ.slnx")))
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new InvalidOperationException("Repository root could not be located.");
     }
 }
