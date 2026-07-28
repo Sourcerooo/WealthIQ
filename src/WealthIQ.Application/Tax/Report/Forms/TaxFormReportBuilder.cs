@@ -17,14 +17,26 @@ public static class TaxFormReportBuilder
     {
         ArgumentNullException.ThrowIfNull(report);
 
-        var sections = new List<TaxFormSection>
-        {
-            BuildDistributions(report),
-            BuildVorabpauschalen(report),
-            BuildSales(report)
-        };
+        // A German broker already withheld KESt, so the income is certified on a Steuerbescheinigung
+        // and declared on Anlage KAP Zeile 7 — Anlage KAP-INV is for income WITHOUT domestic
+        // withholding only.
+        var domestic = report.Summary.WithheldKESt > 0m;
 
-        return new TaxFormReport(report.Year, DomesticWithholding: false, sections);
+        var sections = new List<TaxFormSection>();
+
+        if (domestic)
+        {
+            sections.Add(BuildDomestic(report));
+        }
+        else
+        {
+            sections.Add(BuildDistributions(report));
+            sections.Add(BuildVorabpauschalen(report));
+            sections.Add(BuildSales(report));
+            sections.Add(BuildKap(report));
+        }
+
+        return new TaxFormReport(report.Year, domestic, sections);
     }
 
     private static TaxFormSection BuildDistributions(AnnualTaxReport report) =>
@@ -95,4 +107,78 @@ public static class TaxFormReportBuilder
         => entry.AssetClass ?? throw new InvalidOperationException(
             $"Instrument '{entry.Isin}' has no tax asset class, so its {entry.Type} entry cannot be "
             + "mapped to a form line. Set the Assetklasse under Stammdaten → Instrumente.");
+
+    private static TaxFormSection BuildKap(AnnualTaxReport report)
+    {
+        // Zeile 19 is a NET sum of everything that is not an investment fund; funds are declared on
+        // KAP-INV instead and must not be counted here as well.
+        var nonFundSells = report.Sells.Where(e => !ClassOf(e).IsFund()).ToList();
+        var nonFundDividends = report.Dividends.Where(e => !ClassOf(e).IsFund()).ToList();
+
+        var total = report.Interest.Sum(e => e.RawAmount)
+            + nonFundSells.Sum(e => e.RawAmount)
+            + nonFundDividends.Sum(e => e.RawAmount);
+
+        var shareGains = nonFundSells
+            .Where(e => ClassOf(e) == TaxAssetClass.Share && e.RawAmount > 0m)
+            .Sum(e => e.RawAmount);
+
+        // Zeilen 22 and 23 restate the losses ALREADY contained in Zeile 19, as positive figures.
+        var shareLosses = -nonFundSells
+            .Where(e => ClassOf(e) == TaxAssetClass.Share && e.RawAmount < 0m)
+            .Sum(e => e.RawAmount);
+
+        var otherLosses = -nonFundSells
+            .Where(e => ClassOf(e) == TaxAssetClass.OtherSecurity && e.RawAmount < 0m)
+            .Sum(e => e.RawAmount);
+
+        return new TaxFormSection(
+            "KAP",
+            "Anlage KAP: Kapitalerträge ohne inländischen Steuerabzug",
+            "Ohne Investmenterträge — die stehen in der Anlage KAP-INV.",
+            [
+                new TaxFormLine("19", "Ausländische Kapitalerträge", total, Nachweis: "A · B · C"),
+                new TaxFormLine("20", "Darin enthaltene Gewinne aus Aktienveräußerungen", shareGains, Nachweis: "A",
+                    Muted: shareGains == 0m),
+                new TaxFormLine("22", "Darin enthaltene Verluste ohne Aktienveräußerungen", otherLosses, Nachweis: "A",
+                    Muted: otherLosses == 0m),
+                new TaxFormLine("23", "Darin enthaltene Verluste aus Aktienveräußerungen", shareLosses, Nachweis: "A",
+                    Muted: shareLosses == 0m),
+                new TaxFormLine("37", "Einbehaltene deutsche Kapitalertragsteuer", report.Summary.WithheldKESt,
+                    Muted: report.Summary.WithheldKESt == 0m),
+                new TaxFormLine("41", "Anrechenbare, noch nicht angerechnete ausländische Steuern",
+                    report.WithholdingTaxes.Sum(e => e.ForeignWithholdingTax), Nachweis: "E"),
+                new TaxFormLine("42", "Fiktive ausländische Steuern", 0m, Muted: true)
+            ]);
+    }
+
+    private static TaxFormSection BuildDomestic(AnnualTaxReport report)
+    {
+        // Certified figures are already net of Teilfreistellung, so this route uses TaxableAmount.
+        var certified = report.Sells.Sum(e => e.TaxableAmount)
+            + report.Dividends.Sum(e => e.TaxableAmount)
+            + report.Interest.Sum(e => e.TaxableAmount)
+            + report.Vorabpauschale.Sum(e => e.TaxableAmount);
+
+        var shareGains = report.Sells
+            .Where(e => ClassOf(e) == TaxAssetClass.Share && e.TaxableAmount > 0m)
+            .Sum(e => e.TaxableAmount);
+
+        return new TaxFormSection(
+            "KAP",
+            "Anlage KAP: Kapitalerträge mit inländischem Steuerabzug",
+            "Maßgeblich ist die Steuerbescheinigung des Brokers. Die folgenden Zahlen dienen der "
+                + "Kontrolle. Solidaritätszuschlag und Kirchensteuer erfasst WealthIQ nicht.",
+            [
+                new TaxFormLine("7", "Kapitalerträge, die dem inländischen Steuerabzug unterlegen haben",
+                    certified, Nachweis: "A · B · C · D"),
+                new TaxFormLine("8", "Darin enthaltene Gewinne aus Aktienveräußerungen", shareGains, Nachweis: "A",
+                    Muted: shareGains == 0m),
+                new TaxFormLine("37", "Kapitalertragsteuer", report.Summary.WithheldKESt),
+                new TaxFormLine("38", "Solidaritätszuschlag", 0m, Muted: true),
+                new TaxFormLine("39", "Kirchensteuer zur Kapitalertragsteuer", 0m, Muted: true),
+                new TaxFormLine("41", "Anrechenbare, noch nicht angerechnete ausländische Steuern",
+                    report.WithholdingTaxes.Sum(e => e.ForeignWithholdingTax), Nachweis: "E")
+            ]);
+    }
 }
